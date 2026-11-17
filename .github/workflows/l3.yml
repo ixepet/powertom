@@ -1,0 +1,71 @@
+# L3 官方校验层(docs/project-design.md §5.5,外部评审 2026-11-17):
+# 用 Microsoft Open XML SDK 的 OpenXmlValidator 在 Windows runner 上校验
+# 渲染产物 —— 最接近 PowerPoint 校验口径的机器检查,能拦住 LibreOffice
+# 静默容忍的 schema 级违规(元素顺序、必填属性缺失)。
+#
+# 分两步:ubuntu 渲染 L3 deck 集(tools/build_l3_decks.rb)→ windows 校验
+# (tools/openxml_validator,net8.0 + DocumentFormat.OpenXml)。
+# 新上线为观察模式(continue-on-error),稳定后转为阻塞;
+# 每日定时跑一次,防止上游依赖漂移静默劣化。
+name: L3 OpenXML validation
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    - cron: "0 3 * * *" # 每日 03:00 UTC
+  workflow_dispatch:
+
+concurrency:
+  group: l3-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-decks:
+    name: 渲染 L3 deck 集(LibreOffice-free)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.4"
+          bundler-cache: true
+
+      - name: 渲染 L3 deck 集
+        run: bundle exec ruby tools/build_l3_decks.rb decks
+
+      - name: 上传 deck
+        uses: actions/upload-artifact@v4
+        with:
+          name: l3-decks
+          path: decks/*.pptx
+          retention-days: 3
+          if-no-files-found: error
+
+  validate:
+    name: OpenXmlValidator(windows)
+    needs: build-decks
+    runs-on: windows-latest
+    # L3 观察模式:先收集误报,稳定后移除此行转为阻塞
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: l3-decks
+          path: decks
+
+      - name: OpenXmlValidator 校验(含入库的 mini 模板)
+        run: >
+          dotnet run --project tools/openxml_validator -c Release --
+          decks/charts_template.pptx
+          decks/charts_all.pptx
+          decks/mini_golden.pptx
+          spec/fixtures/mini/template.pptx

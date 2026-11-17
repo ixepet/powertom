@@ -4,6 +4,19 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- L3 official validation layer: a minimal .NET tool
+  (`tools/openxml_validator`, OpenXmlValidator / DocumentFormat.OpenXml)
+  plus an `L3 OpenXML validation` workflow — ubuntu renders the L3 deck set
+  (`tools/build_l3_decks.rb`: every supported chart family, `#each`-cloned
+  combo pages, the mini golden render), a windows-latest job runs the
+  validator against the decks and the committed mini template. Observation
+  mode (`continue-on-error`) until false positives are triaged; a daily
+  schedule guards against silent upstream drift.
+
 ## [0.4.1] - 2026-11-17
 
 ### Added

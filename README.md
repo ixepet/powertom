@@ -229,9 +229,12 @@ Two fixture tiers cover the end-to-end paths:
 - **Committed mini golden sample** (`spec/fixtures/mini/template.pptx`): split-run
   merging, multi-tag paragraphs, page cloning/removal, picture replacement,
   chart data binding and LibreOffice fidelity run in every CI build
-  (`spec/powertom/mini_golden_spec.rb`).
-  Regenerate it with `bundle exec ruby tools/build_mini_golden.rb` if the template
-  needs new coverage.
+  (`spec/powertom/mini_golden_spec.rb`). Regenerate it with
+  `bundle exec ruby tools/build_mini_golden.rb` if the template needs new coverage.
+- **L3 official validation** (`.github/workflows/l3.yml`): the rendered deck set
+  (`tools/build_l3_decks.rb`) is checked with Microsoft's OpenXmlValidator on a
+  Windows runner (`tools/openxml_validator`) — the closest machine-checkable
+  approximation of PowerPoint's own tolerance. Currently in observation mode.
 - **Private golden sample**: the larger real-world deck used by the HaiMate
   examples (`spec/fixtures/hai_mate/template.pptx`) is not committed, because of
   size and ownership; only its structural snapshot `spec/fixtures/hai_mate/manifest.toml` is. With the original template at hand:
