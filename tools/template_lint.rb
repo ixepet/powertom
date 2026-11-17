@@ -138,12 +138,12 @@ module PowerTomDev
         PowerTom::Scanner.scan([ctx]).each do |label|
           labels[ctx[:slide_no]] << (label[:spec] ? "#{label[:path]}:#{label[:spec]}" : label[:path])
         end
-        # {{#rows}} / {{#grid}} 不是可绑定标签,但契约里应能声明它们
+        # {{#rows}} / {{#cols}} / 闭合标记不是可绑定标签,但契约里应能声明它们
         next unless ctx[:in_table]
 
         ctx[:run_texts].join.scan(PowerTom::Scanner::TAG_RE).each do |tag|
           raw = tag[/\{\{\s*([^{}]*?)\s*\}\}/, 1].to_s
-          labels[ctx[:slide_no]] << raw if raw.match?(/\A#(rows|grid)\s/)
+          labels[ctx[:slide_no]] << raw if raw.match?(/\A#(rows|grid|cols)\s|\A\/(rows|cols)\z/)
         end
       rescue PowerTom::TemplateSyntaxError => e
         entries << Entry.new(level: :error, page: ctx[:slide_no],

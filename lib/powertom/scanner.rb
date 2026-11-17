@@ -80,7 +80,7 @@ module PowerTom
     def validate!(raw, tag, ctx)
       where = "第 #{ctx[:slide_no]} 页 形状'#{ctx[:shape]}'"
       if raw.start_with?("#") || raw.start_with?("/")
-        if ctx[:in_table] && (raw.match?(/\A#rows\s+\S/) || raw.start_with?("#grid"))
+        if ctx[:in_table] && raw.match?(/\A#(rows|grid|cols|if)\b|\A\/(rows|cols|if)\z/)
           validate_table_directive!(raw, tag, where)
           return
         end
@@ -95,27 +95,31 @@ module PowerTom
       end
     end
 
-    # 表格指令:{{#rows 路径}} / {{#grid rows: .. cols: ..}}。
+    # 表格指令:{{#rows 路径}} / {{#grid ...}} / {{#cols ...}} / {{/rows}} / {{/cols}}。
     # 这里只做轻量语法校验,结构(层级/位置/作用域)由 TableLoop 校验。
-    def validate_table_directive!(raw, tag, where)
-      return validate_row_marker!(raw, tag, where) if raw.start_with?("#rows")
+    GRID_MARKER_RE = /\A#grid\s+.+\z/.freeze
+    COLS_MARKER_RE = /\A#cols\s+[A-Za-z0-9_\.]+(?:\s+value:\s*[A-Za-z0-9_\.]+(?:\s*,\s*[A-Za-z0-9_\.]+)*)?\z/.freeze
+    IF_MARKER_RE = /\A#if\s+[A-Za-z0-9_\[\]\.]+\z/.freeze
+    CLOSE_MARKER_RE = /\A\/(rows|cols|if)\z/.freeze
 
-      unless raw.match?(/\A#grid\s+\S/)
+    def validate_table_directive!(raw, tag, where)
+      case raw
+      when /\A#rows\s/
+        validate_row_marker!(raw, tag, where)
+      when GRID_MARKER_RE, COLS_MARKER_RE, IF_MARKER_RE, CLOSE_MARKER_RE
+        nil
+      else
         raise TemplateSyntaxError,
-              "#{where}:#{tag} grid 标记不合法," \
-              "应为 {{#grid rows: 数组 cols: 数组 [value: 字段]}}"
+              "#{where}:#{tag} 表格指令不合法,只支持 {{#rows 路径}} / {{#grid ...}} / " \
+              "{{#cols ...}} / {{#if 路径}} / {{/rows}} / {{/cols}} / {{/if}}"
       end
     end
 
-    # 表格行标记 {{#rows 路径}}:只校验路径写法,结构(层级/位置)由 TableLoop 校验
+    # 表格行标记 {{#rows 路径}}:只校验路径写法,结构与层级由 TableLoop 校验
     def validate_row_marker!(raw, tag, where)
       unless raw.match?(/\A#rows\s+[A-Za-z0-9_\[\]\.]+\z/)
         raise TemplateSyntaxError,
               "#{where}:#{tag} 行标记不合法,应为 {{#rows 路径}}(路径只支持点路径与 [])"
-      end
-      if raw.scan("[]").size > 1
-        raise TemplateSyntaxError,
-              "#{where}:#{tag} 堆叠层级超过 2 级,只支持「父级 → 子级」两层"
       end
       return unless raw.match?(/\[\d+\]/)
 

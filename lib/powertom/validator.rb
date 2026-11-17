@@ -94,6 +94,7 @@ module PowerTom
 
       # 2. 正文标签:逐段校验语法;合法标签按页归组
       labels_by_page = Hash.new { |h, k| h[k] = [] }
+      labels_by_table_row = Hash.new { |h, k| h[k] = [] }
       contexts.each do |ctx|
         labels = begin
           Scanner.scan([ctx])
@@ -112,17 +113,28 @@ module PowerTom
           entries << error_entry(ctx[:slide_no], ctx[:shape], nil, strip_location(e.message))
           next
         end
-        labels.each { |l| labels_by_page[ctx[:slide_no]] << l }
+        labels.each do |l|
+          labels_by_page[ctx[:slide_no]] << l
+          if ctx[:table_shape]
+            labels_by_table_row[[ctx[:slide_no], ctx[:table_shape], ctx[:row_index]]] << l
+          end
+        end
       end
 
-      # 2.3 表格循环结构:#rows/#grid 标记位置、层级、作用域、合并单元格
+      # 2.3 表格循环结构:#rows/#grid/#cols 标记位置、层级、作用域、合并单元格
       table_plans = {}
+      failed_tables = Set.new
       table_structures.each do |table|
         plan = TableLoop.plan(table[:rows], merged_rows: table[:merged_rows],
                                             columns: table[:columns])
         table_plans[[table[:slide_no], table[:shape]]] = plan if plan
       rescue TemplateSyntaxError => e
+        failed_tables << [table[:slide_no], table[:shape]]
         entries << error_entry(table[:slide_no], table[:shape], nil, e.message)
+      end
+      block_row_stacks = {}
+      table_plans.each do |key, plan|
+        block_row_stacks[key] = TableLoop.build_row_stacks(plan[:blocks]) if plan[:kind] == :blocks
       end
 
       # 2.5 formatter 注册对账(§3.4):不依赖样例数据
@@ -147,7 +159,11 @@ module PowerTom
         end
         labels_by_page.each_value do |labels|
           labels.each do |l|
-            grid = grid_plan_for(table_plans, l[:context])
+            ctx = l[:context]
+            next if ctx[:table_shape] && failed_tables.include?([ctx[:slide_no], ctx[:table_shape]])
+            next if block_row_stacks.dig([ctx[:slide_no], ctx[:table_shape]], ctx[:row_index])
+
+            grid = grid_plan_for(table_plans, ctx)
             if grid && grid_variable_path?(l[:path])
               reconcile_grid_label(l, grid, data, entries)
             elsif l[:path].include?("[]")
@@ -157,12 +173,15 @@ module PowerTom
             end
           end
         end
+        reconcile_block_tables(table_plans, labels_by_table_row, data, entries)
         pictures.each do |pctx|
           reconcile_picture(pctx, directives[pctx[:slide_no]], data, entries)
         end
         labels_by_page.each_value do |labels|
           labels.each do |l|
             next if l[:path].include?("[]")
+            next if block_row_stacks.dig([l[:context][:slide_no], l[:context][:table_shape]],
+                                          l[:context][:row_index])
             next if grid_plan_for(table_plans, l[:context]) && grid_variable_path?(l[:path])
 
             overflow_check(l, directives[l[:context][:slide_no]], data, entries)
@@ -175,16 +194,28 @@ module PowerTom
           labels.each do |l|
             directive = directives[l[:context][:slide_no]]
             next if directive && directive[:kind] == :each
+            if block_row_stacks.dig([l[:context][:slide_no], l[:context][:table_shape]],
+                                     l[:context][:row_index])
+              used_roots << root_of(l[:path]) unless grid_variable_path?(l[:path])
+              next
+            end
             next if grid_plan_for(table_plans, l[:context]) && grid_variable_path?(l[:path])
 
             used_roots << root_of(l[:path])
           end
         end
         table_plans.each_value do |plan|
-          next unless plan[:kind] == :grid
-
-          used_roots << root_of(plan[:grid][:rows_path])
-          used_roots << root_of(plan[:grid][:cols_path])
+          case plan[:kind]
+          when :grid
+            used_roots << root_of(plan[:grid][:rows_path])
+            used_roots << root_of(plan[:grid][:cols_path])
+          when :blocks
+            each_block(plan[:blocks]) do |block|
+              used_roots << root_of(block[:path])
+              block[:ifs].each { |node| used_roots << root_of(node[:path]) }
+            end
+            used_roots << root_of(plan[:cols][:path]) if plan[:cols]
+          end
         end
         unused = data.keys.map(&:to_s) - used_roots.to_a
         unused.each do |key|
@@ -369,7 +400,7 @@ module PowerTom
 
       unless value.is_a?(Array)
         entries << error_entry(ctx[:slide_no], ctx[:shape], path,
-                               "取到 #{value.class},grid 需要数组")
+                               "取到 #{value.class},循环需要数组")
         return nil
       end
       if value.empty?
@@ -414,6 +445,193 @@ module PowerTom
     def grid_variable_path?(path)
       path == "cell" || path == "row" || path.start_with?("row.") ||
         path == "col" || path.start_with?("col.")
+    end
+
+    # ---- v0.2.0:行区块 + 列带对账 ----
+
+    def reconcile_block_tables(plans, labels_by_row, data, entries)
+      plans.each do |(slide_no, shape), plan|
+        next unless plan[:kind] == :blocks
+
+        ctx = { slide_no: slide_no, shape: shape }
+        cols = plan[:cols] ? (resolve_grid_array(plan[:cols][:path], ctx, data, entries) || []) : []
+        reconcile_blocks(plan[:blocks], {}, nil, cols, plan[:cols], labels_by_row, ctx, data, entries)
+      end
+    end
+
+    # 与渲染同一套行计划:按区块逐项展开,再对每一行模板里的标签对账
+    def reconcile_blocks(blocks, parent_scope, parent_item, cols, band,
+                         labels_by_row, ctx, data, entries)
+      blocks.each do |block|
+        items = block_array(block, parent_item, ctx, data, entries)
+        next if items.nil?
+        if items.empty?
+          entries << CheckEntry.new(level: :warning, slide_no: ctx[:slide_no], shape: ctx[:shape],
+                                    label: block[:path],
+                                    message: "数组 '#{block[:path]}' 为空:渲染时该行区块会被移除")
+          next
+        end
+
+        items.each_with_index do |item, index|
+          scope = parent_scope.merge(block[:prefix] => item)
+          where = "区块 #{block[:path]} 第 #{index + 1} 项"
+          row = block[:open] + 1
+          while row < block[:close]
+            if_node = block[:ifs].find { |n| n[:open] == row }
+            if if_node
+              if block_condition_true?(if_node[:path], item, scope, ctx, data, entries, where)
+                (if_node[:open] + 1...if_node[:close]).each do |r|
+                  labels_by_row[[ctx[:slide_no], ctx[:shape], r]].each do |label|
+                    reconcile_block_label(label, scope, item, cols, band, where, data, entries)
+                  end
+                end
+              end
+              row = if_node[:close] + 1
+              next
+            end
+
+            child = block[:children].find { |c| c[:open] == row }
+            if child
+              reconcile_blocks([child], scope, item, cols, band, labels_by_row, ctx, data, entries)
+              row = child[:close] + 1
+            else
+              labels_by_row[[ctx[:slide_no], ctx[:shape], row]].each do |label|
+                reconcile_block_label(label, scope, item, cols, band, where, data, entries)
+              end
+              row += 1
+            end
+          end
+        end
+      end
+    end
+
+    def block_array(block, parent_item, ctx, data, entries)
+      value = if parent_item
+                PathResolver.resolve(parent_item, block[:relative])
+              else
+                PathResolver.resolve(data, block[:path])
+              end
+      unless value.is_a?(Array)
+        entries << error_entry(ctx[:slide_no], ctx[:shape], block[:path],
+                               "取到 #{value.class},行区块需要数组")
+        return nil
+      end
+      value
+    rescue MissingDataError => e
+      message = parent_item ? "父项缺少 '#{block[:relative]}'(#{e.message})" : e.message
+      entries << error_entry(ctx[:slide_no], ctx[:shape], block[:path], message)
+      nil
+    end
+
+    # #if 条件求值:含 [] 走作用域栈;否则先看当前记录,再看整页数据
+    def block_condition_true?(path, item, scope, ctx, data, entries, where)
+      value = if path.include?("[]")
+                prefix = scope.keys.select { |key| path == key || path.start_with?("#{key}.") }
+                              .max_by(&:length)
+                if prefix.nil?
+                  entries << error_entry(ctx[:slide_no], ctx[:shape], path,
+                                         "#{where}:条件路径不在行区块作用域内")
+                  return false
+                end
+                remainder = path.delete_prefix(prefix).delete_prefix(".")
+                remainder.empty? ? scope[prefix] : PathResolver.resolve(scope[prefix], remainder)
+              else
+                begin
+                  PathResolver.resolve(item, path)
+                rescue MissingDataError
+                  PathResolver.resolve(data, path)
+                end
+              end
+      !(value.nil? || value == false)
+    rescue MissingDataError => e
+      entries << error_entry(ctx[:slide_no], ctx[:shape], path,
+                             "#{where}:条件求值失败:#{e.message}")
+      false
+    end
+
+    def reconcile_block_label(label, scope, row_item, cols, band, where, data, entries)
+      path = label[:path]
+      ctx = label[:context]
+      if path == "cell"
+        reconcile_block_cells(ctx, row_item, cols, band, where, entries)
+      elsif path.start_with?("row.")
+        reconcile_row_item_path(ctx, path, row_item, where, entries)
+      elsif path.start_with?("col.")
+        reconcile_col_item_path(ctx, path, cols, where, entries)
+      elsif path.include?("[]")
+        reconcile_block_scope_path(label, scope, where, entries)
+      else
+        reconcile_page_path(ctx, path, data, entries)
+      end
+    end
+
+    def reconcile_row_item_path(ctx, path, row_item, where, entries)
+      remainder = path.delete_prefix("row.")
+      PathResolver.resolve(row_item, remainder)
+    rescue MissingDataError => e
+      entries << error_entry(ctx[:slide_no], ctx[:shape], path, "#{where}:#{e.message}")
+    end
+
+    def reconcile_col_item_path(ctx, path, cols, where, entries)
+      remainder = path.delete_prefix("col.")
+      cols.each_with_index do |col, index|
+        PathResolver.resolve(col, remainder)
+      rescue MissingDataError => e
+        entries << error_entry(ctx[:slide_no], ctx[:shape], path,
+                               "#{where},第 #{index + 1} 列:#{e.message}")
+      end
+    end
+
+    def reconcile_page_path(ctx, path, data, entries)
+      PathResolver.resolve(data, path)
+    rescue MissingDataError => e
+      entries << error_entry(ctx[:slide_no], ctx[:shape], path, e.message)
+    end
+
+    def reconcile_block_cells(ctx, row_item, cols, band, where, entries)
+      width = band[:width]
+      cols.each_with_index do |col, col_index|
+        width.times do |template_index|
+          value_path = GridValue.band_value_path(band[:value_paths], template_index)
+          GridValue.cell_value(row_item, col, value_path)
+        rescue MissingDataError => e
+          entries << error_entry(ctx[:slide_no], ctx[:shape], "cell",
+                                 "#{where},#{cell_where(col_index, template_index, width)}:" \
+                                 "#{e.message}")
+        end
+      end
+    end
+
+    def cell_where(col_index, template_index, width)
+      return "第 #{col_index + 1} 列" if width == 1
+
+      "第 #{col_index + 1} 个列项的第 #{template_index + 1} 个模板列"
+    end
+
+    # 完整路径:按作用域栈里最长的匹配前缀取值
+    def reconcile_block_scope_path(label, scope, where, entries)
+      path = label[:path]
+      ctx = label[:context]
+      prefix = scope.keys.select { |key| path == key || path.start_with?("#{key}.") }
+                    .max_by(&:length)
+      if prefix.nil?
+        entries << error_entry(ctx[:slide_no], ctx[:shape], path,
+                               "#{where}:路径不在行区块作用域内")
+        return
+      end
+      remainder = path.delete_prefix(prefix).delete_prefix(".")
+      return if remainder.empty?
+
+      PathResolver.resolve(scope[prefix], remainder)
+    rescue MissingDataError => e
+      entries << error_entry(ctx[:slide_no], ctx[:shape], label[:path], "#{where}:#{e.message}")
+    end
+
+    def each_block(blocks, &block)
+      blocks.each do |item|
+        block.call(item)
+        each_block(item[:children], &block)
+      end
     end
 
     # 表格行循环标签:{{数组[].字段}} / {{父[].子[].字段}} 逐级对账;

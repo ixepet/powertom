@@ -19,6 +19,16 @@ module PowerTom
       key
     end
 
+    # 列带里第 template_index 个模板列对应的取值字段:
+    #   未声明 value → nil(row[col.key])
+    #   声明 1 个   → 所有模板列共用
+    #   声明多个     → 与模板列一一对应(数量由 TableLoop 校验)
+    def band_value_path(value_paths, template_index)
+      return nil if value_paths.nil? || value_paths.empty?
+
+      value_paths.size == 1 ? value_paths.first : value_paths[template_index]
+    end
+
     def cell_value(row, col, value_path)
       key = column_key(col)
       container = value_path ? PathResolver.resolve(row, value_path) : row

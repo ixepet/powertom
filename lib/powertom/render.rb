@@ -91,8 +91,10 @@ module PowerTom
         page = page_scopes[ctx[:slide_no] - 1]
         row_scopes = row_scopes_for(table_scopes, ctx)
         grid_scope = grid_scope_for(table_scopes, ctx)
+        row_item = row_item_for(table_scopes, ctx)
         bctx = ctx.merge(scope: page[:scope], scope_root: page[:scope_root],
-                         row_scopes: row_scopes, grid_scope: grid_scope)
+                         row_scopes: row_scopes, grid_scope: grid_scope,
+                         row_item: row_item)
         new_texts = RunMerge.merge(
           ctx[:run_texts],
           ->(path, spec) { binder.render_label(path, bctx, spec: spec) }
@@ -196,6 +198,8 @@ module PowerTom
                                                       expand_simple_rows(adapter, table, plan, binder)
                                                     when :nested
                                                       expand_nested_rows(adapter, table, plan, binder)
+                                                    when :blocks
+                                                      expand_block_rows(adapter, table, plan, binder)
                                                     else
                                                       expand_grid_rows(adapter, table, plan, binder)
                                                     end
@@ -266,6 +270,163 @@ module PowerTom
       end
     end
 
+    # v0.2.0 区块:配对行区块(多行记录、最多 3 级)+ 单列带(可写在区块内)
+    def expand_block_rows(adapter, table, plan, binder)
+      ctx = { slide_no: table[:slide_no], shape: table[:shape] }
+      band = plan[:cols]
+      cols = []
+      if band
+        cols = fetch_loop_array(binder, band[:path], table, ctx)
+        check_grid_columns!(cols, table, ctx)
+        # 先剥离标记,再复制列:否则标记会被复制到每一列
+        adapter.strip_column_markers(table[:element], band[:row], band[:first_col], band[:last_col])
+        adapter.expand_column_band(table[:element], table[:frame],
+                                   band[:first_col], band[:last_col], cols.size)
+      end
+
+      # 行索引在列克隆后不变,先捕获顶层区块的开闭行元素
+      roots = plan[:blocks].map do |block|
+        { block: block,
+          open_el: adapter.table_row_element(table[:element], block[:open]),
+          close_el: adapter.table_row_element(table[:element], block[:close]),
+          items: fetch_loop_array(binder, block[:path], table, ctx) }
+      end
+      roots.each do |node|
+        node[:children_by_item] = resolve_block_children(node[:block], {}, node[:items], table, ctx)
+        node[:if_values_by_item] = node[:items].map do |item|
+          block_if_values(node[:block], item, {})
+        end
+      end
+
+      records = build_block_row_records(roots, table[:rows].size)
+      roots.each do |node|
+        node[:groups] = adapter.clone_table_row_range(
+          table[:element], node[:open_el], node[:close_el], node[:items].size
+        )
+        expand_block_children(adapter, table, node)
+      end
+      adapter.refresh_table_height(table[:element], table[:frame])
+
+      { kind: :blocks, records: records, cols: cols, band: band }
+    end
+
+    # 子区块的数组依赖父项:按每个父项解析一次,供行计划与展开复用
+    def resolve_block_children(block, parent_scope, items, table, ctx)
+      items.each_with_index.map do |item, index|
+        scope = parent_scope.merge(block[:prefix] => item)
+        block[:children].map do |child|
+          child_items = fetch_child_array(item, child[:relative], table, ctx, index)
+          {
+            block: child,
+            items: child_items,
+            if_values_by_item: child_items.map { |ci| block_if_values(child, ci, scope) },
+            children_by_item: resolve_block_children(child, scope, child_items, table, ctx)
+          }
+        end
+      end
+    end
+
+    def block_if_values(block, item, parent_scope)
+      scope = parent_scope.merge(block[:prefix] => item)
+      block[:ifs].to_h do |node|
+        [node, condition_truthy?(node[:path], item, scope)]
+      end
+    end
+
+    # #if 求值:含 [] 时按作用域栈;否则先看当前记录,再看整页数据
+    def condition_truthy?(path, item, scope)
+      value = if path.include?("[]")
+                prefix = scope.keys.select { |key| path == key || path.start_with?("#{key}.") }
+                              .max_by(&:length)
+                raise PowerTom::Error, "{{#if #{path}}} 不在当前行区块作用域内" unless prefix
+
+                remainder = path.delete_prefix(prefix).delete_prefix(".")
+                remainder.empty? ? scope[prefix] : PathResolver.resolve(scope[prefix], remainder)
+              else
+                begin
+                  PathResolver.resolve(item, path)
+                rescue MissingDataError
+                  PathResolver.resolve(@data, path)
+                end
+              end
+      !(value.nil? || value == false)
+    rescue MissingDataError => e
+      raise MissingDataError, "{{#if #{path}}} 无法求值:#{e.message}"
+    end
+
+    # 展开后的行作用域计划:下标与最终行号一一对应;静态行为 nil
+    def build_block_row_records(roots, row_count)
+      records = []
+      cursor = 0
+      roots.each do |node|
+        (cursor...node[:block][:open]).each { records << nil }
+        append_block_records(node, {}, records)
+        cursor = node[:block][:close] + 1
+      end
+      (cursor...row_count).each { records << nil }
+      records
+    end
+
+    def append_block_records(node, parent_scope, records)
+      block = node[:block]
+      node[:items].each_with_index do |item, index|
+        scope = parent_scope.merge(block[:prefix] => item)
+        record = { scopes: scope, row_item: item }
+        append_block_template_records(block, node[:children_by_item][index], scope, records, record,
+                                      node[:if_values_by_item][index])
+      end
+    end
+
+    # 区块内:条件范围按真假取舍,子区块范围由子区块计划替代,其余行各输出一条记录
+    def append_block_template_records(block, children, scope, records, record, if_values)
+      row = block[:open] + 1
+      while row < block[:close]
+        if_node = block[:ifs].find { |node| node[:open] == row }
+        if if_node
+          (if_node[:open] + 1...if_node[:close]).each { records << record } if if_values[if_node]
+          row = if_node[:close] + 1
+          next
+        end
+
+        child = children.find { |node| node[:block][:open] == row }
+        if child
+          append_block_records(child, scope, records)
+          row = child[:block][:close] + 1
+        else
+          records << record
+          row += 1
+        end
+      end
+    end
+
+    # 递归展开子区块:先裁剪条件范围,再按模板相对偏移展开子区块
+    def expand_block_children(adapter, table, node)
+      block = node[:block]
+      node[:items].each_index do |index|
+        group = node[:groups][index]
+        prune_block_ifs(adapter, table, group, block, node[:if_values_by_item][index])
+
+        block[:children].each do |child|
+          child_node = node[:children_by_item][index].find { |cn| cn[:block] == child }
+          open_el = group[child[:open] - block[:open] - 1]
+          close_el = group[child[:close] - block[:open] - 1]
+          child_node[:groups] = adapter.clone_table_row_range(
+            table[:element], open_el, close_el, child_node[:items].size
+          )
+          expand_block_children(adapter, table, child_node)
+        end
+      end
+    end
+
+    def prune_block_ifs(adapter, table, group, block, if_values)
+      block[:ifs].each do |node|
+        open_el = group[node[:open] - block[:open] - 1]
+        close_el = group[node[:close] - block[:open] - 1]
+        adapter.prune_table_row_range(table[:element], open_el, close_el,
+                                      keep_content: if_values[node])
+      end
+    end
+
     def fetch_loop_array(binder, path, table, ctx)
       items = binder.value_at(path, ctx)
       return items if items.is_a?(Array)
@@ -294,6 +455,11 @@ module PowerTom
 
       scope = scopes[[ctx[:slide_no], ctx[:table_shape]]]
       return nil unless scope
+
+      if scope[:kind] == :blocks
+        record = scope[:records][ctx[:row_index]]
+        return record ? record[:scopes] : nil
+      end
       return nil if scope[:kind] == :grid
 
       offset = ctx[:row_index] - scope[:start]
@@ -315,13 +481,14 @@ module PowerTom
       end
     end
 
-    # #grid 单元格作用域:{col: 列项, row: 行项, cell: 行列交叉值}
-    # 首列没有 col;非内容行没有 row。交叉值延迟到真正使用 {{cell}} 时计算。
+    # #grid / 区块列带的单元格作用域:{col: 列项, row: 行项, cell: 行列交叉值}
     def grid_scope_for(scopes, ctx)
       return nil unless ctx[:table_shape]
 
       scope = scopes[[ctx[:slide_no], ctx[:table_shape]]]
-      return nil unless scope && scope[:kind] == :grid
+      return nil unless scope
+      return block_grid_scope(scope, ctx) if scope[:kind] == :blocks
+      return nil unless scope[:kind] == :grid
 
       col_index = ctx[:col_index].to_i
       col = col_index.positive? ? scope[:cols][col_index - 1] : nil
@@ -335,6 +502,40 @@ module PowerTom
         grid[:cell] = -> { GridValue.cell_value(row, col, scope[:value_path]) }
       end
       grid.empty? ? nil : grid
+    end
+
+    def block_grid_scope(scope, ctx)
+      band = scope[:band]
+      return nil unless band
+
+      col_index = ctx[:col_index].to_i
+      start = band[:first_col]
+      width = band[:last_col] - start + 1
+      return nil if col_index < start || col_index >= start + width * scope[:cols].size
+
+      col = scope[:cols][(col_index - start) / width]
+      template_index = (col_index - start) % width
+      value_path = GridValue.band_value_path(band[:value_paths], template_index)
+      record = scope[:records][ctx[:row_index]]
+      row = record && record[:row_item]
+
+      grid = { col: col }
+      if row
+        grid[:row] = row
+        grid[:cell] = -> { GridValue.cell_value(row, col, value_path) }
+      end
+      grid
+    end
+
+    # 行区块里的当前记录(供 {{row.*}} 使用)
+    def row_item_for(scopes, ctx)
+      return nil unless ctx[:table_shape]
+
+      scope = scopes[[ctx[:slide_no], ctx[:table_shape]]]
+      return nil unless scope && scope[:kind] == :blocks
+
+      record = scope[:records][ctx[:row_index]]
+      record && record[:row_item]
     end
 
     # §2.3 数据有模板未使用的字段 → warning(v0 只追踪顶层字段)

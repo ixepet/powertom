@@ -60,7 +60,7 @@ module PowerTom
     private
 
     def record_root(path, context)
-      return if context[:grid_scope] && grid_variable?(path)
+      return if (context[:grid_scope] || context[:row_item]) && grid_variable?(path)
 
       if context[:scope]
         @used_root_keys << context[:scope_root].to_s if context[:scope_root]
@@ -89,9 +89,20 @@ module PowerTom
     # #grid 作用域另见 resolve_grid_label({{row.x}} / {{col.y}} / {{cell}})。
     def resolve_label(path, context)
       return resolve_grid_label(path, context) if context[:grid_scope]
+      if context[:row_item] && (path == "row" || path.start_with?("row."))
+        return resolve_row_item_label(path, context)
+      end
       return resolve(path, context) unless path.include?("[]")
 
       resolve_row_label(path, context)
+    end
+
+    # 行区块里的 {{row.*}}:指向当前记录的字段
+    def resolve_row_item_label(path, context)
+      item = context[:row_item]
+      return item if path == "row"
+
+      resolve_grid_item(item, path.delete_prefix("row."), path, context)
     end
 
     # #grid 单元格作用域:col(Hash/标量)、row(行数据)、cell(行列交叉值)

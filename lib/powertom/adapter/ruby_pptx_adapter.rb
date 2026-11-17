@@ -196,14 +196,97 @@ module PowerTom
       # grid 标记只用于声明,渲染前从表头首格移除(保留同格的其他文字与首 run 样式)
       def strip_grid_marker(table_element, row_index, column_index)
         cell = table_element.tr_list[row_index].tc_list[column_index]
+        strip_tags_in_cell(cell, /\{\{\s*#grid\b[^{}]*\}\}/)
+        true
+      end
+
+      # 列带标记({{#cols}} / {{/cols}})在列克隆前移除,避免被复制到每一列
+      def strip_column_markers(table_element, row_index, first_col, last_col)
+        cells = table_element.tr_list[row_index].tc_list
+        (first_col..last_col).each do |c|
+          strip_tags_in_cell(cells[c], /\{\{\s*(?:#cols\b[^{}]*|\/cols)\s*\}\}/)
+        end
+        true
+      end
+
+      def table_row_element(table_element, row_index)
+        table_element.tr_list[row_index]
+      end
+
+      # 把 [open_element, close_element] 之间的模板行整体克隆 count 份。
+      # 返回每份克隆的行元素数组(按输出顺序),并删除开闭标记与模板行。
+      def clone_table_row_range(table_element, open_element, close_element, count)
+        trs = table_element.tr_list
+        open_index = trs.index { |tr| tr.node == open_element.node }
+        close_index = trs.index { |tr| tr.node == close_element.node }
+        unless open_index && close_index && close_index > open_index
+          raise PowerTom::Error, "行区块标记定位失败(区块可能已被展开)"
+        end
+
+        templates = (open_index + 1...close_index).map { |i| trs[i] }
+        groups = Array.new(count) do
+          templates.map { |template| open_element.add_previous_sibling(table_element.import(template)) }
+        end
+        ([open_element, close_element] + templates).each { |tr| table_element.remove(tr) }
+        groups
+      end
+
+      # 条件区块:标记行总是删除;keep_content=false 时内容行一并删除
+      def prune_table_row_range(table_element, open_element, close_element, keep_content:)
+        trs = table_element.tr_list
+        open_index = trs.index { |tr| tr.node == open_element.node }
+        close_index = trs.index { |tr| tr.node == close_element.node }
+        unless open_index && close_index && close_index > open_index
+          raise PowerTom::Error, "条件区块标记定位失败(区块可能已被展开)"
+        end
+
+        content = (open_index + 1...close_index).map { |i| trs[i] }
+        content.each { |tr| table_element.remove(tr) } unless keep_content
+        table_element.remove(open_element)
+        table_element.remove(close_element)
+        true
+      end
+
+      # 区块展开/裁剪后统一刷新表格高度
+      def refresh_table_height(table_element, frame_element)
+        sync_table_height(table_element, frame_element)
+        true
+      end
+
+      # 动态列带:模板列 [first_col..last_col] 按 count 克隆(表格网格 + 每一行)
+      def expand_column_band(table_element, frame_element, first_col, last_col, count)
+        grid = table_element.xpath("./a:tblGrid").first
+        grid_cols = grid.gridCol_list
+        template_cols = (first_col..last_col).map { |i| grid_cols[i] }
+        anchor = grid_cols[last_col]
+        count.times do
+          template_cols.each { |col| anchor.add_previous_sibling(grid.import(col)) }
+        end
+        template_cols.each { |col| grid.remove(col) }
+
+        table_element.tr_list.each do |tr|
+          cells = tr.tc_list
+          template_cells = (first_col..last_col).map { |i| cells[i] }
+          cell_anchor = cells[last_col]
+          count.times do
+            template_cells.each { |cell| cell_anchor.add_previous_sibling(tr.import(cell)) }
+          end
+          template_cells.each { |cell| tr.remove(cell) }
+        end
+        sync_table_height(table_element, frame_element)
+        true
+      end
+
+      # 把单元格段落里的指定标签移除(保留同格其他文字与首 run 样式)
+      def strip_tags_in_cell(cell, pattern)
         cell.xpath("./a:txBody/a:p").each do |paragraph|
           runs = paragraph.xpath("./a:r")
           next if runs.empty?
 
           joined = runs.map { |run| run.xpath("./a:t").first&.text.to_s }.join
-          next unless joined.include?("#grid")
+          next unless joined.match?(pattern)
 
-          cleaned = joined.gsub(/\{\{\s*#grid\b[^{}]*\}\}/, "").strip
+          cleaned = joined.gsub(pattern, "").strip
           runs.each_with_index do |run, i|
             text_node = run.xpath("./a:t").first
             text_node.text = i.zero? ? cleaned : "" if text_node
