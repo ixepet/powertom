@@ -450,6 +450,21 @@ RSpec.describe PowerTom, ".render 图表绑定" do
     end
   end
 
+  it "保存时图表 schema 归一化:无负数 axId,radar ser 无非法 smooth(L3 取证)" do
+    template = build_radar_template(Pptx::Enum::XL_CHART_TYPE::RADAR_MARKERS)
+    out = File.join(@dir, "out_normalize.pptx")
+    PowerTom.render(template, data: { radar: { categories: %w[Jan Feb Mar],
+                                               series: [{ name: "T", values: [1, 2, 3] }] } }).save(out)
+
+    adapter = PowerTom::Adapter::RubyPptxAdapter.new
+    xml = adapter.find_shape(adapter.open(out), 1, "powertom:chart:radar").chart.element.to_xml
+    aggregate_failures do
+      expect(xml.scan(/val="-\d+"/)).to be_empty
+      expect(xml).not_to include("<c:smooth")
+      expect(PowerTomDev::OoxmlLint.lint(out)).to be_empty
+    end
+  end
+
   it "check:雷达图数据齐全 → 无 error" do
     template = build_radar_template(Pptx::Enum::XL_CHART_TYPE::RADAR_MARKERS)
     result = PowerTom.check(template, data: { radar: { categories: %w[Jan Feb Mar],

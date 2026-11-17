@@ -44,6 +44,15 @@ and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
 
 ### Fixed
 
+- Chart schema normalization on save (L3 first-run findings): upstream chart
+  writers use negative axis id constants (`VAL_AX_ID = "-2112772216"`) where
+  OOXML requires unsigned ints, and `RadarChartWriter` writes a `c:smooth`
+  into radar series although that element does not exist in the radar ser
+  schema. LibreOffice and PowerPoint tolerate both, but `OpenXmlValidator`
+  rejects them (6 findings per axis chart, 2 per radar series). Saving now
+  normalizes every chart in the package: negative `c:axId`/`c:crossAx`
+  values are wrapped to uint32 (references stay self-consistent) and illegal
+  radar `c:smooth` nodes are removed.
 - Chart binding font consistency: the regenerated embedded workbook had no
   `xl/styles.xml` (except for date categories, where the base font was
   hardcoded to Calibri), so PowerPoint's "Edit Data" fell back to the local

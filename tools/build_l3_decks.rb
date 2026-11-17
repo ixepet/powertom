@@ -84,7 +84,8 @@ module PowerTomDev
       end
       frame.name = "powertom:chart:combo_run"
 
-      prs.save(path)
+      # 走 adapter.save:保存前做图表 schema 归一化(负 axId / radar smooth)
+      PowerTom::Adapter::RubyPptxAdapter.new.save(prs, path)
       path
     end
 

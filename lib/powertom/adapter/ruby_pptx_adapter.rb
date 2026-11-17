@@ -50,6 +50,40 @@ module PowerTom
         runs.each_with_index { |run, i| run.text = texts[i] }
       end
 
+      # §6 保存:先做图表 schema 归一化(补偿上游 writer 缺陷),再写盘
+      def save(prs, path)
+        normalize_chart_quirks(prs)
+        prs.save(path)
+        path
+      end
+
+      # 上游图表 writer 的两个缺陷(L3 OpenXmlValidator 首跑取证):
+      # 1. 轴 id 常量是负数(如 VAL_AX_ID="-2112772216"),而 ST_DrawingElementId
+      #    是 UnsignedInt —— LibreOffice/PowerPoint 宽容,官方校验器拒绝;
+      #    把全部 c:axId/c:crossAx 的负值 wrap 到 uint32,引用自洽。
+      # 2. RadarChartWriter 给每个 ser 写 c:smooth,但 radar ser 的 schema
+      #    没有该子元素 —— 直接移除。
+      def normalize_chart_quirks(prs)
+        prs.slides.each do |slide|
+          walk_shapes(slide.shapes) do |shape|
+            next unless shape.respond_to?(:chart?) && shape.chart?
+
+            normalize_chart_element(shape.chart.element)
+          end
+        end
+      end
+
+      def normalize_chart_element(chart_el)
+        chart_el.xpath(".//c:axId | .//c:crossAx").each do |el|
+          val = el.get("val").to_i
+          el.set("val", (val & 0xFFFFFFFF).to_s) if val.negative?
+        end
+        chart_el.xpath(".//c:radarChart//c:ser/c:smooth").each do |smooth|
+          smooth.parent.remove(smooth)
+        end
+        chart_el
+      end
+
       # 备注文本(§3.3:v0 不渲染备注,只用于发现其中的标签并记 warning)。
       # 返回 [{slide_no:, text:}];无备注页返回空串。
       def notes_texts(prs)
@@ -786,10 +820,6 @@ module PowerTom
         found = nil
         walk_shapes(slide.shapes) { |shape| found ||= shape if shape.name == name }
         found
-      end
-
-      def save(prs, path)
-        prs.save(path)
       end
 
       private

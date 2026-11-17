@@ -74,7 +74,8 @@ module PowerTomDev
       textbox(closing, "mini-end", 0.5, 3.0, 8, 1) { |frame| frame.text = "THE END" }
 
       FileUtils.mkdir_p(File.dirname(out_path))
-      prs.save(out_path)
+      # 走 adapter.save:保存前做图表 schema 归一化(负 axId / radar smooth)
+      PowerTom::Adapter::RubyPptxAdapter.new.save(prs, out_path)
       verify(out_path)
       out_path
     end
