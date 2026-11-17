@@ -1,0 +1,328 @@
+# 成绩分析报告 · v2 样例数据(对齐真实 9 页 deck:4 张表格 + 文本指标)
+# 顶层标量必须写在所有表/数组表之前(TOML 规则)。
+
+report_title = "2026 学年第一学期期末统考成绩分析"
+school_name = "示例中学"
+grade_name = "初二年级"
+exam_name = "期末统考"
+report_date = 2026-01-20
+data_source = "教务系统期末统考成绩(2026-01-15 导出)"
+show_appendix = true
+
+kpi_note = "整体稳中有升,2、8 班需重点关注"
+class_comparison_note = "3 班领先,8 班连续两次低于年级均分"
+class_note = "优秀线 629 分,及格线 444 分"
+subject_note = "物理是共性短板,实验题得分率仅 61%"
+distribution_note = "未及格 47 人,8 班占比最高"
+student_note = "节选前 10 人,完整名单随附件下发"
+
+[totals]
+class_count = 486
+avg = "82.2"
+excellent = "29.6%"
+pass = "90.3%"
+full_score = 740
+rate = "82.4%"
+excellent_count = 144
+good_count = 188
+pass_count = 107
+fail_count = 47
+
+[[kpis]]
+label = "平均分"
+value = "82.2"
+delta = "+1.1 分"
+
+[[kpis]]
+label = "优秀率(≥85%)"
+value = "29.6%"
+delta = "+2.3pt"
+
+[[kpis]]
+label = "及格率(≥60%)"
+value = "90.3%"
+delta = "+0.6pt"
+
+[[kpis]]
+label = "参考人数"
+value = "486"
+delta = "+12 人"
+
+[[classes]]
+name = "初二(1)班"
+count = 61
+avg = "81.5"
+excellent = "27.9%"
+pass = "93.4%"
+delta = "+1.2"
+rank = 1
+
+[[classes]]
+name = "初二(2)班"
+count = 61
+avg = "80.0"
+excellent = "24.6%"
+pass = "88.5%"
+delta = "-0.5"
+rank = 2
+
+[[classes]]
+name = "初二(3)班"
+count = 60
+avg = "85.4"
+excellent = "36.7%"
+pass = "90.0%"
+delta = "+2.4"
+rank = 3
+
+[[classes]]
+name = "初二(4)班"
+count = 61
+avg = "82.9"
+excellent = "31.1%"
+pass = "91.8%"
+delta = "+1.5"
+rank = 4
+
+[[classes]]
+name = "初二(5)班"
+count = 60
+avg = "81.4"
+excellent = "28.3%"
+pass = "90.0%"
+delta = "+0.8"
+rank = 5
+
+[[classes]]
+name = "初二(6)班"
+count = 62
+avg = "83.8"
+excellent = "33.9%"
+pass = "91.9%"
+delta = "+2.0"
+rank = 6
+
+[[classes]]
+name = "初二(7)班"
+count = 61
+avg = "84.2"
+excellent = "34.4%"
+pass = "93.4%"
+delta = "+2.3"
+rank = 7
+
+[[classes]]
+name = "初二(8)班"
+count = 60
+avg = "78.7"
+excellent = "20.0%"
+pass = "83.3%"
+delta = "-1.1"
+rank = 8
+
+[[subjects]]
+name = "语文"
+full = 120
+avg = "100.9"
+rate = "84.1%"
+top = "初二(3)班"
+weak = "作文立意与议论文结构"
+
+[[subjects]]
+name = "数学"
+full = 120
+avg = "95.2"
+rate = "79.3%"
+top = "初二(7)班"
+weak = "几何证明书写不规范"
+
+[[subjects]]
+name = "英语"
+full = 120
+avg = "100.3"
+rate = "83.6%"
+top = "初二(3)班"
+weak = "听力后段细节抓取"
+
+[[subjects]]
+name = "物理"
+full = 100
+avg = "73.8"
+rate = "73.8%"
+top = "初二(6)班"
+weak = "实验设计与结论表述"
+
+[[subjects]]
+name = "道德与法治"
+full = 70
+avg = "61.7"
+rate = "88.1%"
+top = "初二(4)班"
+weak = "材料题观点提炼"
+
+[[subjects]]
+name = "历史"
+full = 70
+avg = "60.0"
+rate = "85.7%"
+top = "初二(7)班"
+weak = "时间轴与因果关联"
+
+[[subjects]]
+name = "地理"
+full = 70
+avg = "57.3"
+rate = "81.9%"
+top = "初二(3)班"
+weak = "等高线判读"
+
+[[subjects]]
+name = "生物学"
+full = 70
+avg = "60.5"
+rate = "86.4%"
+top = "初二(6)班"
+weak = "遗传图解分析"
+
+[[distribution]]
+name = "初二(1)班"
+excellent = 17
+good = 25
+pass = 15
+fail = 4
+count = 61
+
+[[distribution]]
+name = "初二(2)班"
+excellent = 15
+good = 25
+pass = 14
+fail = 7
+count = 61
+
+[[distribution]]
+name = "初二(3)班"
+excellent = 22
+good = 20
+pass = 12
+fail = 6
+count = 60
+
+[[distribution]]
+name = "初二(4)班"
+excellent = 19
+good = 24
+pass = 13
+fail = 5
+count = 61
+
+[[distribution]]
+name = "初二(5)班"
+excellent = 17
+good = 23
+pass = 14
+fail = 6
+count = 60
+
+[[distribution]]
+name = "初二(6)班"
+excellent = 21
+good = 25
+pass = 11
+fail = 5
+count = 62
+
+[[distribution]]
+name = "初二(7)班"
+excellent = 21
+good = 24
+pass = 12
+fail = 4
+count = 61
+
+[[distribution]]
+name = "初二(8)班"
+excellent = 12
+good = 22
+pass = 16
+fail = 10
+count = 60
+
+[[students]]
+name = "学生A"
+class_name = "初二(2)班"
+total = 398
+weak = "物理"
+advice = "基础题过关训练,每周一次答疑"
+
+[[students]]
+name = "学生B"
+class_name = "初二(2)班"
+total = 405
+weak = "物理、数学"
+advice = "双科结对辅导,同步家长沟通"
+
+[[students]]
+name = "学生C"
+class_name = "初二(8)班"
+total = 421
+weak = "数学"
+advice = "几何专题补弱,错题本每周批阅"
+
+[[students]]
+name = "学生D"
+class_name = "初二(8)班"
+total = 389
+weak = "英语"
+advice = "听力打卡计划,早晚读强化"
+
+[[students]]
+name = "学生E"
+class_name = "初二(5)班"
+total = 402
+weak = "数学"
+advice = "计算规范训练,限时小卷"
+
+[[students]]
+name = "学生F"
+class_name = "初二(1)班"
+total = 436
+weak = "英语"
+advice = "作文模板梳理,每周面批一次"
+
+[[students]]
+name = "学生G"
+class_name = "初二(2)班"
+total = 380
+weak = "物理、英语"
+advice = "以基础巩固为主,降低畏难情绪"
+
+[[students]]
+name = "学生H"
+class_name = "初二(8)班"
+total = 410
+weak = "物理"
+advice = "实验题专项,课后小灶辅导"
+
+[[students]]
+name = "学生I"
+class_name = "初二(5)班"
+total = 393
+weak = "历史"
+advice = "时间轴整理法,调整记忆策略"
+
+[[students]]
+name = "学生J"
+class_name = "初二(1)班"
+total = 380
+weak = "数学、物理"
+advice = "学法指导,目标分解到每周"
+
+[[measures]]
+text = "物理专题:每周一次实验训练,年级统一讲义"
+
+[[measures]]
+text = "数学规范:推行证明题步骤分训练,每两周一次限时测"
+
+[[measures]]
+text = "班级帮扶:2、8 班建立一对一结对,月度复盘"

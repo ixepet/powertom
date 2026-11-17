@@ -1,0 +1,94 @@
+# 成绩分析报告 · 样例数据(v1)
+# 与《成绩分析报告模板制作单》一一对应:模板里的每个标签都能在这里找到字段。
+# 用途:模板对账(powertom:check)与渲染验收;生产环境由服务端按同一结构组装。
+#
+# TOML 注意:顶层标量必须写在所有 [[数组表]] 之前,
+# 否则它们会归属到上一个数组元素里(TOML 语法规则,不是引擎限制)。
+# 图表路径在生产环境替换为受控目录下的绝对路径(见《狗粮场景接入方案》§7)。
+
+# ---- 顶层:封面 / 图表 / 结论 / 开关 ----
+report_title = "2026 学年第一学期期末成绩分析"
+school_name = "海思谷实验学校"
+exam_name = "期末统考"
+# TOML 本地日期:不加引号,引擎会归一化为 Ruby Date
+report_date = 2026-01-20
+
+overview_chart = "examples/score_report/assets/overview.png"
+class_rank_chart = "examples/score_report/assets/class_rank.png"
+subject_chart = "examples/score_report/assets/subject.png"
+
+class_comparison_note = "3 班与 7 班差距缩小到 1.2 分"
+subject_note = "物理实验题得分率仅 61%,是本次最明显的短板"
+
+show_appendix = true
+data_source = "教务系统期末统考成绩(2026-01-15 导出)"
+
+# ---- 总览:固定 4 个指标卡 ----
+[[kpis]]
+label = "平均分"
+value = "82.4"
+delta = "+1.8"
+
+[[kpis]]
+label = "优秀率"
+value = "31.2%"
+delta = "+2.4pt"
+
+[[kpis]]
+label = "及格率"
+value = "94.6%"
+delta = "+0.9pt"
+
+[[kpis]]
+label = "参考人数"
+value = "486"
+delta = ""
+
+# ---- 班级详情:每项一页 ----
+[[classes]]
+name = "初二(3)班"
+avg_score = "85.1"
+rank = "2/12"
+weak_subject = "物理"
+focus_students = "李明、王小雨"
+chart = "examples/score_report/assets/class_3.png"
+
+[[classes]]
+name = "初二(4)班"
+avg_score = "79.8"
+rank = "7/12"
+weak_subject = "英语"
+focus_students = "张一诺"
+chart = "examples/score_report/assets/class_3.png"
+
+[[classes]]
+name = "初二(5)班"
+avg_score = "81.6"
+rank = "4/12"
+weak_subject = "数学"
+focus_students = "周子墨、陈思远"
+chart = "examples/score_report/assets/class_3.png"
+
+[[classes]]
+name = "初二(7)班"
+avg_score = "83.9"
+rank = "3/12"
+weak_subject = "语文"
+focus_students = "无"
+chart = "examples/score_report/assets/class_3.png"
+
+# ---- 改进建议:固定 5 条,服务端保证补齐 ----
+[[tips]]
+text = "物理实验题安排两次专题训练"
+
+[[tips]]
+text = "4 班英语每周增加一次听力专项"
+
+[[tips]]
+text = "5 班数学压轴题拆成三步讲解"
+
+[[tips]]
+text = "7 班语文作文加强结构训练"
+
+[[tips]]
+text = "年级层面统一答题规范,减少非知识性失分"

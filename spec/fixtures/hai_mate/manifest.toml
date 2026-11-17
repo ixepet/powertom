@@ -1,0 +1,910 @@
+manifest_version = 1
+source = "8cd0035b-4e75-46e8-8887-4555b937d04f_e54e5615-5271-4b4c-84f9-28f7c4cb6c19_HaiMate_261109.pptx"
+generated_at = "2026-11-16 21:42:19 +0800"
+
+[template]
+slide_count = 18
+slide_size_emu = [12192000, 6858000]
+notes_slide_count = 18
+layout_count = 62
+master_count = 2
+embedded_font_count = 0
+tag_count = 312
+layouts_referenced = ["slideLayout35.xml", "slideLayout37.xml", "slideLayout5.xml", "slideLayout60.xml"]
+
+[stats]
+paragraphs = 158
+split_paragraphs = 51
+split_ratio = 0.323
+
+[stats.run_font_usage]
+"Source Han Sans CN Bold" = 89
+"Source Han Sans CN Regular" = 105
+"Source Han Sans CN" = 26
+"PingFang SC" = 1
+"(继承主题)" = 22
+"Source Han Sans CN Heavy" = 3
+
+[derived]
+stripped = ["fonts", "media"]
+media_replaced = 53
+fonts_removed = 9
+bytes_source = 126852163
+bytes_fixture = 1324411
+source_sha256 = "3ca57ccb04811ae8e7e8074600946016813672a9fa6827383068375dd8e6f83f"
+
+[[slides]]
+index = 1
+shape_count = 1
+pic_count = 2
+table_count = 0
+paragraphs = []
+layout = "slideLayout35.xml"
+notes = "改图片"
+
+[[slides]]
+index = 2
+shape_count = 18
+pic_count = 7
+table_count = 0
+layout = "slideLayout35.xml"
+notes = "改排版"
+
+[[slides.paragraphs]]
+shape = "文本框 18"
+text = "现状痛点"
+
+[[slides.paragraphs]]
+shape = "文本框 92"
+text = "教师的工作被\"切开了\""
+
+[[slides.paragraphs]]
+shape = "圆角矩形 4"
+text = "    工作复杂"
+runs = 2
+fragments = ["    ", "工作复杂"]
+
+[[slides.paragraphs]]
+shape = "文本框 5"
+text = "备课、分析、反思、档案和日常办公，每件事都在不同的入口、不同的工具里"
+
+[[slides.paragraphs]]
+shape = "圆角矩形 33"
+text = "    工具繁多"
+runs = 3
+fragments = ["    ", "工具", "繁多"]
+
+[[slides.paragraphs]]
+shape = "文本框 34"
+text = "对话、文件、技能和应用之间频繁切换，过程难以连续"
+
+[[slides.paragraphs]]
+shape = "圆角矩形 38"
+text = "    结果分散"
+runs = 3
+fragments = ["    ", "结果", "分散"]
+
+[[slides.paragraphs]]
+shape = "文本框 39"
+text = "生成内容缺少统一预览、修改、保存与再次调用的路径"
+
+[[slides.paragraphs]]
+shape = "圆角矩形 42"
+text = "    不懂老师"
+runs = 3
+fragments = ["    ", "不懂", "老师"]
+
+[[slides.paragraphs]]
+shape = "文本框 43"
+text = "风格偏好没有记忆，每次都要重说，生成结果千篇一律"
+
+[[slides.paragraphs]]
+shape = "AutoShape 18"
+text = "老师缺的从来不是又一个工具"
+
+[[slides.paragraphs]]
+shape = "AutoShape 18"
+text = "而是一个把活儿都接住的工作台"
+
+[[slides]]
+index = 3
+shape_count = 21
+pic_count = 9
+table_count = 0
+layout = "slideLayout37.xml"
+notes = "df81f55f-1236-4844-8eb5-a7c77332528f.source.default.zh-Hans"
+
+[[slides.paragraphs]]
+shape = "文本框 18"
+text = "整体方案"
+
+[[slides.paragraphs]]
+shape = "文本框 19"
+text = "HaiMate：以任务为中心的教师 AI 工作台"
+
+[[slides.paragraphs]]
+shape = "AutoShape 5"
+text = "备课、教研、办公、成长，都在一个工作台里完成"
+
+[[slides.paragraphs]]
+shape = "文本框 24"
+text = "文档处理 、数据汇总 、定时任务"
+runs = 5
+fragments = ["文档处理", " 、", "数据汇总", " 、", "定时任务"]
+
+[[slides.paragraphs]]
+shape = "文本框 27"
+text = "重复的事务，交给 AI 按时跑"
+runs = 3
+fragments = ["重复的事务", "，", "交给 AI 按时跑"]
+
+[[slides.paragraphs]]
+shape = "圆角矩形 89"
+text = "办公"
+
+[[slides.paragraphs]]
+shape = "文本框 101"
+text = "课件设计、课时教案、导学案设计"
+
+[[slides.paragraphs]]
+shape = "文本框 102"
+text = "说句话，教案初稿就有了"
+runs = 3
+fragments = ["说句话", "，", "教案初稿就有了"]
+
+[[slides.paragraphs]]
+shape = "圆角矩形 104"
+text = "备课"
+
+[[slides.paragraphs]]
+shape = "文本框 108"
+text = "课堂分析、课堂反思、成绩分析"
+
+[[slides.paragraphs]]
+shape = "文本框 109"
+text = "上完课，分析报告自动出来"
+runs = 3
+fragments = ["上完课", "，", "分析报告自动出来"]
+
+[[slides.paragraphs]]
+shape = "圆角矩形 111"
+text = "教研"
+
+[[slides.paragraphs]]
+shape = "文本框 115"
+text = "教师画像、教学绩效、个人知识库"
+
+[[slides.paragraphs]]
+shape = "文本框 116"
+text = "越用越懂老师，成果都留下"
+runs = 3
+fragments = ["越用越懂老师", "，", "成果都留下"]
+
+[[slides.paragraphs]]
+shape = "圆角矩形 118"
+text = "成长"
+
+[[slides]]
+index = 4
+shape_count = 5
+pic_count = 3
+table_count = 0
+layout = "slideLayout5.xml"
+
+[[slides.paragraphs]]
+shape = "文本框 5"
+text = "01"
+
+[[slides.paragraphs]]
+shape = "文本框 33"
+text = "产品亮点"
+
+[[slides]]
+index = 5
+shape_count = 15
+pic_count = 3
+table_count = 0
+layout = "slideLayout35.xml"
+notes = "改标题"
+
+[[slides.paragraphs]]
+shape = "文本框 18"
+text = "亮点一｜任务驱动的高效工作"
+runs = 3
+fragments = ["亮点", "一｜任务驱动的", "高效工作"]
+
+[[slides.paragraphs]]
+shape = "圆角矩形 6"
+text = "开口即用"
+
+[[slides.paragraphs]]
+shape = "文本框 3"
+text = "自然语言说清工作目标，不学功能找入口"
+
+[[slides.paragraphs]]
+shape = "Rectangle 4"
+text = "✦ 一句话布置任务，教师意图直接转化为可交付成果"
+runs = 2
+fragments = ["✦ ", "一句话布置任务，教师意图直接转化为可交付成果"]
+
+[[slides.paragraphs]]
+shape = "圆角矩形 45"
+text = "自动调度"
+
+[[slides.paragraphs]]
+shape = "文本框 46"
+text = "AI 自动拆解任务、调度能力、生成结果"
+runs = 2
+fragments = ["AI 自动", "拆解任务、调度能力、生成结果"]
+
+[[slides.paragraphs]]
+shape = "圆角矩形 48"
+text = "一句话交付"
+
+[[slides.paragraphs]]
+shape = "文本框 49"
+text = " “做份《观潮》教案”，成品直接到手，不是零散建议"
+runs = 2
+fragments = [" “做份《观潮》教案”，成品直接到手", "，不是零散建议"]
+
+[[slides.paragraphs]]
+shape = "AutoShape 18"
+text = "从\"人找工具\"到"
+
+[[slides.paragraphs]]
+shape = "圆角矩形 54"
+text = "任务找人"
+
+[[slides]]
+index = 6
+shape_count = 15
+pic_count = 3
+table_count = 0
+layout = "slideLayout35.xml"
+notes = "df81f55f-1236-4844-8eb5-a7c77332528f.source.default.zh-Hans"
+
+[[slides.paragraphs]]
+shape = "文本框 12"
+text = "亮点二｜告别切换的极简协同"
+runs = 4
+fragments = ["亮点", "二｜", "告别切换的", "极简协同"]
+
+[[slides.paragraphs]]
+shape = "圆角矩形 14"
+text = "一个入口"
+
+[[slides.paragraphs]]
+shape = "文本框 16"
+text = "对话、技能、应用、文件都装在一个工作台里"
+runs = 2
+fragments = ["对话、技能、应用、文件都", "装在一个工作台里"]
+
+[[slides.paragraphs]]
+shape = "Rectangle 4"
+text = "✦ 统一管理对话、资料与应用，灵活调用无需切换件"
+runs = 2
+fragments = ["✦ ", "统一管理对话、资料与应用，灵活调用无需切换件"]
+
+[[slides.paragraphs]]
+shape = "圆角矩形 24"
+text = "随手调取"
+
+[[slides.paragraphs]]
+shape = "文本框 25"
+text = "干活时随手取用，不用切换到其他应用翻找"
+
+[[slides.paragraphs]]
+shape = "圆角矩形 27"
+text = "思路连贯"
+
+[[slides.paragraphs]]
+shape = "文本框 28"
+text = "教研思路不被打断，干活一气呵成"
+
+[[slides.paragraphs]]
+shape = "AutoShape 18"
+text = "从\"来回切换复制粘贴\"到"
+runs = 3
+fragments = ["从\"", "来回切换复制粘贴", "\"到"]
+
+[[slides.paragraphs]]
+shape = "圆角矩形 43"
+text = "一切都在手边"
+
+[[slides]]
+index = 7
+shape_count = 15
+pic_count = 3
+table_count = 0
+layout = "slideLayout35.xml"
+notes = "df81f55f-1236-4844-8eb5-a7c77332528f.source.default.zh-Hans"
+
+[[slides.paragraphs]]
+shape = "文本框 12"
+text = "亮点三｜生于校园的专业沉淀"
+runs = 4
+fragments = ["亮点", "三｜", "生于校园的", "专业沉淀"]
+
+[[slides.paragraphs]]
+shape = "圆角矩形 14"
+text = "扎根场景"
+
+[[slides.paragraphs]]
+shape = "文本框 16"
+text = "能力真正扎根真实教育场景，不做表面问答"
+
+[[slides.paragraphs]]
+shape = "Rectangle 4"
+text = "✦ 深挖高频教学场景，真实痛点转化为专属教育应用"
+runs = 2
+fragments = ["✦ ", "深挖高频教学场景，真实痛点转化为专属教育应用"]
+
+[[slides.paragraphs]]
+shape = "圆角矩形 24"
+text = "专业能力"
+runs = 2
+fragments = ["专业", "能力"]
+
+[[slides.paragraphs]]
+shape = "文本框 25"
+text = "备课、课堂分析、成绩分析、教师画像封装为专业应用"
+runs = 3
+fragments = ["备课、课堂分析、", "成绩分析、教师画像", "封装为专业应用"]
+
+[[slides.paragraphs]]
+shape = "圆角矩形 27"
+text = "越用越懂"
+
+[[slides.paragraphs]]
+shape = "文本框 28"
+text = "记住风格、偏好、教学进展，越用越顺手"
+runs = 3
+fragments = ["记住风格", "、偏好、教学进展", "，越用越顺手"]
+
+[[slides.paragraphs]]
+shape = "AutoShape 18"
+text = "从\"通用问答\"到"
+runs = 3
+fragments = ["从\"", "通用问答", "\"到"]
+
+[[slides.paragraphs]]
+shape = "圆角矩形 18"
+text = "专业承接"
+
+[[slides]]
+index = 8
+shape_count = 5
+pic_count = 3
+table_count = 0
+layout = "slideLayout5.xml"
+
+[[slides.paragraphs]]
+shape = "文本框 5"
+text = "02"
+
+[[slides.paragraphs]]
+shape = "文本框 33"
+text = "应用场景"
+runs = 2
+fragments = ["应用", "场景"]
+
+[[slides]]
+index = 9
+shape_count = 10
+pic_count = 4
+table_count = 0
+layout = "slideLayout35.xml"
+notes = "df81f55f-1236-4844-8eb5-a7c77332528f.source.default.zh-Hans"
+
+[[slides.paragraphs]]
+shape = "文本框 12"
+text = "场景一  日常办公"
+runs = 3
+fragments = ["场景一", "  ", "日常办公"]
+
+[[slides.paragraphs]]
+shape = "文本框 30"
+text = "每周日晚自动生成下周晨读材料包"
+
+[[slides.paragraphs]]
+shape = "文本框 3"
+text = "放假通知、家长会材料，到点自动备好草稿"
+
+[[slides.paragraphs]]
+shape = "文本框 6"
+text = "结果推送进工作台，改改就能用"
+
+[[slides.paragraphs]]
+shape = "圆角矩形 7"
+text = "“以前每周四处找晨读材料，现在周日晚自动备好等你”"
+runs = 3
+fragments = ["“", "以前每周四处找晨读材料，现在周日晚自动备好等你", "”"]
+
+[[slides]]
+index = 10
+shape_count = 9
+pic_count = 5
+table_count = 0
+layout = "slideLayout35.xml"
+notes = "df81f55f-1236-4844-8eb5-a7c77332528f.source.default.zh-Hans"
+
+[[slides.paragraphs]]
+shape = "文本框 12"
+text = "场景二  专业备课"
+runs = 3
+fragments = ["场景二", "  ", "专业备课"]
+
+[[slides.paragraphs]]
+shape = "圆角矩形 7"
+text = "“ 半小时，3件套齐活 ”"
+runs = 5
+fragments = ["“ ", "半小时，", "3", "件套齐活", " ”"]
+
+[[slides.paragraphs]]
+shape = "圆角矩形 14"
+text = "全套材料，一气呵成"
+
+[[slides.paragraphs]]
+shape = "TextBox 8"
+text = "导学案、教案、PPT 一键生成；版式、风格自由选择；个性化要求自由改"
+runs = 4
+fragments = ["导学案、教案、PPT 一键生成", "；", "版式、风格自由选择", "；个性化要求自由改"]
+
+[[slides.paragraphs]]
+shape = "圆角矩形 24"
+text = "内容同源，专业可靠"
+
+[[slides.paragraphs]]
+shape = "TextBox 8#2"
+text = "以学生为中心的教学框架、专家共建的教学规则、教材+教学+精品题库的专业资源"
+runs = 6
+fragments = ["以学生为中心的教学框架、", "专家共建的教学规则、教材", "+", "教学", "+", "精品题库的专业资源"]
+
+[[slides]]
+index = 11
+shape_count = 9
+pic_count = 5
+table_count = 0
+layout = "slideLayout35.xml"
+notes = "df81f55f-1236-4844-8eb5-a7c77332528f.source.default.zh-Hans"
+
+[[slides.paragraphs]]
+shape = "文本框 12"
+text = "场景三  课堂总结复盘"
+runs = 3
+fragments = ["场景三", "  ", "课堂总结复盘"]
+
+[[slides.paragraphs]]
+shape = "圆角矩形 7"
+text = "“ 下课即得复盘，改进方向一目了然”"
+
+[[slides.paragraphs]]
+shape = "圆角矩形 14"
+text = "课后报告自动输出"
+
+[[slides.paragraphs]]
+shape = "TextBox 8"
+text = "课后自动输出课堂分析报告，AI助力课堂效果深度复盘"
+runs = 4
+fragments = ["课后自动输出课堂", "分析报告，", "AI", "助力课堂效果深度复盘"]
+
+[[slides.paragraphs]]
+shape = "圆角矩形 24"
+text = "课堂表现可量化"
+
+[[slides.paragraphs]]
+shape = "TextBox 8#2"
+text = "课堂综合分析、课堂总结、课堂策略、课堂亮眼和发展建议，助力教学反思"
+
+[[slides]]
+index = 12
+shape_count = 9
+pic_count = 5
+table_count = 0
+layout = "slideLayout35.xml"
+notes = "df81f55f-1236-4844-8eb5-a7c77332528f.source.default.zh-Hans"
+
+[[slides.paragraphs]]
+shape = "文本框 12"
+text = "场景四  考试成绩分析"
+runs = 3
+fragments = ["场景四", "  ", "考试成绩分析"]
+
+[[slides.paragraphs]]
+shape = "圆角矩形 7"
+text = "“ 一轮对话轻松搞定  ”"
+runs = 2
+fragments = ["“", " 一轮对话轻松搞定  ”"]
+
+[[slides.paragraphs]]
+shape = "圆角矩形 14"
+text = "简单三步，成绩报告出炉"
+
+[[slides.paragraphs]]
+shape = "TextBox 8"
+text = "设置数据和分析倾向，快速生成一份可解释可溯源的分析报告，AI深入解读报告"
+runs = 3
+fragments = ["设置数据和分析倾向，快速生成一份可解释可溯源的分析报告，", "AI", "深入解读报告"]
+
+[[slides.paragraphs]]
+shape = "圆角矩形 24"
+text = "专业指标算法，分析更全面"
+
+[[slides.paragraphs]]
+shape = "TextBox 8#2"
+text = "年级整体表现、学科双上线分析、班级薄弱学科分析、重点关注学生分析"
+runs = 2
+fragments = ["年级整体表现、学科双上线分析、", "班级薄弱学科分析、重点关注学生分析"]
+
+[[slides]]
+index = 13
+shape_count = 9
+pic_count = 5
+table_count = 0
+layout = "slideLayout35.xml"
+notes = "df81f55f-1236-4844-8eb5-a7c77332528f.source.default.zh-Hans"
+
+[[slides.paragraphs]]
+shape = "文本框 12"
+text = "场景五  教师成长建议"
+runs = 3
+fragments = ["场景五", "  ", "教师成长建议"]
+
+[[slides.paragraphs]]
+shape = "圆角矩形 7"
+text = "“ 以前评优凭印象，现在成长有迹可循”"
+
+[[slides.paragraphs]]
+shape = "圆角矩形 14"
+text = "教师队伍，轻松掌控"
+
+[[slides.paragraphs]]
+shape = "TextBox 8"
+text = "一张看板全景呈现“校级教师画像”，AI助力分析教师队伍发展建议"
+runs = 5
+fragments = ["一张看板全景呈现", "“校级教师画像”，", "AI", "助力分析教师", "队伍发展建议"]
+
+[[slides.paragraphs]]
+shape = "圆角矩形 24"
+text = "教师成长看得见"
+
+[[slides.paragraphs]]
+shape = "TextBox 8#2"
+text = "多维度还原教师发展状态，精准支撑教学评价、个人发展规划"
+runs = 4
+fragments = ["多维度还原教师发展状态", "，", "精准支撑教学评价、", "个人发展规划"]
+
+[[slides]]
+index = 14
+shape_count = 5
+pic_count = 3
+table_count = 0
+layout = "slideLayout5.xml"
+
+[[slides.paragraphs]]
+shape = "文本框 5"
+text = "03"
+
+[[slides.paragraphs]]
+shape = "文本框 33"
+text = "产品服务"
+runs = 2
+fragments = ["产品", "服务"]
+
+[[slides]]
+index = 15
+shape_count = 22
+pic_count = 2
+table_count = 0
+layout = "slideLayout35.xml"
+notes = "df81f55f-1236-4844-8eb5-a7c77332528f.source.default.zh-Hans"
+
+[[slides.paragraphs]]
+shape = "文本框 12"
+text = "产品价值  老师、校长、学校，三方都受益"
+runs = 3
+fragments = ["产品价值", "  ", "老师、校长、学校，三方都受益"]
+
+[[slides.paragraphs]]
+shape = "AutoShape 12"
+text = "对老师"
+runs = 2
+fragments = ["对", "老师"]
+
+[[slides.paragraphs]]
+shape = "AutoShape 13"
+text = "重复活儿 AI 扛、应用不用挨个学，从说需求到拿成品一处干完"
+
+[[slides.paragraphs]]
+shape = "AutoShape 10"
+text = "01"
+
+[[slides.paragraphs]]
+shape = "AutoShape 12#2"
+text = "减负"
+
+[[slides.paragraphs]]
+shape = "AutoShape 12#2"
+text = "上手更简单"
+
+[[slides.paragraphs]]
+shape = "AutoShape 12#3"
+text = "对校长"
+runs = 2
+fragments = ["对", "校长"]
+
+[[slides.paragraphs]]
+shape = "AutoShape 13#2"
+text = "课堂质量可量化、教师成长有画像，评优培养不再凭印象"
+
+[[slides.paragraphs]]
+shape = "AutoShape 10#2"
+text = "02"
+
+[[slides.paragraphs]]
+shape = "AutoShape 12#4"
+text = "老师干得怎么样"
+
+[[slides.paragraphs]]
+shape = "AutoShape 12#4"
+text = "有数据说话"
+
+[[slides.paragraphs]]
+shape = "AutoShape 12#5"
+text = "对学校"
+runs = 2
+fragments = ["对", "学校"]
+
+[[slides.paragraphs]]
+shape = "AutoShape 13#3"
+text = "老师的成果和教法沉淀在校本知识库里，成为学校自己的资产"
+
+[[slides.paragraphs]]
+shape = "AutoShape 10#3"
+text = "03"
+
+[[slides.paragraphs]]
+shape = "AutoShape 12#6"
+text = "好经验留得住"
+
+[[slides.paragraphs]]
+shape = "AutoShape 12#6"
+text = "不随人走"
+
+[[slides.paragraphs]]
+shape = "圆角矩形 64"
+text = "把老师的时间，还给教学；把老师的经验，留给学校"
+
+[[slides.paragraphs]]
+shape = "文本框 65"
+text = "一套工作台，三方各得其所"
+
+[[slides]]
+index = 16
+shape_count = 10
+pic_count = 2
+table_count = 0
+layout = "slideLayout35.xml"
+notes = "df81f55f-1236-4844-8eb5-a7c77332528f.source.default.zh-Hans"
+
+[[slides.paragraphs]]
+shape = "文本框 12"
+text = "部署与服务  装就能用，有人陪跑"
+runs = 3
+fragments = ["部署与服务", "  ", "装就能用，有人陪跑"]
+
+[[slides.paragraphs]]
+shape = "文本框 65"
+text = "部署不设门槛，老师打开就会用"
+
+[[slides.paragraphs]]
+shape = "圆角矩形 14"
+text = "部署方式"
+runs = 2
+fragments = ["部署", "方式"]
+
+[[slides.paragraphs]]
+shape = "文本框 7"
+text = "桌面客户端，Mac / Windows 都支持，装上就能用"
+
+[[slides.paragraphs]]
+shape = "文本框 7"
+text = "打通飞书 / 海思谷账号体系，老师不用记新账号"
+
+[[slides.paragraphs]]
+shape = "文本框 7"
+text = "微信 / 飞书里也能唤起，在哪办公就在哪用"
+
+[[slides.paragraphs]]
+shape = "圆角矩形 15"
+text = "服务支持"
+runs = 2
+fragments = ["服务", "支持"]
+
+[[slides.paragraphs]]
+shape = "文本框 19"
+text = "教师培训：手把手带入门，打开就会用"
+
+[[slides.paragraphs]]
+shape = "文本框 19"
+text = "运营陪跑：从启用到常态化全程跟进，有问题随时响应"
+
+[[slides.paragraphs]]
+shape = "文本框 19"
+text = "数据复盘：定期回看使用数据，确保用起来、用出成效"
+
+[[slides]]
+index = 17
+shape_count = 28
+pic_count = 0
+table_count = 0
+layout = "slideLayout5.xml"
+notes = "内容文案对比"
+
+[[slides.paragraphs]]
+shape = "Rectangle 1"
+text = "仅内部培训 "
+
+[[slides.paragraphs]]
+shape = "Rectangle 2"
+text = "通用 Agent 平台 vs HaiMate 教师工作台"
+
+[[slides.paragraphs]]
+shape = "Rectangle 3"
+text = "只做内部对标，对外只锚定差异一句话"
+
+[[slides.paragraphs]]
+shape = "Rectangle 4"
+text = "维度"
+
+[[slides.paragraphs]]
+shape = "Rectangle 5"
+text = "为谁设计"
+
+[[slides.paragraphs]]
+shape = "Rectangle 6"
+text = "面向所有人，各行各业都能用"
+
+[[slides.paragraphs]]
+shape = "Rectangle 7"
+text = "只为老师设计，从备课、上课到教研办公"
+
+[[slides.paragraphs]]
+shape = "Rectangle 8"
+text = "懂不懂教学"
+
+[[slides.paragraphs]]
+shape = "Rectangle 9"
+text = "通用对话，不懂教学规律"
+
+[[slides.paragraphs]]
+shape = "Rectangle 10"
+text = "备课、课堂分析、成绩分析都是按教学流程预置的专业应用"
+
+[[slides.paragraphs]]
+shape = "Rectangle 11"
+text = "上手门槛"
+
+[[slides.paragraphs]]
+shape = "Rectangle 12"
+text = "功能强大但要学提示词、配工作流"
+
+[[slides.paragraphs]]
+shape = "Rectangle 13"
+text = "说句话就能用，不用学、不用配"
+
+[[slides.paragraphs]]
+shape = "Rectangle 14"
+text = "成果归属"
+
+[[slides.paragraphs]]
+shape = "Rectangle 15"
+text = "对话即结果，用完就散"
+
+[[slides.paragraphs]]
+shape = "Rectangle 16"
+text = "成果自动沉淀为校本资产，越用越多"
+
+[[slides.paragraphs]]
+shape = "Rectangle 17"
+text = "懂不懂老师"
+
+[[slides.paragraphs]]
+shape = "Rectangle 18"
+text = "每次从零开始，不认识你"
+
+[[slides.paragraphs]]
+shape = "Rectangle 19"
+text = "记住学科、年级、风格，越用越懂"
+
+[[slides.paragraphs]]
+shape = "Rectangle 20"
+text = "重复工作"
+
+[[slides.paragraphs]]
+shape = "Rectangle 21"
+text = "每次手动发起"
+
+[[slides.paragraphs]]
+shape = "Rectangle 22"
+text = "定时任务自动跑，结果主动推送"
+
+[[slides.paragraphs]]
+shape = "Rectangle 23"
+text = "校园数据"
+
+[[slides.paragraphs]]
+shape = "Rectangle 24"
+text = "数据在通用平台，学校管不到"
+
+[[slides.paragraphs]]
+shape = "Rectangle 25"
+text = "数据在校内闭环，学校可管理、可沉淀"
+
+[[slides.paragraphs]]
+shape = "Rectangle 26"
+text = "对外锚定：他们是\"什么都能聊\"的通用平台，我们是\"只懂教学\"的专业工作台"
+
+[[slides.paragraphs]]
+shape = "Rectangle 4#2"
+text = "通用Agent平台"
+runs = 3
+fragments = ["通用", "Agent", "平台"]
+
+[[slides.paragraphs]]
+shape = "Rectangle 4#3"
+text = "HaiMate教师工作台"
+runs = 2
+fragments = ["HaiMate", "教师工作台"]
+
+[[slides]]
+index = 18
+shape_count = 13
+pic_count = 2
+table_count = 0
+layout = "slideLayout60.xml"
+notes = "1.7.2013\n三个场景对比完，结论很清楚：HaiMate更实用、经得住实际使用检验。为什么我们能做到？三个基因。第一，我们是干教育的，海亮办学30年、152所学校、20万师生，我们自己就在上课。第二，产品在学校里长大，自有校常态化使用，随时收集反馈、快速迭代，内部打磨好再推给外部。第三，我们有专家和资源，近80位正高级特级教师和金牌教练，评课标准、题库、教材知识体系都来自这里。这些，是通用大模型没有的东西。\n‹#›"
+
+[[slides.paragraphs]]
+shape = "AutoShape 4"
+text = "一个工作台，管住备课、课堂、办公"
+runs = 5
+fragments = ["一个工作台，管住", "备课", "、", "课堂", "、办公"]
+
+[[slides.paragraphs]]
+shape = "AutoShape 12"
+text = "更少切换"
+
+[[slides.paragraphs]]
+shape = "AutoShape 13"
+text = "任务、技能、文件与应用"
+
+[[slides.paragraphs]]
+shape = "AutoShape 13"
+text = "统一协同"
+
+[[slides.paragraphs]]
+shape = "AutoShape 12#2"
+text = "更懂教学"
+runs = 2
+fragments = ["更懂", "教学"]
+
+[[slides.paragraphs]]
+shape = "AutoShape 13#2"
+text = "专业应用预置"
+
+[[slides.paragraphs]]
+shape = "AutoShape 13#2"
+text = "按教学章法来"
+
+[[slides.paragraphs]]
+shape = "AutoShape 12#3"
+text = "越用越顺手"
+
+[[slides.paragraphs]]
+shape = "AutoShape 13#3"
+text = "记住风格偏好"
+
+[[slides.paragraphs]]
+shape = "AutoShape 13#3"
+text = "成果持续沉淀"

@@ -1,0 +1,422 @@
+manifest_version = 1
+source = "score_report_real_anonymized.pptx"
+generated_at = "2026-11-17 10:12:04 +0800"
+
+[template]
+slide_count = 9
+slide_size_emu = [12192000, 6858000]
+notes_slide_count = 0
+layout_count = 1
+master_count = 1
+embedded_font_count = 0
+tag_count = 0
+layouts_referenced = ["slideLayout1.xml"]
+
+[stats]
+paragraphs = 68
+split_paragraphs = 17
+split_ratio = 0.25
+
+[stats.run_font_usage]
+"微软雅黑" = 92
+
+[derived]
+stripped = []
+media_replaced = 0
+fonts_removed = 0
+bytes_source = 24779
+bytes_fixture = 24779
+source_sha256 = "ff9a7a7d57ad4486e1380524666840d93e2170871e704fb43a26746990a4a4e4"
+
+[[slides]]
+index = 1
+shape_count = 6
+pic_count = 0
+table_count = 0
+layout = "slideLayout1.xml"
+
+[[slides.paragraphs]]
+shape = "tb4"
+text = "2026 学年第一学期 · 期末统考成绩分析"
+
+[[slides.paragraphs]]
+shape = "tb5"
+text = "初二年级 · 全科质量分析"
+
+[[slides.paragraphs]]
+shape = "tb6"
+text = "示例中学"
+
+[[slides.paragraphs]]
+shape = "tb7"
+text = "汇报：年级组长   ｜   2026 年 1 月 20 日"
+
+[[slides]]
+index = 2
+shape_count = 8
+pic_count = 0
+table_count = 0
+layout = "slideLayout1.xml"
+
+[[slides.paragraphs]]
+shape = "tb8"
+text = "整体表现"
+
+[[slides.paragraphs]]
+shape = "tb10"
+text = "示例中学 · 初二年级组 ｜ 第 2 页"
+
+[[slides.paragraphs]]
+shape = "card11"
+text = "平均分"
+
+[[slides.paragraphs]]
+shape = "card11"
+text = "82.2"
+
+[[slides.paragraphs]]
+shape = "card11"
+text = "+1.1 分"
+
+[[slides.paragraphs]]
+shape = "card12"
+text = "优秀率（≥85%）"
+
+[[slides.paragraphs]]
+shape = "card12"
+text = "29.6%"
+
+[[slides.paragraphs]]
+shape = "card12"
+text = "+2.3pt"
+
+[[slides.paragraphs]]
+shape = "card13"
+text = "及格率（≥60%）"
+
+[[slides.paragraphs]]
+shape = "card13"
+text = "90.3%"
+
+[[slides.paragraphs]]
+shape = "card13"
+text = "+0.6pt"
+
+[[slides.paragraphs]]
+shape = "card14"
+text = "参考人数"
+
+[[slides.paragraphs]]
+shape = "card14"
+text = "486"
+
+[[slides.paragraphs]]
+shape = "card14"
+text = "+12 人"
+
+[[slides.paragraphs]]
+shape = "tb15"
+text = "整体稳中有升：优秀率提升主要来自 3、6、7 班；2、8 班连续两次低于年级均分，需要重点关注；物理是全年级共性短板。"
+runs = 2
+fragments = ["整体稳中有升：", "优秀率提升主要来自 3、6、7 班；2、8 班连续两次低于年级均分，需要重点关注；物理是全年级共性短板。"]
+
+[[slides]]
+index = 3
+shape_count = 31
+pic_count = 0
+table_count = 0
+layout = "slideLayout1.xml"
+
+[[slides.paragraphs]]
+shape = "tb16"
+text = "班级均分对比"
+
+[[slides.paragraphs]]
+shape = "tb18"
+text = "示例中学 · 初二年级组 ｜ 第 3 页"
+
+[[slides.paragraphs]]
+shape = "tb20"
+text = "81.5"
+
+[[slides.paragraphs]]
+shape = "tb21"
+text = "(1))班"
+
+[[slides.paragraphs]]
+shape = "tb23"
+text = "80.0"
+
+[[slides.paragraphs]]
+shape = "tb24"
+text = "(2))班"
+
+[[slides.paragraphs]]
+shape = "tb26"
+text = "85.4"
+
+[[slides.paragraphs]]
+shape = "tb27"
+text = "(3))班"
+
+[[slides.paragraphs]]
+shape = "tb29"
+text = "82.9"
+
+[[slides.paragraphs]]
+shape = "tb30"
+text = "(4))班"
+
+[[slides.paragraphs]]
+shape = "tb32"
+text = "81.4"
+
+[[slides.paragraphs]]
+shape = "tb33"
+text = "(5))班"
+
+[[slides.paragraphs]]
+shape = "tb35"
+text = "83.8"
+
+[[slides.paragraphs]]
+shape = "tb36"
+text = "(6))班"
+
+[[slides.paragraphs]]
+shape = "tb38"
+text = "84.2"
+
+[[slides.paragraphs]]
+shape = "tb39"
+text = "(7))班"
+
+[[slides.paragraphs]]
+shape = "tb41"
+text = "78.7"
+
+[[slides.paragraphs]]
+shape = "tb42"
+text = "(8))班"
+
+[[slides.paragraphs]]
+shape = "tb45"
+text = "均分 82.2"
+
+[[slides.paragraphs]]
+shape = "tb46"
+text = "3 班领先且进步最大（+2.4），与第 2 名 7 班拉开 1.2 分；8 班环比 -1.1，均分与及格率均为年级最低，已列为下阶段重点帮扶对象。"
+runs = 2
+fragments = ["3 班领先且进步最大（+2.4），", "与第 2 名 7 班拉开 1.2 分；8 班环比 -1.1，均分与及格率均为年级最低，已列为下阶段重点帮扶对象。"]
+
+[[slides]]
+index = 4
+shape_count = 4
+pic_count = 0
+table_count = 1
+layout = "slideLayout1.xml"
+
+[[slides.paragraphs]]
+shape = "tb47"
+text = "班级成绩明细"
+
+[[slides.paragraphs]]
+shape = "tb49"
+text = "示例中学 · 初二年级组 ｜ 第 4 页"
+
+[[slides.paragraphs]]
+shape = "tb51"
+text = "口径：优秀 = 总分得分率 ≥ 85%（≥629 分）；及格 = 总分得分率 ≥ 60%（≥444 分）。完整口径见附录。"
+
+[[slides.tables]]
+shape = "tbl50"
+rows = 10
+cols = 7
+cells = [["班级", "参考人数", "平均分", "优秀率", "及格率", "环比上次", "排名"], ["初二(1)班", "61", "81.5", "27.9%", "93.4%", "+1.2", "1"], ["初二(2)班", "61", "80.0", "24.6%", "88.5%", "-0.5", "2"], ["初二(3)班", "60", "85.4", "36.7%", "90.0%", "+2.4", "3"], ["初二(4)班", "61", "82.9", "31.1%", "91.8%", "+1.5", "4"], ["初二(5)班", "60", "81.4", "28.3%", "90.0%", "+0.8", "5"], ["初二(6)班", "62", "83.8", "33.9%", "91.9%", "+2.0", "6"], ["初二(7)班", "61", "84.2", "34.4%", "93.4%", "+2.3", "7"], ["初二(8)班", "60", "78.7", "20.0%", "83.3%", "-1.1", "8"], ["年级合计 / 平均", "486", "82.2", "29.6%", "90.3%", "+1.1", "—"]]
+
+[[slides]]
+index = 5
+shape_count = 4
+pic_count = 0
+table_count = 1
+layout = "slideLayout1.xml"
+
+[[slides.paragraphs]]
+shape = "tb52"
+text = "学科分析"
+
+[[slides.paragraphs]]
+shape = "tb54"
+text = "示例中学 · 初二年级组 ｜ 第 5 页"
+
+[[slides.paragraphs]]
+shape = "tb56"
+text = "物理是全年级共性短板：得分率 73.8%，其中实验题模块得分率仅 61%；语文、道法保持优势。单科优秀线同为得分率 ≥85%。"
+runs = 2
+fragments = ["物理是全年级共性短板：", "得分率 73.8%，其中实验题模块得分率仅 61%；语文、道法保持优势。单科优秀线同为得分率 ≥85%。"]
+
+[[slides.tables]]
+shape = "tbl55"
+rows = 10
+cols = 6
+cells = [["学科", "满分", "年级平均分", "得分率", "最高班级", "主要失分点"], ["语文", "120", "100.9", "84.1%", "初二(3)班", "作文立意与议论文结构"], ["数学", "120", "95.2", "79.3%", "初二(7)班", "几何证明书写不规范"], ["英语", "120", "100.3", "83.6%", "初二(3)班", "听力后段细节抓取"], ["物理", "100", "73.8", "73.8%", "初二(6)班", "实验设计与结论表述"], ["道德与法治", "70", "61.7", "88.1%", "初二(4)班", "材料题观点提炼"], ["历史", "70", "60.0", "85.7%", "初二(7)班", "时间轴与因果关联"], ["地理", "70", "57.3", "81.9%", "初二(3)班", "等高线判读"], ["生物学", "70", "60.5", "86.4%", "初二(6)班", "遗传图解分析"], ["总分", "740", "609.7", "82.4%", "—", "—"]]
+
+[[slides]]
+index = 6
+shape_count = 4
+pic_count = 0
+table_count = 1
+layout = "slideLayout1.xml"
+
+[[slides.paragraphs]]
+shape = "tb57"
+text = "总分分数段分布"
+
+[[slides.paragraphs]]
+shape = "tb59"
+text = "示例中学 · 初二年级组 ｜ 第 6 页"
+
+[[slides.paragraphs]]
+shape = "tb61"
+text = "优秀段 144 人（29.6%）、未及格 47 人（9.7%）。8 班未及格 10 人为年级最多，2 班次之；3 班优秀段 22 人分布最均衡。"
+runs = 2
+fragments = ["优秀段 144 人（29.6%）、未及格 47 人（9.7%）。", "8 班未及格 10 人为年级最多，2 班次之；3 班优秀段 22 人分布最均衡。"]
+
+[[slides.tables]]
+shape = "tbl60"
+rows = 10
+cols = 6
+cells = [["班级", "≥629 优秀", "555–628", "444–554", "<444 未及格", "参考人数"], ["初二(1)班", "17", "25", "15", "4", "61"], ["初二(2)班", "15", "25", "14", "7", "61"], ["初二(3)班", "22", "20", "12", "6", "60"], ["初二(4)班", "19", "24", "13", "5", "61"], ["初二(5)班", "17", "23", "14", "6", "60"], ["初二(6)班", "21", "25", "11", "5", "62"], ["初二(7)班", "21", "24", "12", "4", "61"], ["初二(8)班", "12", "22", "16", "10", "60"], ["年级合计", "144", "188", "107", "47", "486"]]
+
+[[slides]]
+index = 7
+shape_count = 4
+pic_count = 0
+table_count = 1
+layout = "slideLayout1.xml"
+
+[[slides.paragraphs]]
+shape = "tb62"
+text = "重点关注学生（学业预警）"
+
+[[slides.paragraphs]]
+shape = "tb64"
+text = "示例中学 · 初二年级组 ｜ 第 7 页"
+
+[[slides.paragraphs]]
+shape = "tb66"
+text = "本页为节选（前 10 人，按总分升序）。本学期共 47 人触发学业预警，完整名单随附件下发班主任。"
+
+[[slides.tables]]
+shape = "tbl65"
+rows = 11
+cols = 5
+cells = [["学生", "班级", "总分", "薄弱学科", "关注建议"], ["学生A", "初二(2)班", "398", "物理", "基础题过关训练，每周一次答疑"], ["学生B", "初二(2)班", "405", "物理、数学", "双科结对辅导，同步家长沟通"], ["学生C", "初二(8)班", "421", "数学", "几何专题补弱，错题本每周批阅"], ["学生D", "初二(8)班", "389", "英语", "听力打卡计划，早晚读强化"], ["学生E", "初二(5)班", "402", "数学", "计算规范训练，限时小卷"], ["学生F", "初二(1)班", "436", "英语", "作文模板梳理，每周面批一次"], ["学生G", "初二(2)班", "380", "物理、英语", "以基础巩固为主，降低畏难情绪"], ["学生H", "初二(8)班", "410", "物理", "实验题专项，课后小灶辅导"], ["学生I", "初二(5)班", "393", "历史", "时间轴整理法，调整记忆策略"], ["学生J", "初二(1)班", "380", "数学、物理", "学法指导，目标分解到每周"]]
+
+[[slides]]
+index = 8
+shape_count = 4
+pic_count = 0
+table_count = 0
+layout = "slideLayout1.xml"
+
+[[slides.paragraphs]]
+shape = "tb67"
+text = "改进措施与下一步"
+
+[[slides.paragraphs]]
+shape = "tb69"
+text = "示例中学 · 初二年级组 ｜ 第 8 页"
+
+[[slides.paragraphs]]
+shape = "tb70"
+text = "1. 物理专题：实验题得分率仅 61%：2 月起每周一次实验专题训练，年级统一讲义，备课组长负责"
+runs = 2
+fragments = ["1. 物理专题：", "实验题得分率仅 61%：2 月起每周一次实验专题训练，年级统一讲义，备课组长负责"]
+
+[[slides.paragraphs]]
+shape = "tb70"
+text = "2. 数学规范：几何证明失分集中：推行「证明题步骤分」训练，每两周一次限时测，重点面向 2、5、8 班"
+runs = 2
+fragments = ["2. 数学规范：", "几何证明失分集中：推行「证明题步骤分」训练，每两周一次限时测，重点面向 2、5、8 班"]
+
+[[slides.paragraphs]]
+shape = "tb70"
+text = "3. 班级帮扶：2、8 班连续两次低于年级均分：启动备课组联合听课，第 4 周前完成第一轮教研诊断"
+runs = 2
+fragments = ["3. 班级帮扶：", "2、8 班连续两次低于年级均分：启动备课组联合听课，第 4 周前完成第一轮教研诊断"]
+
+[[slides.paragraphs]]
+shape = "tb70"
+text = "4. 一生一案：47 名预警学生建立个人档案，班主任每周反馈，2 月底逐人评估出档条件"
+runs = 2
+fragments = ["4. 一生一案：", "47 名预警学生建立个人档案，班主任每周反馈，2 月底逐人评估出档条件"]
+
+[[slides.paragraphs]]
+shape = "tb70"
+text = "5. 家长沟通：预警学生家长会定于 1 月 26 日，同步学科教师一对一约谈安排"
+runs = 2
+fragments = ["5. 家长沟通：", "预警学生家长会定于 1 月 26 日，同步学科教师一对一约谈安排"]
+
+[[slides.paragraphs]]
+shape = "tb70"
+text = "6. 下次考试：2 月 26 日月考重点验证物理与数学改进效果，年级优秀率目标 32%+"
+runs = 2
+fragments = ["6. 下次考试：", "2 月 26 日月考重点验证物理与数学改进效果，年级优秀率目标 32%+"]
+
+[[slides]]
+index = 9
+shape_count = 4
+pic_count = 0
+table_count = 0
+layout = "slideLayout1.xml"
+
+[[slides.paragraphs]]
+shape = "tb71"
+text = "附录：统计口径"
+
+[[slides.paragraphs]]
+shape = "tb73"
+text = "示例中学 · 初二年级组 ｜ 第 9 页"
+
+[[slides.paragraphs]]
+shape = "tb74"
+text = "· 计分：语文/数学/英语各 120 分，物理 100 分，道德与法治/历史/地理/生物学各 70 分，总分 740 分"
+runs = 3
+fragments = ["· ", "计分：", "语文/数学/英语各 120 分，物理 100 分，道德与法治/历史/地理/生物学各 70 分，总分 740 分"]
+
+[[slides.paragraphs]]
+shape = "tb74"
+text = "· 优秀线：总分得分率 ≥ 85%（≥629 分）；单科优秀 = 该科得分率 ≥ 85%"
+runs = 3
+fragments = ["· ", "优秀线：", "总分得分率 ≥ 85%（≥629 分）；单科优秀 = 该科得分率 ≥ 85%"]
+
+[[slides.paragraphs]]
+shape = "tb74"
+text = "· 及格线：总分得分率 ≥ 60%（≥444 分）；单科及格 = 该科得分率 ≥ 60%"
+runs = 3
+fragments = ["· ", "及格线：", "总分得分率 ≥ 60%（≥444 分）；单科及格 = 该科得分率 ≥ 60%"]
+
+[[slides.paragraphs]]
+shape = "tb74"
+text = "· 参考人数：实际参加全部科目考试的学生；缺考不计入该科统计，也不计入总分分数段"
+runs = 3
+fragments = ["· ", "参考人数：", "实际参加全部科目考试的学生；缺考不计入该科统计，也不计入总分分数段"]
+
+[[slides.paragraphs]]
+shape = "tb74"
+text = "· 环比：对比 2025 学年第一学期期中统考（2025-11-20）"
+runs = 3
+fragments = ["· ", "环比：", "对比 2025 学年第一学期期中统考（2025-11-20）"]
+
+[[slides.paragraphs]]
+shape = "tb74"
+text = "· 数据来源：教务系统期末统考成绩（2026-01-15 导出）；统计口径与上学期保持一致"
+runs = 3
+fragments = ["· ", "数据来源：", "教务系统期末统考成绩（2026-01-15 导出）；统计口径与上学期保持一致"]
+
+[[slides.paragraphs]]
+shape = "tb74"
+text = "· 版本：v1 · 2026-01-20 · 初二年级组；模板改版经年级教学例会确认"
+runs = 3
+fragments = ["· ", "版本：", "v1 · 2026-01-20 · 初二年级组；模板改版经年级教学例会确认"]

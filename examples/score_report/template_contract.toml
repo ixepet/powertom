@@ -1,0 +1,75 @@
+# 成绩分析报告 · 模板结构契约(v1)
+# 与《成绩分析报告模板制作单》一一对应:设计师交付后用
+#   rake powertom:lint TEMPLATE=... CONTRACT=... DATA=...
+# 逐页核对做没做、拼没拼错。改页面规格时同步改这里。
+#
+# 字段说明:
+#   slide_count  总页数(可选;写了就精确核对)
+#   [[pages]]    每页一项
+#     index      页码,从 1 开始
+#     name       页面名(仅用于阅读)
+#     shapes     必须存在的形状名(精确匹配,大小写敏感)
+#     labels     必须存在的标签,写完整内容、不带花括号;带 formatter 也要写全
+#                (如 report_date:date.cn;写成 report_date 会判定不符)
+#     images     必须是图片且命名符合 powertom:image:<字段> 的占位
+#     directive  该页备注必须写的指令内容(如 "each classes");不写表示本页不应有指令
+
+slide_count = 7
+
+[[pages]]
+index = 1
+name = "封面"
+shapes = ["封面-标题", "封面-副标题", "封面-日期"]
+labels = ["report_title", "school_name", "exam_name", "report_date:date.cn"]
+
+[[pages]]
+index = 2
+name = "总览"
+shapes = [
+  "卡1-标签", "卡1-数值", "卡1-变化",
+  "卡2-标签", "卡2-数值", "卡2-变化",
+  "卡3-标签", "卡3-数值", "卡3-变化",
+  "卡4-标签", "卡4-数值", "卡4-变化"
+]
+labels = [
+  "kpis[0].label", "kpis[0].value", "kpis[0].delta",
+  "kpis[1].label", "kpis[1].value", "kpis[1].delta",
+  "kpis[2].label", "kpis[2].value", "kpis[2].delta",
+  "kpis[3].label", "kpis[3].value", "kpis[3].delta"
+]
+images = ["powertom:image:overview_chart"]
+
+[[pages]]
+index = 3
+name = "班级对比"
+shapes = ["对比-结论"]
+labels = ["class_comparison_note"]
+images = ["powertom:image:class_rank_chart"]
+
+[[pages]]
+index = 4
+name = "班级详情"
+shapes = ["班级-标题", "班级-均分", "班级-排名", "班级-薄弱学科", "班级-重点关注"]
+labels = ["name", "avg_score", "rank", "weak_subject", "focus_students"]
+images = ["powertom:image:chart"]
+directive = "each classes"
+
+[[pages]]
+index = 5
+name = "学科分析"
+shapes = ["学科-结论"]
+labels = ["subject_note"]
+images = ["powertom:image:subject_chart"]
+
+[[pages]]
+index = 6
+name = "改进建议"
+shapes = ["建议1", "建议2", "建议3", "建议4", "建议5"]
+labels = ["tips[0].text", "tips[1].text", "tips[2].text", "tips[3].text", "tips[4].text"]
+
+[[pages]]
+index = 7
+name = "附录"
+shapes = ["附录-数据来源"]
+labels = ["data_source"]
+directive = "if show_appendix"

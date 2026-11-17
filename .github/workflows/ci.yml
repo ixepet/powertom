@@ -1,0 +1,101 @@
+# PowerTom CI
+#
+# 说明:
+#   - 金样本 template.pptx 不入库(体积与归属),依赖它的 spec 会自动 skip;
+#     仓库内的 manifest.toml 与 fixture 一致性检查在 fixtures 任务里按需执行。
+#   - 需要跑完整金样本 + LibreOffice 保真验收时,把仓库变量
+#     POWERTOM_FIXTURE_ENABLED 设为 true,并通过私有渠道提供 fixture 文件
+#     (workflow 里的 fixture 步骤留了接入点)。
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Ruby ${{ matrix.ruby }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # ruby_pptx 0.2 与 tomlrb 3.0 均要求 >= 3.3
+        ruby: ["3.3", "3.4", "4.0"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: ${{ matrix.ruby }}
+          bundler-cache: true
+
+      - name: RSpec
+        run: bundle exec rspec
+
+      - name: 金样本一致性(有 fixture 时)
+        run: |
+          if [ -f spec/fixtures/hai_mate/template.pptx ]; then
+            bundle exec rake fixtures:check OUT=spec/fixtures/hai_mate
+          else
+            echo "未提供金样本 template.pptx,跳过 fixtures:check(相关 spec 会自动 skip)"
+          fi
+
+  package:
+    name: Gem 构建
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.4"
+          bundler-cache: true
+
+      - name: Build
+        run: gem build powertom.gemspec
+
+      - name: 校验包内容(不夹带测试与金样本)
+        run: |
+          ruby -e '
+            require "rubygems/package"
+            pkg = Gem::Package.new(Dir["powertom-*.gem"].first)
+            files = pkg.spec.files
+            abort "包内出现测试文件: #{files.grep(%r{^spec/}).inspect}" unless files.grep(%r{^spec/}).empty?
+            abort "缺少入口 lib/powertom.rb" unless files.include?("lib/powertom.rb")
+            puts "包内容校验通过(#{files.size} 个文件)"
+          '
+
+  fidelity:
+    # 保真验收(设计文档 §5.5):需要金样本 + LibreOffice。
+    # 默认关闭;把仓库变量 POWERTOM_FIXTURE_ENABLED 设为 true 后启用,
+    # 并在 checkout 之后从私有 artifact 放入 spec/fixtures/*/template.pptx。
+    name: 保真验收(LibreOffice)
+    if: vars.POWERTOM_FIXTURE_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.4"
+          bundler-cache: true
+
+      # 私有金样本接入点:替换为实际的下发方式(artifact / 私有 OSS / 加密仓库)
+      - name: 准备金样本
+        run: |
+          echo "TODO: 从私有渠道取回 spec/fixtures/hai_mate/template.pptx"
+          test -f spec/fixtures/hai_mate/template.pptx
+
+      - name: 安装 LibreOffice
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libreoffice-impress fonts-noto-cjk
+
+      - name: 金样本一致性 + 全量测试(含 PDF 转换)
+        run: |
+          bundle exec rake fixtures:check OUT=spec/fixtures/hai_mate
+          bundle exec rspec

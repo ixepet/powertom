@@ -1,0 +1,10 @@
+*.gem
+.bundle/
+pkg/
+
+# macOS 目录元数据
+.DS_Store
+
+# 金样本模板文件不进仓库(体积与归属问题),manifest.yml 进仓库。
+# 本地放好模板后用 rake fixtures:generate 重新生成。
+spec/fixtures/*/template.pptx

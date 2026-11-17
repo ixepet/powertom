@@ -1,0 +1,89 @@
+# 成绩分析报告 · v2 结构契约(对齐真实 9 页 deck)
+# 用法: rake powertom:lint TEMPLATE=template_scaffold_v2.pptx \
+#                          CONTRACT=template_contract_v2.toml \
+#                          DATA=sample_v2.toml
+#
+# 表格页的标签写完整路径(行循环用 classes[] 形式);页脚等装饰形状不必声明。
+
+slide_count = 9
+
+[[pages]]
+index = 1
+name = "封面"
+shapes = ["封面-标题", "封面-副标题", "封面-学校", "封面-日期"]
+labels = ["report_title", "grade_name", "exam_name", "school_name", "report_date:date.cn"]
+
+[[pages]]
+index = 2
+name = "整体表现"
+shapes = ["总览-标题", "总评"]
+labels = [
+  "kpis[0].label", "kpis[0].value", "kpis[0].delta",
+  "kpis[1].label", "kpis[1].value", "kpis[1].delta",
+  "kpis[2].label", "kpis[2].value", "kpis[2].delta",
+  "kpis[3].label", "kpis[3].value", "kpis[3].delta",
+  "kpi_note"
+]
+
+[[pages]]
+index = 3
+name = "班级均分对比"
+shapes = ["对比-标题", "班级均分表", "对比-结论"]
+labels = ["classes[].name", "classes[].avg", "class_comparison_note"]
+
+[[pages]]
+index = 4
+name = "班级成绩明细"
+shapes = ["明细-标题", "班级明细表", "明细-口径"]
+labels = [
+  "classes[].name", "classes[].count", "classes[].avg",
+  "classes[].excellent", "classes[].pass", "classes[].delta", "classes[].rank",
+  "totals.class_count", "totals.avg", "totals.excellent", "totals.pass",
+  "class_note"
+]
+
+[[pages]]
+index = 5
+name = "学科分析"
+shapes = ["学科-标题", "学科分析表", "学科-结论"]
+labels = [
+  "subjects[].name", "subjects[].full", "subjects[].avg",
+  "subjects[].rate", "subjects[].top", "subjects[].weak",
+  "totals.full_score", "totals.avg", "totals.rate",
+  "subject_note"
+]
+
+[[pages]]
+index = 6
+name = "总分分数段分布"
+shapes = ["分数段-标题", "分数段表", "分数段-结论"]
+labels = [
+  "distribution[].name", "distribution[].excellent", "distribution[].good",
+  "distribution[].pass", "distribution[].fail", "distribution[].count",
+  "totals.excellent_count", "totals.good_count", "totals.pass_count",
+  "totals.fail_count", "totals.class_count",
+  "distribution_note"
+]
+
+[[pages]]
+index = 7
+name = "重点关注学生"
+shapes = ["学生-标题", "学生预警表", "学生-说明"]
+labels = [
+  "students[].name", "students[].class_name", "students[].total",
+  "students[].weak", "students[].advice",
+  "student_note"
+]
+
+[[pages]]
+index = 8
+name = "改进措施"
+shapes = ["措施-标题", "措施1", "措施2", "措施3"]
+labels = ["measures[0].text", "measures[1].text", "measures[2].text"]
+
+[[pages]]
+index = 9
+name = "附录"
+shapes = ["附录-标题", "附录-数据来源", "附录-口径"]
+labels = ["data_source"]
+directive = "if show_appendix"
