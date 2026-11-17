@@ -18,7 +18,7 @@ module PowerTomDev
         [data.bytesize].pack("N") + type + data + [Zlib.crc32(type + data)].pack("N")
       end
       ihdr = [width, height, 8, 2, 0, 0, 0].pack("NNCCCCC")
-      row = ([0].pack("C")) + (rgb.pack("C3") * width)
+      row = [0].pack("C") + (rgb.pack("C3") * width)
       idat = Zlib::Deflate.deflate(row * height)
       signature + chunk.call("IHDR", ihdr) + chunk.call("IDAT", idat) + chunk.call("IEND", "")
     end

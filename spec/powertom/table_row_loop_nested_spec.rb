@@ -80,14 +80,14 @@ RSpec.describe "表格嵌套行(#rows)" do
     out = render(build_template(nested_rows), full_data)
 
     expect(read_table(out)).to eq([
-      %w[班级 学生 总分],
-      ["初二(1)班", "81.5", ""],
-      ["初二(1)班", "学生A", "398"],
-      ["初二(1)班", "学生B", "405"],
-      ["初二(2)班", "85.4", ""],
-      ["初二(2)班", "学生C", "412"],
-      ["合计", "3", ""]
-    ])
+                                    %w[班级 学生 总分],
+                                    ["初二(1)班", "81.5", ""],
+                                    ["初二(1)班", "学生A", "398"],
+                                    ["初二(1)班", "学生B", "405"],
+                                    ["初二(2)班", "85.4", ""],
+                                    ["初二(2)班", "学生C", "412"],
+                                    ["合计", "3", ""]
+                                  ])
   end
 
   it "子数组为空 → 只保留父内容行" do
@@ -95,10 +95,10 @@ RSpec.describe "表格嵌套行(#rows)" do
     out = render(build_template(nested_rows), data)
 
     expect(read_table(out)).to eq([
-      %w[班级 学生 总分],
-      ["一班", "90", ""],
-      ["合计", "0", ""]
-    ])
+                                    %w[班级 学生 总分],
+                                    ["一班", "90", ""],
+                                    ["合计", "0", ""]
+                                  ])
   end
 
   it "父数组为空 → 父子行全部删除,表头与合计保留" do
@@ -243,8 +243,8 @@ RSpec.describe "表格嵌套行(#rows)" do
       ok = system("soffice", "--headless", "-env:UserInstallation=file://#{profile}",
                   "--convert-to", "pdf", "--outdir", pdf_dir, out)
       expect(ok).to be(true)
-      expect(File.binread(File.join(pdf_dir, File.basename(out, ".pptx") + ".pdf"))
-                 .scan(/\/Type\s*\/Page[^s]/).size).to eq(1)
+      expect(File.binread(File.join(pdf_dir, "#{File.basename(out, '.pptx')}.pdf"))
+                 .scan(%r{/Type\s*/Page[^s]}).size).to eq(1)
     end
   end
 end

@@ -67,8 +67,51 @@ jobs:
             files = pkg.spec.files
             abort "包内出现测试文件: #{files.grep(%r{^spec/}).inspect}" unless files.grep(%r{^spec/}).empty?
             abort "缺少入口 lib/powertom.rb" unless files.include?("lib/powertom.rb")
+            abort "缺少 README.md" unless files.include?("README.md")
             puts "包内容校验通过(#{files.size} 个文件)"
           '
+
+  lint:
+    name: 代码风格与 API 文档
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.4"
+          bundler-cache: true
+
+      - name: RuboCop
+        run: bundle exec rubocop
+
+      - name: YARD 文档构建
+        run: bundle exec yard doc --no-output
+
+  public_fidelity:
+    # 公开保真验收:只用仓库内的脚手架/测试内生成的 deck,不依赖私有金样本。
+    name: 公开保真验收(LibreOffice)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.4"
+          bundler-cache: true
+
+      - name: 安装 LibreOffice
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libreoffice-impress fonts-noto-cjk
+
+      - name: 公开模板与表格循环的 PDF 转换
+        run: |
+          bundle exec rspec \
+            spec/powertom/table_row_loop_spec.rb \
+            spec/powertom/table_row_loop_nested_spec.rb \
+            spec/powertom/table_grid_spec.rb \
+            spec/powertom/table_blocks_spec.rb \
+            spec/powertom/score_report_v2_spec.rb \
+            spec/powertom/image_aspect_warning_spec.rb
 
   fidelity:
     # 保真验收(设计文档 §5.5):需要金样本 + LibreOffice。

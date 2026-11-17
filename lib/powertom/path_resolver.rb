@@ -7,7 +7,7 @@ module PowerTom
   # 抛出的 MissingDataError 只含原因短语(如"数据里没有字段 'x'"),
   # 页码/形状/标签等定位信息由调用方补充。
   module PathResolver
-    SEGMENT_RE = /\A([A-Za-z0-9_]+)(?:\[(\d+)\])?\z/.freeze
+    SEGMENT_RE = /\A([A-Za-z0-9_]+)(?:\[(\d+)\])?\z/
 
     module_function
 
@@ -42,10 +42,9 @@ module PowerTom
       end
     end
 
-    def fetch_index(current, index, path)
-      unless current.is_a?(Array) && index < current.size
-        raise MissingDataError, "下标 [#{index}] 越界或不在数组上"
-      end
+    def fetch_index(current, index, _path)
+      raise MissingDataError, "下标 [#{index}] 越界或不在数组上" unless current.is_a?(Array) && index < current.size
+
       current[index]
     end
   end

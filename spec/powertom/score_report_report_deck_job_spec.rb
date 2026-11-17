@@ -64,7 +64,7 @@ RSpec.describe ScoreReport::ReportDeckJob do
       expect(outcome.attempt).to eq(1)
       expect(events.map(&:first)).to eq([:succeeded])
       expect(events.last.last).to include(url: "https://oss.example/report.pptx",
-                                         slide_count: 8)
+                                          slide_count: 8)
     end
   end
 

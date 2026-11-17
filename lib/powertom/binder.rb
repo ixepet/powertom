@@ -1,7 +1,6 @@
 # frozen_string_literal: true
 
 require "date"
-require "set"
 require_relative "path_resolver"
 require_relative "formatter"
 
@@ -34,9 +33,11 @@ module PowerTom
       # §2.2:nil 渲染为空字符串,formatter 不参与(避免 currency 之类的报错)
       return "" if value.nil?
       return Formatter.apply(value, spec) if spec
+
       to_text(value, path)
     rescue MissingDataError => e
       raise if @strict
+
       @warnings << "#{e.message},已填空字符串"
       ""
     end
@@ -53,6 +54,7 @@ module PowerTom
       end
     rescue MissingDataError => e
       raise if @strict
+
       @warnings << "#{e.message}(#{purpose})"
       nil
     end
@@ -77,11 +79,9 @@ module PowerTom
     end
 
     def resolve(path, context)
-      begin
-        PathResolver.resolve(context[:scope] || @data, path)
-      rescue MissingDataError => e
-        raise MissingDataError, "#{describe(context)}:{{#{path}}} #{e.message}"
-      end
+      PathResolver.resolve(context[:scope] || @data, path)
+    rescue MissingDataError => e
+      raise MissingDataError, "#{describe(context)}:{{#{path}}} #{e.message}"
     end
 
     # 表格行标签:{{数组[].字段}} / {{父数组[].子数组[].字段}} 相对当前行作用域取值。
@@ -89,9 +89,7 @@ module PowerTom
     # #grid 作用域另见 resolve_grid_label({{row.x}} / {{col.y}} / {{cell}})。
     def resolve_label(path, context)
       return resolve_grid_label(path, context) if context[:grid_scope]
-      if context[:row_item] && (path == "row" || path.start_with?("row."))
-        return resolve_row_item_label(path, context)
-      end
+      return resolve_row_item_label(path, context) if context[:row_item] && (path == "row" || path.start_with?("row."))
       return resolve(path, context) unless path.include?("[]")
 
       resolve_row_label(path, context)
@@ -149,11 +147,9 @@ module PowerTom
     end
 
     def resolve_grid_item(item, remainder, path, context)
-      begin
-        PathResolver.resolve(item, remainder)
-      rescue MissingDataError => e
-        raise MissingDataError, "#{describe(context)}:{{#{path}}} #{e.message}"
-      end
+      PathResolver.resolve(item, remainder)
+    rescue MissingDataError => e
+      raise MissingDataError, "#{describe(context)}:{{#{path}}} #{e.message}"
     end
 
     def resolve_row_label(path, context)

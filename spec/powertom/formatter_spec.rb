@@ -7,7 +7,7 @@ RSpec.describe PowerTom::Formatter do
   describe "内置四族" do
     it "currency:千分位 + ¥,默认 2 位小数" do
       aggregate_failures do
-        expect(described_class.apply(1234567.891, "currency")).to eq("¥1,234,567.89")
+        expect(described_class.apply(1_234_567.891, "currency")).to eq("¥1,234,567.89")
         expect(described_class.apply(42, "currency")).to eq("¥42.00")
         expect(described_class.apply(-1200.5, "currency")).to eq("¥-1,200.50")
         expect(described_class.apply(1234.6, "currency.0")).to eq("¥1,235")
@@ -24,8 +24,8 @@ RSpec.describe PowerTom::Formatter do
 
     it "number:千分位,参数控制小数位" do
       aggregate_failures do
-        expect(described_class.apply(12345, "number")).to eq("12,345")
-        expect(described_class.apply(12345.678, "number.2")).to eq("12,345.68")
+        expect(described_class.apply(12_345, "number")).to eq("12,345")
+        expect(described_class.apply(12_345.678, "number.2")).to eq("12,345.68")
       end
     end
 

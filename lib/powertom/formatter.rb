@@ -13,6 +13,7 @@ module PowerTom
       def register(name, &block)
         raise ArgumentError, "formatter 名不能为空" if name.nil? || name.to_s.empty?
         raise ArgumentError, "formatter 需要接收 (value, arg) 的 block" unless block
+
         registry[name.to_s] = block
         name.to_s
       end
@@ -32,6 +33,7 @@ module PowerTom
       # spec:"currency" / "percent.1" / "date.year_month";nil → nil(无格式化)
       def apply(value, spec)
         return nil if spec.nil?
+
         name, arg = parse_spec(spec)
         proc = registry[name]
         unless proc
@@ -60,6 +62,7 @@ module PowerTom
 
     def numeric!(value, name)
       return value if value.is_a?(Numeric)
+
       raise PowerTom::Error, "formatter '#{name}' 要求数字,得到 #{value.class}"
     end
 
@@ -101,9 +104,8 @@ module PowerTom
     }.freeze
 
     register("date") do |value, arg|
-      unless value.respond_to?(:strftime)
-        raise PowerTom::Error, "formatter 'date' 要求 Date/Time,得到 #{value.class}"
-      end
+      raise PowerTom::Error, "formatter 'date' 要求 Date/Time,得到 #{value.class}" unless value.respond_to?(:strftime)
+
       pattern = DATE_PATTERNS.fetch(arg) do
         raise PowerTom::Error,
               "formatter 'date' 不支持 '#{arg}'(可用:nil, #{DATE_PATTERNS.keys.compact.join(', ')})"

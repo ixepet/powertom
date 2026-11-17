@@ -72,7 +72,7 @@ RSpec.describe ScoreReport::DeckExporter do
 
   it "数据不完整 → DataError,给老师可读消息,不调用上传" do
     uploader, calls = local_uploader
-    broken = data.reject { |key, _| key == :classes }
+    broken = data.except(:classes)
 
     expect { exporter(uploader: uploader).call(data: broken) }.to raise_error(described_class::DataError) do |error|
       expect(error.user_message).to include("数据不完整")
@@ -109,7 +109,7 @@ RSpec.describe ScoreReport::DeckExporter do
 
   it "关闭预检时仍能把渲染阶段的缺数据映射成 DataError" do
     uploader, = local_uploader
-    broken = data.reject { |key, _| key == :classes }
+    broken = data.except(:classes)
     exporter = described_class.new(template_path: template, uploader: uploader, preflight: false)
 
     expect { exporter.call(data: broken) }

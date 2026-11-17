@@ -32,6 +32,7 @@ module PowerTomDev
       renames.each do |r|
         shape = adapter.find_shape(prs, r[:slide_no], r[:old_name])
         raise "改名目标未找到: P#{r[:slide_no]} #{r[:old_name].inspect}" unless shape
+
         shape.name = r[:new_name]
       end
 

@@ -20,13 +20,15 @@ Gem::Specification.new do |spec|
     "homepage_uri" => spec.homepage,
     "source_code_uri" => spec.homepage,
     "bug_tracker_uri" => "#{spec.homepage}/issues",
-    "documentation_uri" => "#{spec.homepage}/blob/main/docs/usage.md"
+    "changelog_uri" => "#{spec.homepage}/blob/main/CHANGELOG.md",
+    "documentation_uri" => "#{spec.homepage}/blob/main/docs/usage.md",
+    "rubygems_mfa_required" => "true"
   }
   # ruby_pptx 0.2 与 tomlrb 3.0 均要求 >= 3.3
   spec.required_ruby_version = ">= 3.3"
 
-  spec.files = Dir["lib/**/*.rb"] + %w[README.md LICENSE]
-  spec.extra_rdoc_files = %w[README.md LICENSE]
+  spec.files = Dir["lib/**/*.rb"] + %w[README.md LICENSE CHANGELOG.md]
+  spec.extra_rdoc_files = %w[README.md LICENSE CHANGELOG.md]
   spec.require_paths = ["lib"]
 
   # 设计文档 §4:上游依赖锁版本(0.x API 不稳定,锁到 0.2.x)

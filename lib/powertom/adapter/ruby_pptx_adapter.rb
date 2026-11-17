@@ -23,6 +23,7 @@ module PowerTom
             shape.text_frame.paragraphs.each do |paragraph|
               runs = paragraph.runs
               next if runs.empty?
+
               contexts << {
                 slide_no: slide_no,
                 shape: shape.name,
@@ -39,9 +40,8 @@ module PowerTom
       # run 节点本身不动(保留 rPr 样式引用)。
       def write_paragraph_runs(paragraph, texts)
         runs = paragraph.runs
-        if texts.size != runs.size
-          raise Error, "写回失败:run 数量不匹配(现有 #{runs.size},传入 #{texts.size})"
-        end
+        raise Error, "写回失败:run 数量不匹配(现有 #{runs.size},传入 #{texts.size})" if texts.size != runs.size
+
         runs.each_with_index { |run, i| run.text = texts[i] }
       end
 
@@ -63,13 +63,54 @@ module PowerTom
         prs.slides.each_with_index do |slide, i|
           walk_shapes(slide.shapes) do |shape|
             next unless shape.is_a?(Pptx::Picture)
+
             field = image_field(shape)
             next unless field
+
             contexts << { slide_no: i + 1, shape: shape.name, field: field,
                           slide: slide, picture: shape }
           end
         end
         contexts
+      end
+
+      # 图片比例与占位形状差异(超过阈值时返回比例信息,用于温和告警)
+      def image_aspect_mismatch(picture, image_path, threshold: 0.2)
+        image = Pptx::Image.from_file(image_path)
+        return nil if image.vector?
+
+        native = image.native_size
+        image_width = native[0].emu
+        image_height = native[1].emu
+        shape_width = picture.width&.emu
+        shape_height = picture.height&.emu
+        return nil unless image_width && image_height && shape_width && shape_height
+        return nil unless shape_width.positive? && shape_height.positive?
+
+        image_ratio = image_width.to_f / image_height
+        shape_ratio = shape_width.to_f / shape_height
+        diff = (image_ratio - shape_ratio).abs / shape_ratio
+        return nil if diff <= threshold
+
+        { image_ratio: image_ratio, shape_ratio: shape_ratio, diff: diff }
+      end
+
+      # 图表里的模板标签(v0 不绑定图表数据,只用于温和告警)
+      def chart_tags(prs)
+        list = []
+        prs.slides.each_with_index do |slide, i|
+          walk_shapes(slide.shapes) do |shape|
+            next unless shape.respond_to?(:chart?) && shape.chart?
+
+            tags = shape.chart.element.to_xml.to_s.scan(/\{\{[^{}]*\}\}/).uniq
+            next if tags.empty?
+
+            list << { slide_no: i + 1, shape: shape.name, tags: tags }
+          end
+        end
+        list
+      rescue StandardError
+        []
       end
 
       # §5.3 图片替换:get_or_add 新 image part(按内容 sha1 去重,扩展名/content type
@@ -204,7 +245,7 @@ module PowerTom
       def strip_column_markers(table_element, row_index, first_col, last_col)
         cells = table_element.tr_list[row_index].tc_list
         (first_col..last_col).each do |c|
-          strip_tags_in_cell(cells[c], /\{\{\s*(?:#cols\b[^{}]*|\/cols|#if\b[^{}]*|\/if)\s*\}\}/)
+          strip_tags_in_cell(cells[c], %r{\{\{\s*(?:#cols\b[^{}]*|/cols|#if\b[^{}]*|/if)\s*\}\}})
         end
         true
       end
@@ -219,11 +260,9 @@ module PowerTom
         trs = table_element.tr_list
         open_index = trs.index { |tr| tr.node == open_element.node }
         close_index = trs.index { |tr| tr.node == close_element.node }
-        unless open_index && close_index && close_index > open_index
-          raise PowerTom::Error, "行区块标记定位失败(区块可能已被展开)"
-        end
+        raise PowerTom::Error, "行区块标记定位失败(区块可能已被展开)" unless open_index && close_index && close_index > open_index
 
-        templates = (open_index + 1...close_index).map { |i| trs[i] }
+        templates = ((open_index + 1)...close_index).map { |i| trs[i] }
         groups = Array.new(count) do
           templates.map { |template| open_element.add_previous_sibling(table_element.import(template)) }
         end
@@ -236,11 +275,9 @@ module PowerTom
         trs = table_element.tr_list
         open_index = trs.index { |tr| tr.node == open_element.node }
         close_index = trs.index { |tr| tr.node == close_element.node }
-        unless open_index && close_index && close_index > open_index
-          raise PowerTom::Error, "条件区块标记定位失败(区块可能已被展开)"
-        end
+        raise PowerTom::Error, "条件区块标记定位失败(区块可能已被展开)" unless open_index && close_index && close_index > open_index
 
-        content = (open_index + 1...close_index).map { |i| trs[i] }
+        content = ((open_index + 1)...close_index).map { |i| trs[i] }
         content.each { |tr| table_element.remove(tr) } unless keep_content
         table_element.remove(open_element)
         table_element.remove(close_element)
@@ -348,6 +385,7 @@ module PowerTom
       def find_shape(prs, slide_no, name)
         slide = prs.slides[slide_no - 1]
         return nil unless slide
+
         found = nil
         walk_shapes(slide.shapes) { |shape| found ||= shape if shape.name == name }
         found
@@ -378,8 +416,10 @@ module PowerTom
       def image_field(shape)
         name = shape.name.to_s
         return name.delete_prefix(IMAGE_FIELD_PREFIX) if name.start_with?(IMAGE_FIELD_PREFIX)
+
         descr = alt_text_of(shape)
         return descr.delete_prefix(IMAGE_FIELD_PREFIX) if descr&.start_with?(IMAGE_FIELD_PREFIX)
+
         nil
       end
 
@@ -417,8 +457,10 @@ module PowerTom
         end
         walk_shapes(container.shapes) do |shape|
           next unless shape.text_frame?
+
           text = shape.text_frame.text.to_s
           next unless text.include?("{{")
+
           entries << { container: label, shape: shape.name, text: text }
         end
       end

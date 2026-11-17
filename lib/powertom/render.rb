@@ -24,7 +24,9 @@ module PowerTom
     Render.new(template_path, data: DataLoading.coerce(data), strict: strict).call
   end
 
+  # Result of {PowerTom.render}: the edited presentation plus render warnings.
   class RenderResult
+    # @return [Array<String>] non-fatal warnings (unused fields, fallbacks, limitations).
     attr_reader :warnings
 
     def initialize(adapter, prs, warnings, temp_path: nil)
@@ -34,13 +36,19 @@ module PowerTom
       @temp_path = temp_path
     end
 
+    # Save the rendered deck.
+    #
+    # @param path [String] destination +.pptx+ path.
+    # @return [String] the destination path.
     def save(path)
       @adapter.save(@prs, path)
       FileUtils.remove_entry(@temp_path, true) if @temp_path
       path
     end
 
-    # 成品页数(埋点与断言用;克隆/删页之后的结果)
+    # Number of slides in the rendered deck (after cloning/removal).
+    #
+    # @return [Integer]
     def slide_count
       @prs.slides.size
     end
@@ -102,7 +110,8 @@ module PowerTom
         adapter.write_paragraph_runs(ctx[:paragraph], new_texts) if new_texts
       end
 
-      replace_images(adapter, work_prs, page_scopes, binder)
+      replace_images(adapter, work_prs, page_scopes, binder, warnings)
+      report_chart_tags(adapter, work_prs, warnings)
 
       report_unused_fields(binder, warnings)
       report_notes_labels(notes, warnings)
@@ -149,7 +158,7 @@ module PowerTom
     end
 
     # 结构手术走字节级包操作:模板原文件 → 手术后的临时文件 → 重新打开绑定
-    def run_surgery(adapter, pages)
+    def run_surgery(_adapter, pages)
       tmp = Tempfile.create(["powertom_surgery", ".pptx"])
       tmp.close
       @work_path = tmp.path
@@ -159,7 +168,7 @@ module PowerTom
     # §5.3 图片替换:powertom:image:字段名 占位 → 数据里的图片文件。
     # 与文本一样作用域感知:#each 克隆页各自取本项的图片;缺字段(strict: false)
     # 时保留占位图并记 warning。
-    def replace_images(adapter, prs, page_scopes, binder)
+    def replace_images(adapter, prs, page_scopes, binder, warnings)
       adapter.picture_contexts(prs).each do |pctx|
         page = page_scopes[pctx[:slide_no] - 1]
         ctx = { slide_no: pctx[:slide_no], shape: pctx[:shape],
@@ -175,7 +184,26 @@ module PowerTom
           raise PowerTom::Error,
                 "第 #{pctx[:slide_no]} 页 图片字段 '#{pctx[:field]}' 的文件不存在:#{value}"
         end
+        warn_image_aspect(adapter, pctx, value, warnings)
         adapter.replace_image(pctx[:slide], pctx[:picture], value)
+      end
+    end
+
+    # 固定策略是"填满形状、居中裁切";比例差异大时提前提示设计师
+    def warn_image_aspect(adapter, pctx, image_path, warnings)
+      mismatch = adapter.image_aspect_mismatch(pctx[:picture], image_path)
+      return unless mismatch
+
+      warnings << "第 #{pctx[:slide_no]} 页 图片 '#{pctx[:field]}':" \
+                  "图片比例 #{format('%.2f', mismatch[:image_ratio])} 与占位形状 " \
+                  "#{format('%.2f', mismatch[:shape_ratio])} 差异较大,将居中裁切"
+    end
+
+    # 图表不绑定数据:发现图表里残留标签时温和告警,不修改文件
+    def report_chart_tags(adapter, prs, warnings)
+      adapter.chart_tags(prs).each do |chart|
+        warnings << "第 #{chart[:slide_no]} 页 图表'#{chart[:shape]}'含标签 " \
+                    "#{chart[:tags].join('、')}:v0 不绑定图表数据,已原样保留"
       end
     end
 
@@ -358,7 +386,7 @@ module PowerTom
         item.each_with_index do |visible, template_index|
           next if visible
 
-          hidden << band[:first_col] + item_index * band[:width] + template_index
+          hidden << (band[:first_col] + (item_index * band[:width]) + template_index)
         end
       end
       return if hidden.empty?
@@ -439,7 +467,7 @@ module PowerTom
       while row < block[:close]
         if_node = block[:ifs].find { |node| node[:open] == row }
         if if_node
-          (if_node[:open] + 1...if_node[:close]).each { records << record } if if_values[if_node]
+          ((if_node[:open] + 1)...if_node[:close]).each { records << record } if if_values[if_node]
           row = if_node[:close] + 1
           next
         end
@@ -530,9 +558,7 @@ module PowerTom
         return nil unless row
 
         result = { scope[:parent_prefix] => scope[:parents][row[:parent]] }
-        if row[:child]
-          result[scope[:child_prefix]] = scope[:children][row[:parent]][row[:child]]
-        end
+        result[scope[:child_prefix]] = scope[:children][row[:parent]][row[:child]] if row[:child]
         result
       end
     end
@@ -554,9 +580,7 @@ module PowerTom
       grid = {}
       grid[:col] = col if col
       grid[:row] = row if row
-      if row && col
-        grid[:cell] = -> { GridValue.cell_value(row, col, scope[:value_path]) }
-      end
+      grid[:cell] = -> { GridValue.cell_value(row, col, scope[:value_path]) } if row && col
       grid.empty? ? nil : grid
     end
 
@@ -599,6 +623,7 @@ module PowerTom
     # §2.3 数据有模板未使用的字段 → warning(v0 只追踪顶层字段)
     def report_unused_fields(binder, warnings)
       return unless @data.is_a?(Hash)
+
       unused = @data.keys.map(&:to_s) - binder.used_root_keys.to_a
       unused.each { |key| warnings << "数据字段 '#{key}' 未被模板使用" }
     end
@@ -608,6 +633,7 @@ module PowerTom
       notes.each do |note|
         Scanner.scan_notes(note[:text], note[:slide_no]).each do |found|
           next if found[:tag] =~ /\{\{\s*#/
+
           warnings << "第 #{found[:slide_no]} 页备注含标签 #{found[:tag]},v0 不渲染备注,已忽略"
         end
       end

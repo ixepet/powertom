@@ -66,7 +66,7 @@ RSpec.describe PowerTom, ".check" do
   end
 
   it "普通页缺失字段 → error 定位页码/形状/标签" do
-    broken = COMPLETE_DATA.reject { |k, _| k == :workload }
+    broken = COMPLETE_DATA.except(:workload)
     result = check(labeled_with_directives, data: broken)
     e = result.errors.find { |x| x.label == "workload" }
     aggregate_failures do
@@ -86,7 +86,7 @@ RSpec.describe PowerTom, ".check" do
 
   it "#each 路径缺失/非数组 → error;空数组 → 删组 warning" do
     aggregate_failures do
-      result = check(labeled_with_directives, data: COMPLETE_DATA.reject { |k, _| k == :scenarios })
+      result = check(labeled_with_directives, data: COMPLETE_DATA.except(:scenarios))
       expect(result.errors).to include(an_object_having_message(/没有字段 'scenarios'/))
 
       result2 = check(labeled_with_directives, data: COMPLETE_DATA.merge(scenarios: "老师"))

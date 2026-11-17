@@ -32,6 +32,7 @@ module PowerTomDev
 
     def generate(pptx_path:, out_dir:, strip_fonts: true, strip_media: true, source_name: nil)
       raise ArgumentError, "模板不存在: #{pptx_path}" unless File.file?(pptx_path)
+
       source_name ||= File.basename(pptx_path)
       FileUtils.mkdir_p(out_dir)
       out_template = File.join(out_dir, "template.pptx")
@@ -42,9 +43,7 @@ module PowerTomDev
       # 剥离自检:瘦身不得改变任何文本结构
       src_digest = Anatomy.text_digest(Anatomy.analyze(pptx_path))
       out_digest = Anatomy.text_digest(Anatomy.analyze(out_template))
-      unless src_digest == out_digest
-        raise "剥离自检失败:剥离前后文本结构不一致,禁止使用该产物"
-      end
+      raise "剥离自检失败:剥离前后文本结构不一致,禁止使用该产物" unless src_digest == out_digest
 
       manifest = Anatomy.manifest(Anatomy.analyze(out_template),
                                   source_name: source_name, generated_at: Time.now.to_s)
@@ -59,9 +58,8 @@ module PowerTomDev
       manifest_toml = PowerTomDev::TomlWriter.dump(manifest)
       # round-trip 自检:TOML 解析回来必须与源 Hash 相等
       parsed = Tomlrb.parse(manifest_toml)
-      unless parsed == manifest
-        raise "manifest TOML round-trip 失败:dump/parse 不一致"
-      end
+      raise "manifest TOML round-trip 失败:dump/parse 不一致" unless parsed == manifest
+
       File.write(File.join(out_dir, "manifest.toml"), manifest_toml)
 
       strip_report.merge(bytes_source: File.size(pptx_path), bytes_fixture: File.size(out_template))
@@ -79,6 +77,7 @@ module PowerTomDev
         Zip::OutputStream.open(tmp) do |zos|
           zin.entries.each do |entry|
             next if entry.directory?
+
             name = entry.name
 
             if strip_fonts && name.start_with?("ppt/fonts/")
@@ -175,15 +174,13 @@ module PowerTomDev
       report = generate(pptx_path: argv[0], out_dir: options[:out],
                         strip_fonts: options[:strip_fonts], strip_media: options[:strip_media])
       puts "生成完成: #{File.join(options[:out], 'template.pptx')} + manifest.toml"
-      puts "  剥离: #{report[:stripped].join(', ').empty? ? '无' : report[:stripped].join(', ')}" \
-           " | 媒体替换 #{report[:media_replaced]} 个 | 字体移除 #{report[:fonts_removed]} 个"
+      puts "  剥离: #{report[:stripped].join(', ').empty? ? '无' : report[:stripped].join(', ')} " \
+           "| 媒体替换 #{report[:media_replaced]} 个 | 字体移除 #{report[:fonts_removed]} 个"
       puts format("  体积: %.1fMB -> %.1fMB",
                   report[:bytes_source] / 1024.0 / 1024, report[:bytes_fixture] / 1024.0 / 1024)
       report
     end
 
-    if File.expand_path($PROGRAM_NAME) == File.expand_path(__FILE__)
-      cli(ARGV)
-    end
+    cli(ARGV) if File.expand_path($PROGRAM_NAME) == File.expand_path(__FILE__)
   end
 end

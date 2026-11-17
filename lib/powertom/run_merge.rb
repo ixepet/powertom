@@ -13,6 +13,7 @@ module PowerTom
     # 返回新的 run 文本数组;段落里没有可替换标签时返回 nil(调用方跳过写入)
     def merge(run_texts, resolver)
       return nil if run_texts.nil? || run_texts.empty?
+
       joined = run_texts.join
       return nil unless joined.include?("{{")
       return nil unless joined.match?(PowerTom::Scanner::LABEL_RE)

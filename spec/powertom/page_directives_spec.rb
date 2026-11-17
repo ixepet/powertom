@@ -227,7 +227,7 @@ RSpec.describe PowerTom, ".render 页级指令" do
       expect(ok).to be(true), "LibreOffice 转换失败"
       pdf = File.join(pdf_dir, "each_out.pdf")
       expect(File.exist?(pdf)).to be(true)
-      expect(File.binread(pdf).scan(/\/Type\s*\/Page[^s]/).size).to eq(20)
+      expect(File.binread(pdf).scan(%r{/Type\s*/Page[^s]}).size).to eq(20)
     end
   end
 end

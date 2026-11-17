@@ -83,10 +83,10 @@ RSpec.describe "表格动态列(#grid)" do
     out = render(build_template(grid_rows), full_data)
 
     expect(read_table(out)).to eq([
-      ["班级", "≥85 优秀", "70–84", "60–69"],
-      ["初二(1)班", "17", "25", "15"],
-      ["初二(2)班", "22", "20", "12"]
-    ])
+                                    ["班级", "≥85 优秀", "70–84", "60–69"],
+                                    ["初二(1)班", "17", "25", "15"],
+                                    ["初二(2)班", "22", "20", "12"]
+                                  ])
   end
 
   it "{{cell}} 支持 formatter" do
@@ -111,9 +111,9 @@ RSpec.describe "表格动态列(#grid)" do
       bands: [{ key: "excellent", label: "优秀" }, { key: "good", label: "良好" }]
     }
     expect(read_table(render(build_template(rows), data))).to eq([
-      ["", "优秀", "良好"],
-      ["一班", "17", "25"]
-    ])
+                                                                   ["", "优秀", "良好"],
+                                                                   ["一班", "17", "25"]
+                                                                 ])
   end
 
   it "标量列项:{{col}} 直接渲染列名" do
@@ -126,25 +126,25 @@ RSpec.describe "表格动态列(#grid)" do
       bands: %w[优秀 良好]
     }
     expect(read_table(render(build_template(rows), data))).to eq([
-      ["", "优秀", "良好"],
-      ["一班", "17", "25"]
-    ])
+                                                                   ["", "优秀", "良好"],
+                                                                   ["一班", "17", "25"]
+                                                                 ])
   end
 
   it "空 rows → 只保留表头" do
     data = full_data.merge(distribution: [])
     expect(read_table(render(build_template(grid_rows), data))).to eq([
-      ["班级", "≥85 优秀", "70–84", "60–69"]
-    ])
+                                                                        ["班级", "≥85 优秀", "70–84", "60–69"]
+                                                                      ])
   end
 
   it "空 cols → 只保留首列(行标题)" do
     data = full_data.merge(bands: [])
     expect(read_table(render(build_template(grid_rows), data))).to eq([
-      ["班级"],
-      ["初二(1)班"],
-      ["初二(2)班"]
-    ])
+                                                                        ["班级"],
+                                                                        ["初二(1)班"],
+                                                                        ["初二(2)班"]
+                                                                      ])
   end
 
   describe "结构校验" do
@@ -300,8 +300,8 @@ RSpec.describe "表格动态列(#grid)" do
       ok = system("soffice", "--headless", "-env:UserInstallation=file://#{profile}",
                   "--convert-to", "pdf", "--outdir", pdf_dir, out)
       expect(ok).to be(true)
-      expect(File.binread(File.join(pdf_dir, File.basename(out, ".pptx") + ".pdf"))
-                 .scan(/\/Type\s*\/Page[^s]/).size).to eq(1)
+      expect(File.binread(File.join(pdf_dir, "#{File.basename(out, '.pptx')}.pdf"))
+                 .scan(%r{/Type\s*/Page[^s]}).size).to eq(1)
     end
   end
 end

@@ -1,0 +1,66 @@
+AllCops:
+  TargetRubyVersion: 3.3
+  NewCops: enable
+  SuggestExtensions: false
+  Exclude:
+    - "spec/fixtures/**/*"
+    - "tmp/**/*"
+    - "vendor/**/*"
+    - "doc/**/*"
+
+# Chinese comments and docs are intentional in this project.
+Style/AsciiComments:
+  Enabled: false
+
+Style/Documentation:
+  Enabled: false
+
+# Large rendering/validation methods are cohesive; metrics add noise here.
+Metrics:
+  Enabled: false
+
+Layout/LineLength:
+  Max: 120
+
+Style/StringLiterals:
+  EnforcedStyle: double_quotes
+
+Style/FrozenStringLiteralComment:
+  Enabled: true
+
+Naming/MethodParameterName:
+  MinNameLength: 1
+
+Lint/SuppressedException:
+  Enabled: false
+
+# Specs intentionally declare shared constants inside example groups.
+Lint/ConstantDefinitionInBlock:
+  Exclude:
+    - "spec/**/*"
+
+Lint/UnusedMethodArgument:
+  AllowUnusedKeywordArguments: true
+
+# The validator uses `value = begin ... rescue ... return nil end` on purpose.
+Lint/NoReturnInBeginEndBlocks:
+  Enabled: false
+
+Style/FormatStringToken:
+  Enabled: false
+
+# Command-style adapter methods return true as a status; not predicates.
+Naming/PredicateMethod:
+  Enabled: false
+
+# Exception branches share the same outcome but are intentionally separate.
+Lint/DuplicateBranch:
+  Enabled: false
+
+# Constants declared after `private` are still public in Ruby; kept for readability.
+Lint/UselessConstantScoping:
+  Enabled: false
+
+Style/OneClassPerFile:
+  Exclude:
+    - "lib/powertom.rb"

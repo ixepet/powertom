@@ -41,7 +41,7 @@ module PowerTomDev
           lines << "—— 数据对账(powertom:check)——"
           check.entries.each { |e| lines << line(e.level, e.slide_no, e.message, shape: e.shape) }
         end
-        lines << "-" * 48
+        lines << ("-" * 48)
         lines << summary
         lines.join("\n")
       end
@@ -58,6 +58,7 @@ module PowerTomDev
       def summary
         base = "结构检查:#{errors.size} 个 error,#{warnings.size} 个 warning"
         return base unless check
+
         "#{base};数据对账:#{check.errors.size} 个 error,#{check.warnings.size} 个 warning"
       end
     end
@@ -84,7 +85,7 @@ module PowerTomDev
       notes_by_slide, directives = collect_directives(adapter, prs, entries)
       labels_by_slide = collect_labels(adapter, prs, entries)
       names_by_slide = adapter.shape_names_by_slide(prs)
-                               .to_h { |s| [s[:slide_no], s[:names]] }
+                              .to_h { |s| [s[:slide_no], s[:names]] }
       images_by_slide = collect_images(adapter, prs)
 
       declared_pages = pages.map { |p| p["index"] }.compact
@@ -143,7 +144,7 @@ module PowerTomDev
 
         ctx[:run_texts].join.scan(PowerTom::Scanner::TAG_RE).each do |tag|
           raw = tag[/\{\{\s*([^{}]*?)\s*\}\}/, 1].to_s
-          labels[ctx[:slide_no]] << raw if raw.match?(/\A#(rows|grid|cols)\s|\A\/(rows|cols)\z/)
+          labels[ctx[:slide_no]] << raw if raw.match?(%r{\A#(rows|grid|cols)\s|\A/(rows|cols)\z})
         end
       rescue PowerTom::TemplateSyntaxError => e
         entries << Entry.new(level: :error, page: ctx[:slide_no],
@@ -163,6 +164,7 @@ module PowerTomDev
     def check_shapes(page, no, actual_names, entries)
       Array(page["shapes"]).each do |name|
         next if actual_names.include?(name)
+
         entries << Entry.new(level: :error, page: no, message: "缺少形状:'#{name}'")
       end
     end
@@ -172,6 +174,7 @@ module PowerTomDev
       declared = Array(page["labels"])
       declared.each do |label|
         next if actual.include?(label)
+
         entries << Entry.new(level: :error, page: no, message: "缺少标签:{{#{label}}}")
       end
       (actual - declared).each do |extra|
@@ -186,12 +189,13 @@ module PowerTomDev
       declared = Array(page["images"])
       declared.each do |name|
         next if actual_images.include?(name)
-        if actual_names.include?(name)
-          entries << Entry.new(level: :error, page: no,
+
+        entries << if actual_names.include?(name)
+                     Entry.new(level: :error, page: no,
                                message: "形状'#{name}'存在但不是图片:图片占位必须挂在图片形状上")
-        else
-          entries << Entry.new(level: :error, page: no, message: "缺少图片占位:'#{name}'")
-        end
+                   else
+                     Entry.new(level: :error, page: no, message: "缺少图片占位:'#{name}'")
+                   end
       end
       (actual_images - declared).each do |extra|
         entries << Entry.new(level: :warning, page: no,
@@ -202,6 +206,7 @@ module PowerTomDev
     def check_directive(page, no, actual, entries)
       expected = page["directive"]
       return if expected.to_s == actual.to_s
+
       format_directive = ->(value) { value ? "{{##{value}}}" : "无" }
       entries << Entry.new(
         level: :error, page: no,
@@ -213,6 +218,7 @@ module PowerTomDev
       adapter.container_texts(prs).each do |entry|
         tags = entry[:text].scan(PowerTom::Scanner::TAG_RE).uniq
         next if tags.empty?
+
         entries << Entry.new(
           level: :error,
           message: "#{entry[:container]} 形状'#{entry[:shape]}'含标签 #{tags.join('、')}:" \
@@ -224,7 +230,8 @@ module PowerTomDev
     def check_notes_tags(notes_by_slide, declared_pages, entries)
       notes_by_slide.each do |no, text|
         next unless declared_pages.include?(no)
-        tags = text.scan(PowerTom::Scanner::TAG_RE).reject { |t| t.match?(/\{\{\s*#/) }.uniq
+
+        tags = text.scan(PowerTom::Scanner::TAG_RE).grep_v(/\{\{\s*#/).uniq
         tags.each do |tag|
           entries << Entry.new(level: :warning, page: no,
                                message: "备注含标签 #{tag},不会渲染(备注只用于页级指令)")

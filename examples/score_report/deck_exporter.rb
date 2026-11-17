@@ -66,7 +66,7 @@ module ScoreReport
       begin
         url = upload(path, key)
       ensure
-        File.delete(path) if File.exist?(path)
+        FileUtils.rm_f(path)
       end
 
       Result.new(
@@ -87,9 +87,7 @@ module ScoreReport
       result = PowerTom.check(@template_path, data: data)
       return if result.ok?
 
-      if template_broken?
-        raise TemplateError.new(USER_MESSAGES[:template], detail: result.report)
-      end
+      raise TemplateError.new(USER_MESSAGES[:template], detail: result.report) if template_broken?
 
       raise DataError.new(USER_MESSAGES[:data], detail: result.report)
     end

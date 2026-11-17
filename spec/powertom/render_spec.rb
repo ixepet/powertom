@@ -55,6 +55,7 @@ RSpec.describe PowerTom, ".render" do
       para = manifest["slides"][rep[:slide_no] - 1]["paragraphs"]
              .find { |p| p["text"] == rep[:old_text] }
       raise "manifest 中找不到注入目标 P#{rep[:slide_no]} #{rep[:old_text].inspect}" unless para
+
       expected = para["runs"] || 1
       raise "manifest run 数变化(P#{rep[:slide_no]} #{rep[:old_text].inspect}: #{expected})" if
         expected != rep[:runs].size
@@ -127,7 +128,7 @@ RSpec.describe PowerTom, ".render" do
 
   context "strict 模式缺失字段" do
     it "抛 MissingDataError,信息定位到页码与标签" do
-      incomplete = DATA.reject { |k, _| k == :highlight_title }
+      incomplete = DATA.except(:highlight_title)
       expect { PowerTom.render(labeled_path, data: incomplete) }
         .to raise_error(PowerTom::MissingDataError, /第 5 页.*highlight_title/)
     end
@@ -135,7 +136,7 @@ RSpec.describe PowerTom, ".render" do
 
   context "strict: false 缺失字段" do
     it "填空字符串并记 warning" do
-      incomplete = DATA.reject { |k, _| k == :highlight_title }
+      incomplete = DATA.except(:highlight_title)
       result = PowerTom.render(labeled_path, data: incomplete, strict: false)
       expect(result.warnings.join).to include("第 5 页", "已填空字符串")
       saved = File.join(tmp_root || Dir.tmpdir, "strict_false_out.pptx")
@@ -164,7 +165,7 @@ RSpec.describe PowerTom, ".render" do
         [{ slide_no: 2, shape: "文本框 18", old_text: "现状痛点", runs: ["{{price:currency}}"] }]
       )
       out = File.join(Dir.tmpdir, "formatter_out.pptx")
-      PowerTom.render(labeled, data: { price: 1234567.891 }).save(out)
+      PowerTom.render(labeled, data: { price: 1_234_567.891 }).save(out)
 
       adapter = PowerTom::Adapter::RubyPptxAdapter.new
       prs = adapter.open(out)
@@ -231,7 +232,7 @@ RSpec.describe PowerTom, ".render" do
       expect(ok).to be(true), "LibreOffice 转换失败"
       expect(File.exist?(pdf)).to be(true)
 
-      page_count = File.binread(pdf).scan(/\/Type\s*\/Page[^s]/).size
+      page_count = File.binread(pdf).scan(%r{/Type\s*/Page[^s]}).size
       expect(page_count).to eq(18)
     end
   end

@@ -73,17 +73,17 @@ RSpec.describe "表格行循环" do
                  })
 
     expect(read_table(out)).to eq([
-      ["班级", "均分"],
-      ["一班", "85.1"],
-      ["二班", "79.8"],
-      ["三班", "82.3"],
-      ["合计", "247.2"]
-    ])
+                                    ["班级", "均分"],
+                                    ["一班", "85.1"],
+                                    ["二班", "79.8"],
+                                    ["三班", "82.3"],
+                                    ["合计", "247.2"]
+                                  ])
   end
 
   it "空数组 → 移除循环行,表头与合计保留" do
     out = render(basic_template, { classes: [], total: "0" })
-    expect(read_table(out)).to eq([["班级", "均分"], ["合计", "0"]])
+    expect(read_table(out)).to eq([%w[班级 均分], %w[合计 0]])
   end
 
   it "单元格里的 formatter 生效" do
@@ -117,7 +117,7 @@ RSpec.describe "表格行循环" do
   end
 
   it "正文（非表格）里写 [] → 语法错误" do
-    template = build_template([["占位", "占位"]], extra_text: "{{classes[].name}}")
+    template = build_template([%w[占位 占位]], extra_text: "{{classes[].name}}")
     expect { render(template, { classes: [] }) }
       .to raise_error(PowerTom::TemplateSyntaxError, /只能在表格行里使用/)
   end
@@ -170,8 +170,8 @@ RSpec.describe "表格行循环" do
       ok = system("soffice", "--headless", "-env:UserInstallation=file://#{profile}",
                   "--convert-to", "pdf", "--outdir", pdf_dir, out)
       expect(ok).to be(true)
-      expect(File.binread(File.join(pdf_dir, File.basename(out, ".pptx") + ".pdf"))
-                 .scan(/\/Type\s*\/Page[^s]/).size).to eq(1)
+      expect(File.binread(File.join(pdf_dir, "#{File.basename(out, '.pptx')}.pdf"))
+                 .scan(%r{/Type\s*/Page[^s]}).size).to eq(1)
     end
   end
 end

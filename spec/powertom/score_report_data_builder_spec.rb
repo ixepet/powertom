@@ -32,13 +32,13 @@ RSpec.describe ScoreReport::DataBuilder do
 
     it "没有上次考试数据时环比留空" do
       analysis = PowerTomDev::ScoreReportAnalysis.full
-      analysis[:overall] = analysis[:overall].reject { |key, _| key == :previous }
+      analysis[:overall] = analysis[:overall].except(:previous)
       expect(build(analysis)[:kpis].map { |k| k[:delta] }).to eq(["", "", "", ""])
     end
 
     it "缺必要指标时给出可读错误" do
       analysis = PowerTomDev::ScoreReportAnalysis.full
-      analysis[:overall] = analysis[:overall].reject { |key, _| key == :average }
+      analysis[:overall] = analysis[:overall].except(:average)
       expect { build(analysis) }
         .to raise_error(ScoreReport::DataBuilder::Error, /缺少必要数据:average/)
     end

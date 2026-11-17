@@ -226,3 +226,16 @@ argument still performs syntax and structure checks, but skips field reconciliat
 
 Messages include the slide number, shape name (or table cell) and tag, so both engineers and
 designers can locate the problem without reading the code.
+
+## 9. Limitations and warnings
+
+| Limitation | Behaviour |
+| --- | --- |
+| Charts are not data-bound | Tags inside a chart are left untouched and reported as warnings by `PowerTom.render` and `PowerTom.check`. |
+| Notes are not rendered | Notes are only read for page directives; ordinary tags in notes produce a warning. |
+| Image replacement always fills and centre-crops | When the image aspect differs from the placeholder by more than 20%, a render warning explains that the image will be cropped. Use a placeholder with the target aspect ratio. |
+| Tags on masters/layouts are ignored | Only shapes on slides are processed. |
+| Messages are Chinese-only | The report format is language-neutral; localisation is planned. |
+
+Missing fields are errors in strict mode. Known limitations above degrade with a warning
+instead of silently doing nothing.

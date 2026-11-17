@@ -152,6 +152,7 @@ RSpec.describe PowerTomDev::TemplateLint do
     layout = nil
     prs.slide_masters.each do |master|
       next if layout
+
       master.slide_layouts.each do |candidate|
         layout ||= candidate if candidate.shapes.any?(&:text_frame?)
       end

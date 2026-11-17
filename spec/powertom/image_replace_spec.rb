@@ -44,13 +44,13 @@ RSpec.describe PowerTom, ".render 图片替换" do
 
     @out = File.join(@tmp_root, "out.pptx")
     PowerTom.render(@labeled, data: {
-      banner: @img_b,
-      scenarios: [
-        { headline: "晨读材料包", cover: @img_a },
-        { headline: "家长会材料", cover: @img_b },
-        { headline: "成绩分析", cover: @img_c }
-      ]
-    }).save(@out)
+                      banner: @img_b,
+                      scenarios: [
+                        { headline: "晨读材料包", cover: @img_a },
+                        { headline: "家长会材料", cover: @img_b },
+                        { headline: "成绩分析", cover: @img_c }
+                      ]
+                    }).save(@out)
   end
   after(:all) do
     FileUtils.remove_entry(@tmp_root) if @tmp_root && File.exist?(@tmp_root)
@@ -66,12 +66,13 @@ RSpec.describe PowerTom, ".render 图片替换" do
     prs = adapter.open(pptx)
     picture = adapter.find_shape(prs, slide_no, shape_name)
     return nil unless picture
+
     r_id = picture.element.blip_rId
     Zip::File.open(pptx) do |zip|
       rels_name = "ppt/slides/_rels/slide#{slide_no}.xml.rels"
       rels = zip.get_input_stream(rels_name).read
-      target = rels[%r{Id="#{r_id}"[^>]*Target="([^"]+)"} , 1] ||
-               rels[%r{Target="([^"]+)"[^>]*Id="#{r_id}"} , 1]
+      target = rels[/Id="#{r_id}"[^>]*Target="([^"]+)"/, 1] ||
+               rels[/Target="([^"]+)"[^>]*Id="#{r_id}"/, 1]
       part = "ppt/media/#{File.basename(target.to_s)}"
       bytes = zip.get_input_stream(part).read
       { r_id: r_id, part: part, bytes: bytes, crop: picture }
@@ -119,20 +120,19 @@ RSpec.describe PowerTom, ".render 图片替换" do
   end
 
   it "strict 缺图片字段 → MissingDataError 定位页码与字段" do
-    expect {
+    expect do
       PowerTom.render(@labeled, data: {
-        scenarios: [{ headline: "x", cover: @img_a }, { headline: "y", cover: @img_b },
-                     { headline: "z", cover: @img_c }]
-      })
-    }.to raise_error(PowerTom::MissingDataError, /第 5 页.*banner/)
+                        scenarios: [{ headline: "x", cover: @img_a }, { headline: "y", cover: @img_b },
+                                    { headline: "z", cover: @img_c }]
+                      })
+    end.to raise_error(PowerTom::MissingDataError, /第 5 页.*banner/)
   end
 
   it "strict: false 缺图片字段 → 保留占位图并记 warning" do
-    warnings = []
     result = PowerTom.render(@labeled, data: {
-      scenarios: [{ headline: "x", cover: @img_a }, { headline: "y", cover: @img_b },
-                   { headline: "z", cover: @img_c }]
-    }, strict: false)
+                               scenarios: [{ headline: "x", cover: @img_a }, { headline: "y", cover: @img_b },
+                                           { headline: "z", cover: @img_c }]
+                             }, strict: false)
     result.save(File.join(@tmp_root, "loose.pptx"))
     aggregate_failures do
       expect(result.warnings.join).to include("banner", "保留占位图")
@@ -144,22 +144,22 @@ RSpec.describe PowerTom, ".render 图片替换" do
   end
 
   it "图片字段非字符串 → 明确报错" do
-    expect {
+    expect do
       PowerTom.render(@labeled, data: { banner: 123, scenarios: [
-        { headline: "x", cover: @img_a }, { headline: "y", cover: @img_b },
-        { headline: "z", cover: @img_c }
-      ] })
-    }.to raise_error(PowerTom::Error, /banner.*String/)
+                        { headline: "x", cover: @img_a }, { headline: "y", cover: @img_b },
+                        { headline: "z", cover: @img_c }
+                      ] })
+    end.to raise_error(PowerTom::Error, /banner.*String/)
   end
 
   it "图片文件不存在 → 明确报错" do
     missing = File.join(@tmp_root, "no_such.png")
-    expect {
+    expect do
       PowerTom.render(@labeled, data: { banner: missing, scenarios: [
-        { headline: "x", cover: @img_a }, { headline: "y", cover: @img_b },
-        { headline: "z", cover: @img_c }
-      ] })
-    }.to raise_error(PowerTom::Error, /文件不存在.*no_such\.png/)
+                        { headline: "x", cover: @img_a }, { headline: "y", cover: @img_b },
+                        { headline: "z", cover: @img_c }
+                      ] })
+    end.to raise_error(PowerTom::Error, /文件不存在.*no_such\.png/)
   end
 
   it "alt text 定位也能命中(§5.3:name 或 alt text)" do
@@ -189,7 +189,7 @@ RSpec.describe PowerTom, ".render 图片替换" do
       expect(ok).to be(true), "LibreOffice 转换失败"
       pdf = File.join(pdf_dir, "out.pdf")
       expect(File.exist?(pdf)).to be(true)
-      expect(File.binread(pdf).scan(/\/Type\s*\/Page[^s]/).size).to eq(20)
+      expect(File.binread(pdf).scan(%r{/Type\s*/Page[^s]}).size).to eq(20)
     end
   end
 end

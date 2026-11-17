@@ -194,20 +194,22 @@ Output is **all or nothing**: every check runs before anything is written to dis
 
 | Limitation | Notes |
 | --- | --- |
-| Tables support row loops, paired row blocks, nesting and dynamic columns; charts are not bound | `{{classes[].name}}` clones one row; `{{#rows ...}} ... {{/rows}}` clones multi-row records (3 levels); `{{#grid ...}}` / `{{#cols ...}}` clone columns; merged cells inside loops are rejected |
-| Notes are not rendered | Notes are only read for page directives |
+| Tables support row loops, paired row blocks, nesting and dynamic columns; charts are not bound | `{{classes[].name}}` clones one row; `{{#rows ...}} ... {{/rows}}` clones multi-row records (3 levels); `{{#grid ...}}` / `{{#cols ...}}` clone columns; merged cells inside loops are rejected. Tags found inside charts are preserved and reported as warnings |
+| Notes are not rendered | Notes are only read for page directives; ordinary tags in notes produce a warning |
 | Tags on masters/layouts are ignored | Only shapes on slides are processed |
 | No PPT → PDF | Use LibreOffice headless |
 | `.pptx` only | No legacy 97-2003 binary format |
 | TOML or Hash only | No YAML / JSON loader |
-| Fixed picture cropping | Always fill the shape and crop from the centre |
+| Fixed picture cropping | Always fill the shape and crop from the centre; a warning is emitted when the image aspect differs by more than 20% |
 | Messages are Chinese-only | Localisation is planned; the report format is language-neutral |
 
 ## Development
 
 ```bash
 bundle install
-bundle exec rspec
+bundle exec rspec          # full suite (private-fixture examples skip if absent)
+bundle exec rubocop       # style
+bundle exec yard doc --no-output   # API docs check
 ```
 
 The golden-sample template used by the end-to-end tests (split runs, cloning, picture replacement, fidelity) is not committed, because of size and ownership; only its structural snapshot `spec/fixtures/hai_mate/manifest.toml` is. With the original template at hand:
@@ -217,7 +219,7 @@ bundle exec rake fixtures:generate TEMPLATE=/path/to/template.pptx OUT=spec/fixt
 bundle exec rake fixtures:check OUT=spec/fixtures/hai_mate
 ```
 
-Without `template.pptx`, fixture-dependent examples are skipped and the unit suite still runs. Fidelity tests need LibreOffice (`soffice`).
+Without `template.pptx`, fixture-dependent examples are skipped and the unit suite still runs. The committed scaffolds (`examples/score_report/*.pptx`) and the public fidelity job cover the full render/PDF pipeline without private assets. Fidelity tests need LibreOffice (`soffice`).
 
 ## License
 

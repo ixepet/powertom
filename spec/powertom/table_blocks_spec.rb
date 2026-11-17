@@ -109,23 +109,23 @@ RSpec.describe "表格区块语法(#rows / #cols)" do
     data = { classes: [{ name: "一班", note: "稳" }, { name: "二班", note: "进" }] }
 
     expect(read_table(render(build_template(rows), data))).to eq([
-      ["一班", ""],
-      ["备注:稳", ""],
-      ["二班", ""],
-      ["备注:进", ""]
-    ])
+                                                                   ["一班", ""],
+                                                                   ["备注:稳", ""],
+                                                                   ["二班", ""],
+                                                                   ["备注:进", ""]
+                                                                 ])
   end
 
   it "两级区块:父行 + 子行,静态合计行保留" do
     expect(read_table(render(build_template(nested_rows), nested_data))).to eq([
-      ["年级", "班级", "均分"],
-      ["初一", "", ""],
-      ["初一", "一班", "90"],
-      ["初一", "二班", "88"],
-      ["初二", "", ""],
-      ["初二", "三班", "85"],
-      ["合计", "", "263"]
-    ])
+                                                                                 ["年级", "班级", "均分"],
+                                                                                 ["初一", "", ""],
+                                                                                 ["初一", "一班", "90"],
+                                                                                 ["初一", "二班", "88"],
+                                                                                 ["初二", "", ""],
+                                                                                 ["初二", "三班", "85"],
+                                                                                 ["合计", "", "263"]
+                                                                               ])
   end
 
   it "三级区块 + 空子数组" do
@@ -150,12 +150,12 @@ RSpec.describe "表格区块语法(#rows / #cols)" do
     }
 
     expect(read_table(render(build_template(rows), data))).to eq([
-      ["初一", ""],
-      ["一班", "90"],
-      ["甲", "400"],
-      ["乙", "390"],
-      ["二班", "88"]
-    ])
+                                                                   ["初一", ""],
+                                                                   ["一班", "90"],
+                                                                   ["甲", "400"],
+                                                                   ["乙", "390"],
+                                                                   ["二班", "88"]
+                                                                 ])
   end
 
   it "同一张表多个顶层区块:按顺序展开,静态行保留" do
@@ -171,11 +171,11 @@ RSpec.describe "表格区块语法(#rows / #cols)" do
     data = { a: [{ x: "a1" }, { x: "a2" }], b: [{ y: "b1" }] }
 
     expect(read_table(render(build_template(rows), data))).to eq([
-      ["a1", ""],
-      ["a2", ""],
-      ["中间", ""],
-      ["b1", ""]
-    ])
+                                                                   ["a1", ""],
+                                                                   ["a2", ""],
+                                                                   ["中间", ""],
+                                                                   ["b1", ""]
+                                                                 ])
   end
 
   it "行区块里的 {{row.字段}} 等价于当前记录" do
@@ -185,7 +185,7 @@ RSpec.describe "表格区块语法(#rows / #cols)" do
       ["{{/rows}}", ""]
     ]
     data = { classes: [{ name: "一班", avg: "90" }] }
-    expect(read_table(render(build_template(rows), data))).to eq([["一班", "90"]])
+    expect(read_table(render(build_template(rows), data))).to eq([%w[一班 90]])
   end
 
   describe "列带" do
@@ -220,28 +220,31 @@ RSpec.describe "表格区块语法(#rows / #cols)" do
 
     it "列带写在表头行:行区块 × 动态列" do
       expect(read_table(render(build_template(band_outside_block_rows), band_data))).to eq([
-        ["班级", "语文", "物理"],
-        ["一班", "100", "80"],
-        ["二班", "95", "85"]
-      ])
+                                                                                             %w[班级 语文 物理],
+                                                                                             %w[一班 100 80],
+                                                                                             %w[二班 95 85]
+                                                                                           ])
     end
 
     it "列带直接写在行区块内:声明行随区块克隆" do
       expect(read_table(render(build_template(band_inside_block_rows), band_data))).to eq([
-        ["班级", "", ""],
-        ["一班", "语文", "物理"],
-        ["一班", "100", "80"],
-        ["二班", "语文", "物理"],
-        ["二班", "95", "85"]
-      ])
+                                                                                            ["班级", "", ""],
+                                                                                            ["一班", "语文", "物理"],
+                                                                                            ["一班", "100", "80"],
+                                                                                            ["二班", "语文", "物理"],
+                                                                                            ["二班", "95", "85"]
+                                                                                          ])
     end
 
     it "多列模板:value: 与模板列一一对应" do
       expect(read_table(render(build_template(multi_band_rows), multi_band_data))).to eq([
-        ["班级", "语文", "得分率", "物理", "得分率"],
-        ["一班", "100", "0.83", "80", "0.67"],
-        ["二班", "95", "0.79", "85", "0.71"]
-      ])
+                                                                                           ["班级", "语文", "得分率", "物理",
+                                                                                            "得分率"],
+                                                                                           ["一班", "100", "0.83", "80",
+                                                                                            "0.67"],
+                                                                                           ["二班", "95", "0.79", "85",
+                                                                                            "0.71"]
+                                                                                         ])
     end
 
     it "多列模板 + 列带写在区块内" do
@@ -253,11 +256,11 @@ RSpec.describe "表格区块语法(#rows / #cols)" do
         ["{{/rows}}", "", ""]
       ]
       expect(read_table(render(build_template(rows), multi_band_data))).to eq([
-        ["一班", "语文", "得分率", "物理", "得分率"],
-        ["一班", "100", "0.83", "80", "0.67"],
-        ["二班", "语文", "得分率", "物理", "得分率"],
-        ["二班", "95", "0.79", "85", "0.71"]
-      ])
+                                                                                ["一班", "语文", "得分率", "物理", "得分率"],
+                                                                                ["一班", "100", "0.83", "80", "0.67"],
+                                                                                ["二班", "语文", "得分率", "物理", "得分率"],
+                                                                                ["二班", "95", "0.79", "85", "0.71"]
+                                                                              ])
     end
 
     it "多列模板的 cell 支持 formatter" do
@@ -270,10 +273,10 @@ RSpec.describe "表格区块语法(#rows / #cols)" do
     it "空 cols → 只保留固定列" do
       data = band_data.merge(subjects: [])
       expect(read_table(render(build_template(band_outside_block_rows), data))).to eq([
-        ["班级"],
-        ["一班"],
-        ["二班"]
-      ])
+                                                                                        ["班级"],
+                                                                                        ["一班"],
+                                                                                        ["二班"]
+                                                                                      ])
     end
   end
 
@@ -301,10 +304,10 @@ RSpec.describe "表格区块语法(#rows / #cols)" do
 
     it "条件为假时删除区块内所有行,标记行不输出" do
       expect(read_table(render(build_template(conditional_rows), conditional_data))).to eq([
-        ["班级", "均分"],
-        ["一班", "90"],
-        ["三班", "85"]
-      ])
+                                                                                             %w[班级 均分],
+                                                                                             %w[一班 90],
+                                                                                             %w[三班 85]
+                                                                                           ])
     end
 
     it "条件路径不含 [] 时取当前记录字段" do
@@ -322,12 +325,12 @@ RSpec.describe "表格区块语法(#rows / #cols)" do
         ["{{/rows}}", ""]
       ]
       data = { classes: [{ name: "一班", avg: "90" }], show_note: false }
-      expect(read_table(render(build_template(rows), data))).to eq([["班级", "均分"]])
+      expect(read_table(render(build_template(rows), data))).to eq([%w[班级 均分]])
 
       data[:show_note] = true
       expect(read_table(render(build_template(rows), data))).to eq([
-        ["班级", "均分"], ["一班", "90"]
-      ])
+                                                                     %w[班级 均分], %w[一班 90]
+                                                                   ])
     end
 
     it "嵌套区块里的条件按子项求值" do
@@ -350,8 +353,8 @@ RSpec.describe "表格区块语法(#rows / #cols)" do
         ]
       }
       expect(read_table(render(build_template(rows), data))).to eq([
-        ["初一", ""], ["一班", "90"]
-      ])
+                                                                     ["初一", ""], ["一班", "90"]
+                                                                   ])
     end
 
     it "同一区块内多个条件互不影响" do
@@ -370,10 +373,10 @@ RSpec.describe "表格区块语法(#rows / #cols)" do
         ]
       }
       expect(read_table(render(build_template(rows), data))).to eq([
-        ["头部:一班", ""],
-        ["一班", "90"],
-        ["二班", "88"]
-      ])
+                                                                     ["头部:一班", ""],
+                                                                     ["一班", "90"],
+                                                                     ["二班", "88"]
+                                                                   ])
     end
 
     describe "结构校验" do
@@ -390,7 +393,7 @@ RSpec.describe "表格区块语法(#rows / #cols)" do
           ["{{classes[].name}}", ""]
         ]
         expect { render(build_template(rows), conditional_data) }
-          .to raise_error(PowerTom::TemplateSyntaxError, /缺少 \{\{\/if\}\}/)
+          .to raise_error(PowerTom::TemplateSyntaxError, %r{缺少 \{\{/if\}\}})
       end
 
       it "多余的 {{/if}} → 报错" do
@@ -521,10 +524,10 @@ RSpec.describe "表格区块语法(#rows / #cols)" do
 
     it "按列项求值:为假的列整列删除" do
       expect(read_table(render(build_template(column_conditional_rows), column_conditional_data))).to eq([
-        ["班级", "语文"],
-        ["一班", "100"],
-        ["二班", "95"]
-      ])
+                                                                                                           %w[班级 语文],
+                                                                                                           %w[一班 100],
+                                                                                                           %w[二班 95]
+                                                                                                         ])
     end
 
     it "条件不含 [] 时回退整页数据" do
@@ -536,15 +539,15 @@ RSpec.describe "表格区块语法(#rows / #cols)" do
       ]
       data = column_conditional_data.merge(show_extra: false)
       expect(read_table(render(build_template(rows), data))).to eq([
-        ["班级"], ["一班"], ["二班"]
-      ])
+                                                                     ["班级"], ["一班"], ["二班"]
+                                                                   ])
 
       data[:show_extra] = true
       expect(read_table(render(build_template(rows), data))).to eq([
-        ["班级", "语文", "物理"],
-        ["一班", "100", "80"],
-        ["二班", "95", "85"]
-      ])
+                                                                     %w[班级 语文 物理],
+                                                                     %w[一班 100 80],
+                                                                     %w[二班 95 85]
+                                                                   ])
     end
 
     it "多列模板:条件为假时整组模板列删除" do
@@ -564,9 +567,9 @@ RSpec.describe "表格区块语法(#rows / #cols)" do
         ]
       }
       expect(read_table(render(build_template(rows), data))).to eq([
-        ["班级", "语文", "得分率"],
-        ["一班", "100", "0.83"]
-      ])
+                                                                     ["班级", "语文", "得分率"],
+                                                                     ["一班", "100", "0.83"]
+                                                                   ])
     end
 
     describe "结构校验" do
@@ -578,7 +581,7 @@ RSpec.describe "表格区块语法(#rows / #cols)" do
           ["{{/rows}}", ""]
         ]
         expect { render(build_template(rows), column_conditional_data) }
-          .to raise_error(PowerTom::TemplateSyntaxError, /缺少 \{\{\/if\}\}/)
+          .to raise_error(PowerTom::TemplateSyntaxError, %r{缺少 \{\{/if\}\}})
       end
 
       it "列条件嵌套 → 报错" do
@@ -634,7 +637,7 @@ RSpec.describe "表格区块语法(#rows / #cols)" do
         ["{{classes[].name}}", "{{#cols subjects}}{{col.label}}{{/cols}}"]
       ]
       expect { render(build_template(rows), { classes: [], subjects: [] }) }
-        .to raise_error(PowerTom::TemplateSyntaxError, /缺少 \{\{\/rows\}\}/)
+        .to raise_error(PowerTom::TemplateSyntaxError, %r{缺少 \{\{/rows\}\}})
     end
 
     it "多余的 {{/rows}} → 报错" do
@@ -824,8 +827,8 @@ RSpec.describe "表格区块语法(#rows / #cols)" do
       ok = system("soffice", "--headless", "-env:UserInstallation=file://#{profile}",
                   "--convert-to", "pdf", "--outdir", pdf_dir, out)
       expect(ok).to be(true)
-      expect(File.binread(File.join(pdf_dir, File.basename(out, ".pptx") + ".pdf"))
-                 .scan(/\/Type\s*\/Page[^s]/).size).to eq(1)
+      expect(File.binread(File.join(pdf_dir, "#{File.basename(out, '.pptx')}.pdf"))
+                 .scan(%r{/Type\s*/Page[^s]}).size).to eq(1)
     end
   end
 end

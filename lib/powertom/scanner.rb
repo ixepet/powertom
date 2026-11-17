@@ -6,16 +6,20 @@ module PowerTom
   #   - 页级指令 {{#each}} / {{#if}} 只允许写在幻灯片备注(§3.3),出现在正文 = 语法错误
   module Scanner
     # 宽松的"疑似标签"正则,用于语法校验兜底:任何 {{...}} 都必须能通过严格校验
-    TAG_RE = /\{\{[^{}]*\}\}/.freeze
+    TAG_RE = /\{\{[^{}]*\}\}/
 
     # 严格的文本标签正则:点路径与下标 + 可选 formatter 规格(§3.4)
-    LABEL_RE = /\{\{\s*([A-Za-z0-9_\[\]]+(?:\.[A-Za-z0-9_\[\]]+)*)(?::([A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z0-9_]+)*))?\s*\}\}/.freeze
+    LABEL_RE = /
+      \{\{\s*([A-Za-z0-9_\[\]]+(?:\.[A-Za-z0-9_\[\]]+)*)
+      (?::([A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z0-9_]+)*))?
+      \s*\}\}
+    /x
 
     # 合法的路径段:字段名或 字段名[下标]
-    SEGMENT_RE = /\A[A-Za-z0-9_]+(?:\[\d+\])?\z/.freeze
+    SEGMENT_RE = /\A[A-Za-z0-9_]+(?:\[\d+\])?\z/
 
     # formatter 规格:词 + 可选 .参数(percent.1 / date.year_month)
-    FORMAT_SPEC_RE = /\A[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z0-9_]+)*\z/.freeze
+    FORMAT_SPEC_RE = /\A[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z0-9_]+)*\z/
 
     module_function
 
@@ -42,6 +46,7 @@ module PowerTom
     # 备注里的标签:v0 不渲染备注,发现即记 warning(§3.3)
     def scan_notes(notes_text, slide_no)
       return [] unless notes_text
+
       notes_text.scan(TAG_RE).map { |tag| { tag: tag, slide_no: slide_no } }
     end
 
@@ -69,7 +74,7 @@ module PowerTom
       end
 
       raw = directives_in_notes.first[/\{\{\s*#\s*([^{}]*?)\s*\}\}/, 1].to_s
-      m = raw.match(/\A(each|if)\s+([A-Za-z0-9_\[\]\.]+)\z/)
+      m = raw.match(/\A(each|if)\s+([A-Za-z0-9_\[\].]+)\z/)
       unless m
         raise TemplateSyntaxError,
               "第 #{slide_no} 页备注指令 {{##{raw}}} 不合法,只支持 {{#each 路径}} 与 {{#if 路径}}"
@@ -80,7 +85,7 @@ module PowerTom
     def validate!(raw, tag, ctx)
       where = "第 #{ctx[:slide_no]} 页 形状'#{ctx[:shape]}'"
       if raw.start_with?("#") || raw.start_with?("/")
-        if ctx[:in_table] && raw.match?(/\A#(rows|grid|cols|if)\b|\A\/(rows|cols|if)\z/)
+        if ctx[:in_table] && raw.match?(%r{\A#(rows|grid|cols|if)\b|\A/(rows|cols|if)\z})
           validate_table_directive!(raw, tag, where)
           return
         end
@@ -89,18 +94,18 @@ module PowerTom
       end
       path, spec = raw.split(":", 2)
       validate_path!(path, tag, where, ctx)
-      if spec && !spec.match?(FORMAT_SPEC_RE)
-        raise TemplateSyntaxError,
-              "#{where}:#{tag} 的 formatter 写法不合法,应为 {{路径:名字}} 或 {{路径:名字.参数}}"
-      end
+      return unless spec && !spec.match?(FORMAT_SPEC_RE)
+
+      raise TemplateSyntaxError,
+            "#{where}:#{tag} 的 formatter 写法不合法,应为 {{路径:名字}} 或 {{路径:名字.参数}}"
     end
 
     # 表格指令:{{#rows 路径}} / {{#grid ...}} / {{#cols ...}} / {{/rows}} / {{/cols}}。
     # 这里只做轻量语法校验,结构(层级/位置/作用域)由 TableLoop 校验。
-    GRID_MARKER_RE = /\A#grid\s+.+\z/.freeze
-    COLS_MARKER_RE = /\A#cols\s+[A-Za-z0-9_\.]+(?:\s+value:\s*[A-Za-z0-9_\.]+(?:\s*,\s*[A-Za-z0-9_\.]+)*)?\z/.freeze
-    IF_MARKER_RE = /\A#if\s+[A-Za-z0-9_\[\]\.]+\z/.freeze
-    CLOSE_MARKER_RE = /\A\/(rows|cols|if)\z/.freeze
+    GRID_MARKER_RE = /\A#grid\s+.+\z/
+    COLS_MARKER_RE = /\A#cols\s+[A-Za-z0-9_.]+(?:\s+value:\s*[A-Za-z0-9_.]+(?:\s*,\s*[A-Za-z0-9_.]+)*)?\z/
+    IF_MARKER_RE = /\A#if\s+[A-Za-z0-9_\[\].]+\z/
+    CLOSE_MARKER_RE = %r{\A/(rows|cols|if)\z}
 
     def validate_table_directive!(raw, tag, where)
       case raw
@@ -117,7 +122,7 @@ module PowerTom
 
     # 表格行标记 {{#rows 路径}}:只校验路径写法,结构与层级由 TableLoop 校验
     def validate_row_marker!(raw, tag, where)
-      unless raw.match?(/\A#rows\s+[A-Za-z0-9_\[\]\.]+\z/)
+      unless raw.match?(/\A#rows\s+[A-Za-z0-9_\[\].]+\z/)
         raise TemplateSyntaxError,
               "#{where}:#{tag} 行标记不合法,应为 {{#rows 路径}}(路径只支持点路径与 [])"
       end

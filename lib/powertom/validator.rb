@@ -1,6 +1,5 @@
 # frozen_string_literal: true
 
-require "set"
 require_relative "scanner"
 require_relative "table_loop"
 require_relative "grid_value"
@@ -13,6 +12,7 @@ module PowerTom
 
   # 校验结果与人话报告(§7):每条问题给出"第 X 页、形状 Y、标签 Z、期望的数据路径"。
   class CheckResult
+    # @return [Array<PowerTom::CheckEntry>] all entries, errors and warnings.
     attr_reader :entries
 
     def initialize(template_name, entries)
@@ -20,14 +20,19 @@ module PowerTom
       @entries = entries
     end
 
+    # @return [Array<PowerTom::CheckEntry>] entries that block rendering.
     def errors = entries.select { |e| e.level == :error }
 
+    # @return [Array<PowerTom::CheckEntry>] non-blocking entries.
     def warnings = entries.select { |e| e.level == :warning }
 
+    # @return [Boolean] true when there is no error.
     def ok? = errors.empty?
 
+    # @return [Integer] 0 when valid, 1 otherwise (for CI).
     def exit_code = ok? ? 0 : 1
 
+    # @return [String] human-readable, one line per entry.
     def report
       lines = ["PowerTom 模板校验 — #{@template_name}"]
       entries.each do |e|
@@ -35,7 +40,7 @@ module PowerTom
         body = head.empty? ? e.message : "#{head} #{e.message}"
         lines << format("[%-7s] %s", e.level, body)
       end
-      lines << "-" * 48
+      lines << ("-" * 48)
       summary = "#{errors.size} 个 error,#{warnings.size} 个 warning"
       summary += "(error 阻断渲染,修正后再调用 PowerTom.render)" unless ok?
       lines << summary
@@ -73,7 +78,7 @@ module PowerTom
     # notes:    [{slide_no:, text:}]
     # pictures: [{slide_no:, shape:, field:}](powertom:image 占位)
     # data:     Hash 或 nil(nil → 跳过字段对账,只做语法与结构检查)
-    def check(contexts:, notes:, data:, pictures: [], tables: [], table_structures: [],
+    def check(contexts:, notes:, data:, pictures: [], charts: [], tables: [], table_structures: [],
               template_name: "template.pptx")
       entries = []
       used_roots = Set.new
@@ -88,6 +93,7 @@ module PowerTom
           nil
         end
         next unless directive
+
         directives[note[:slide_no]] = directive
         used_roots << root_of(directive[:path])
       end
@@ -115,9 +121,7 @@ module PowerTom
         end
         labels.each do |l|
           labels_by_page[ctx[:slide_no]] << l
-          if ctx[:table_shape]
-            labels_by_table_row[[ctx[:slide_no], ctx[:table_shape], ctx[:row_index]]] << l
-          end
+          labels_by_table_row[[ctx[:slide_no], ctx[:table_shape], ctx[:row_index]]] << l if ctx[:table_shape]
         end
       end
 
@@ -141,8 +145,10 @@ module PowerTom
       labels_by_page.each_value do |labels|
         labels.each do |l|
           next unless l[:spec]
+
           name = l[:spec].split(".").first
           next if Formatter.registered?(name)
+
           entries << error_entry(l[:context][:slide_no], l[:context][:shape], l[:path],
                                  "未注册的 formatter '#{name}'" \
                                  "(可用:#{Formatter.registered_names.join(', ')})")
@@ -182,7 +188,7 @@ module PowerTom
           labels.each do |l|
             next if l[:path].include?("[]")
             next if block_row_stacks.dig([l[:context][:slide_no], l[:context][:table_shape]],
-                                          l[:context][:row_index])
+                                         l[:context][:row_index])
             next if block_band_cell?(table_plans, l[:context])
             next if grid_plan_for(table_plans, l[:context]) && grid_variable_path?(l[:path])
 
@@ -196,8 +202,9 @@ module PowerTom
           labels.each do |l|
             directive = directives[l[:context][:slide_no]]
             next if directive && directive[:kind] == :each
+
             if block_row_stacks.dig([l[:context][:slide_no], l[:context][:table_shape]],
-                                     l[:context][:row_index])
+                                    l[:context][:row_index])
               used_roots << root_of(l[:path]) unless grid_variable_path?(l[:path])
               next
             end
@@ -234,9 +241,18 @@ module PowerTom
       notes.each do |note|
         Scanner.scan_notes(note[:text], note[:slide_no]).each do |found|
           next if found[:tag] =~ /\{\{\s*#/
+
           entries << CheckEntry.new(level: :warning, slide_no: note[:slide_no], shape: "(备注)",
                                     label: nil, message: "备注含标签 #{found[:tag]},v0 不渲染备注,已忽略")
         end
+      end
+
+      # 5. 图表不绑定数据:保留标签并告警,而不是静默忽略
+      charts.each do |chart|
+        entries << CheckEntry.new(
+          level: :warning, slide_no: chart[:slide_no], shape: chart[:shape], label: nil,
+          message: "图表含标签 #{chart[:tags].join('、')}:v0 不绑定图表数据,会原样保留"
+        )
       end
 
       CheckResult.new(template_name, entries)
@@ -279,16 +295,15 @@ module PowerTom
           return # 指令级 error 已单独报告
         end
         return unless items.is_a?(Array)
+
         items.each_with_index do |item, k|
-          begin
-            PathResolver.resolve(item, path)
-          rescue MissingDataError => e
-            entries << error_entry(
-              ctx[:slide_no], ctx[:shape], path,
-              "数组 '#{directive[:path]}' 第 #{k + 1} 项:#{e.message}" \
-              "(期望:#{directive[:path]}[#{k}].#{path})"
-            )
-          end
+          PathResolver.resolve(item, path)
+        rescue MissingDataError => e
+          entries << error_entry(
+            ctx[:slide_no], ctx[:shape], path,
+            "数组 '#{directive[:path]}' 第 #{k + 1} 项:#{e.message}" \
+            "(期望:#{directive[:path]}[#{k}].#{path})"
+          )
         end
       else
         begin
@@ -303,11 +318,15 @@ module PowerTom
     def overflow_check(label, directive, data, entries)
       ctx = label[:context]
       # 多项循环的标签取首项检查,避免同类警告刷屏
-      source = directive && directive[:kind] == :each ? begin
-        PathResolver.resolve(data, directive[:path])[0]
-      rescue MissingDataError
-        nil
-      end : data
+      source = if directive && directive[:kind] == :each
+                 begin
+                   PathResolver.resolve(data, directive[:path])[0]
+                 rescue MissingDataError
+                   nil
+                 end
+               else
+                 data
+               end
       return unless source
 
       value = begin
@@ -341,6 +360,7 @@ module PowerTom
           return # 指令级 error 已单独报告
         end
         return unless items.is_a?(Array)
+
         items.each_with_index do |item, k|
           value = begin
             PathResolver.resolve(item, path)
@@ -367,6 +387,7 @@ module PowerTom
 
     def check_image_value(value, ctx, path, entries, item_index = nil)
       return if value.nil?
+
       where = item_index ? "第 #{item_index + 1} 项:" : ""
       unless value.is_a?(String) && !value.empty?
         entries << error_entry(ctx[:slide_no], ctx[:shape], path,
@@ -374,6 +395,7 @@ module PowerTom
         return
       end
       return if File.file?(value)
+
       entries << error_entry(ctx[:slide_no], ctx[:shape], path,
                              "#{where}图片文件不存在:#{value}")
     end
@@ -511,6 +533,7 @@ module PowerTom
       blocks.each do |block|
         items = block_array(block, parent_item, ctx, data, entries)
         next if items.nil?
+
         if items.empty?
           entries << CheckEntry.new(level: :warning, slide_no: ctx[:slide_no], shape: ctx[:shape],
                                     label: block[:path],
@@ -526,7 +549,7 @@ module PowerTom
             if_node = block[:ifs].find { |n| n[:open] == row }
             if if_node
               if block_condition_true?(if_node[:path], item, scope, ctx, data, entries, where)
-                (if_node[:open] + 1...if_node[:close]).each do |r|
+                ((if_node[:open] + 1)...if_node[:close]).each do |r|
                   labels_by_row[[ctx[:slide_no], ctx[:shape], r]].each do |label|
                     reconcile_block_label(label, scope, item, cols, band, where, data, entries)
                   end

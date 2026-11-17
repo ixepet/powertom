@@ -4,7 +4,7 @@
 # 只需覆盖 manifest 的结构:标量 / 嵌套表 / 表数组 / 内联数组。
 module PowerTomDev
   module TomlWriter
-    BARE_KEY = /\A[A-Za-z0-9_-]+\z/.freeze
+    BARE_KEY = /\A[A-Za-z0-9_-]+\z/
 
     module_function
 
@@ -57,10 +57,9 @@ module PowerTomDev
     def value(v)
       case v
       when String then %("#{escape(v)}")
-      when Integer, Float then v.to_s
-      when true, false then v.to_s
+      when Integer, Float, true, false then v.to_s
       when nil then raise "TOML 没有 null:manifest 不应含 nil 值"
-      when Array then "[" + v.map { |x| value(x) }.join(", ") + "]"
+      when Array then "[#{v.map { |x| value(x) }.join(', ')}]"
       else raise "TOML writer 不支持 #{v.class}"
       end
     end

@@ -13,11 +13,11 @@ require "powertom"
 namespace :powertom do
   desc "模板校验:对账模板标签与样例数据,输出人话报告(error 阻断渲染)"
   task :check do
-    template = ENV["TEMPLATE"]
+    template = ENV.fetch("TEMPLATE", nil)
     if template.nil? || template.empty?
       abort "用法: rake powertom:check TEMPLATE=/path/to/模板.pptx [DATA=/path/to/样例数据.toml]"
     end
-    data = ENV["DATA"]
+    data = ENV.fetch("DATA", nil)
     data = nil if data.nil? || data.empty?
 
     result = PowerTom.check(template, data: data)
@@ -27,12 +27,12 @@ namespace :powertom do
 
   desc "模板结构自检:按契约核对页数/形状/标签/备注指令/图片占位"
   task :lint do
-    template = ENV["TEMPLATE"]
-    contract = ENV["CONTRACT"]
+    template = ENV.fetch("TEMPLATE", nil)
+    contract = ENV.fetch("CONTRACT", nil)
     if template.nil? || template.empty? || contract.nil? || contract.empty?
       abort "用法: rake powertom:lint TEMPLATE=模板.pptx CONTRACT=模板契约.toml [DATA=样例数据.toml]"
     end
-    data = ENV["DATA"]
+    data = ENV.fetch("DATA", nil)
     data = nil if data.nil? || data.empty?
 
     require_relative "../tools/template_lint"

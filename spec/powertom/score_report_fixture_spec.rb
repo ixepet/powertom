@@ -95,7 +95,7 @@ RSpec.describe "金样本 fixture: score_report" do
     rows = read_table(out, 3)
     aggregate_failures do
       expect(rows.size).to eq(5) # 表头 + 3 班 + 合计
-      expect(rows[0]).to eq(["班级", "参考人数", "平均分", "优秀率", "及格率", "环比上次", "排名"])
+      expect(rows[0]).to eq(%w[班级 参考人数 平均分 优秀率 及格率 环比上次 排名])
       expect(rows[1][0]).to eq("初二(1)班")
       expect(rows[1][5]).to eq("+1.2")
       expect(rows[3][0]).to eq("初二(3)班")

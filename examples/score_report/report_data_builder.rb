@@ -208,9 +208,8 @@ module ScoreReport
 
     def measures
       list = Array(@analysis[:measures])
-      if list.size > MEASURE_COUNT
-        raise Error, "改进措施最多 #{MEASURE_COUNT} 条(模板固定 3 条),当前 #{list.size} 条"
-      end
+      raise Error, "改进措施最多 #{MEASURE_COUNT} 条(模板固定 3 条),当前 #{list.size} 条" if list.size > MEASURE_COUNT
+
       texts = list.map { |item| item.is_a?(Hash) ? fetch!(item, :text) : item.to_s }
       texts += ["暂无"] * (MEASURE_COUNT - texts.size)
       texts.map { |text| { text: text } }
@@ -236,6 +235,7 @@ module ScoreReport
 
     def signed_delta(value, suffix = "", precision: 1)
       return "" if value.nil?
+
       rounded = value.round(precision)
       sign = rounded.positive? ? "+" : ""
       "#{sign}#{decimal(rounded, precision)}#{suffix}"
@@ -256,9 +256,8 @@ module ScoreReport
     end
 
     def fetch!(hash, key)
-      unless hash.is_a?(Hash) && hash.key?(key)
-        raise Error, "缺少必要数据:#{key}"
-      end
+      raise Error, "缺少必要数据:#{key}" unless hash.is_a?(Hash) && hash.key?(key)
+
       hash[key]
     end
   end

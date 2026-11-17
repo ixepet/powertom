@@ -15,10 +15,8 @@ require_relative "../spec/support/fixture_generator"
 namespace :fixtures do
   desc "从 pptx 生成金样本 fixture(瘦身模板 + manifest.toml)"
   task :generate do
-    src = ENV["TEMPLATE"]
-    if src.nil? || src.empty?
-      abort "用法: rake fixtures:generate TEMPLATE=/path/to/模板.pptx [OUT=spec/fixtures/<name>]"
-    end
+    src = ENV.fetch("TEMPLATE", nil)
+    abort "用法: rake fixtures:generate TEMPLATE=/path/to/模板.pptx [OUT=spec/fixtures/<name>]" if src.nil? || src.empty?
     out = ENV["OUT"] || "spec/fixtures/hai_mate"
     PowerTomDev::FixtureGenerator.generate(
       pptx_path: src,

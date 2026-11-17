@@ -16,9 +16,9 @@ require "zip"
 module PowerTomDev
   module Anatomy
     NS = {
-      "p"  => "http://schemas.openxmlformats.org/presentationml/2006/main",
-      "a"  => "http://schemas.openxmlformats.org/drawingml/2006/main",
-      "r"  => "http://schemas.openxmlformats.org/officeDocument/2006/relationships",
+      "p" => "http://schemas.openxmlformats.org/presentationml/2006/main",
+      "a" => "http://schemas.openxmlformats.org/drawingml/2006/main",
+      "r" => "http://schemas.openxmlformats.org/officeDocument/2006/relationships",
       "ct" => "http://schemas.openxmlformats.org/package/2006/content-types"
     }.freeze
 
@@ -36,6 +36,7 @@ module PowerTomDev
           next if entry.directory?
           # 二进制部分(媒体/字体)对文本结构无意义,跳过读取
           next unless entry.name.end_with?(".xml", ".rels")
+
           stream = zip.get_input_stream(entry.name)
           parts[entry.name] = stream.read
         end
@@ -120,6 +121,7 @@ module PowerTomDev
                            "p:nvSpPr/p:cNvPr | p:nvPicPr/p:cNvPr | " \
                            "p:nvGraphicFramePr/p:cNvPr | p:nvGrpSpPr/p:cNvPr")
             next unless cnv
+
             raw_name = cnv.attributes["name"].to_s
             name_seen[raw_name] += 1
             # 同页同名形状加序号后缀:错误定位模型要求 name + 页内序号(见设计文档 §5)
@@ -155,11 +157,14 @@ module PowerTomDev
       match_els(sp_node, "p:txBody/a:p").each do |pa|
         runs = match_els(pa, "a:r")
         next if runs.empty?
+
         fragments = runs.map { |rn| run_text(rn) }
         text = fragments.join
         next if text.strip.empty?
+
         runs.each do |rn|
           next if run_text(rn).strip.empty?
+
           font_usage[run_font(rn)] += 1
         end
         entry = { "shape" => shape_label, "text" => text }
@@ -186,17 +191,20 @@ module PowerTomDev
 
     def notes_text(parts, rels)
       return nil unless rels
+
       notes_rel = rels_els(rels).find do |rel|
         rel.attributes["Type"].to_s.end_with?(NOTES_REL_SUFFIX)
       end
       return nil unless notes_rel
+
       name = "ppt/notesSlides/#{File.basename(notes_rel.attributes['Target'])}"
       return nil unless parts[name]
+
       # a:t 是 a:p 的孙子节点(a:p > a:r > a:t),必须用后代轴 .//a:t
       match_els(doc(parts[name]), "//a:p")
-            .map { |pa| match_els(pa, ".//a:t").map { |t| t.text.to_s }.join }
-            .reject { |line| line.strip.empty? }
-            .join("\n")
+        .map { |pa| match_els(pa, ".//a:t").map { |t| t.text.to_s }.join }
+        .reject { |line| line.strip.empty? }
+        .join("\n")
     end
 
     def aggregate_stats(slides, font_usage)
@@ -244,6 +252,7 @@ module PowerTomDev
     def run_font(run_node)
       rpr = run_node.elements["a:rPr"]
       return "(继承主题)" unless rpr
+
       latin = rpr.elements["a:latin"]
       latin ? latin.attributes["typeface"].to_s : "(继承主题)"
     end

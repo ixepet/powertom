@@ -30,6 +30,7 @@ module ScoreReport
       # 给老师看的消息;技术细节在 error.message / error 的原始消息里
       def user_message
         return nil unless error
+
         error.respond_to?(:user_message) ? error.user_message : error.message
       end
     end

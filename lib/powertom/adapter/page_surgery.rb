@@ -38,6 +38,7 @@ module PowerTom
         outputs = @plan.map do |p|
           src = order[p[:source] - 1]
           raise Error, "页码越界:#{p[:source]}(共 #{order.size} 页)" unless src
+
           { src_slide: src, src_notes: notes_part_for(parts, p[:source]) }
         end
 
@@ -60,6 +61,7 @@ module PowerTom
         Zip::File.open(@template_path) do |zip|
           zip.entries.each do |entry|
             next if entry.directory?
+
             parts[entry.name] = entry.get_input_stream.read
           end
         end
@@ -78,6 +80,7 @@ module PowerTom
           rid_attr = sld_id.attributes.get_attribute("r:id")
           target = rid_target[rid_attr&.value]
           raise Error, "presentation.xml 的 sldId 引用了未知关系" unless target
+
           "ppt/#{target}"
         end
       end
@@ -85,10 +88,12 @@ module PowerTom
       def notes_part_for(parts, old_slide_no)
         rels_name = "ppt/slides/_rels/slide#{old_slide_no}.xml.rels"
         return nil unless parts[rels_name]
+
         rel = REXML::XPath.match(REXML::Document.new(parts[rels_name]), "//Relationship").find do |r|
           r.attributes["Type"].to_s.end_with?("/notesSlide")
         end
         return nil unless rel
+
         "ppt/notesSlides/#{File.basename(rel.attributes['Target'])}"
       end
 
@@ -108,6 +113,7 @@ module PowerTom
 
         notes_parts = outputs.each_with_index.filter_map do |out, i|
           next nil unless out[:src_notes]
+
           {
             "ppt/notesSlides/#{notes_name(i)}" => parts.fetch(out[:src_notes]),
             "ppt/notesSlides/_rels/#{notes_name(i)}.rels" =>
@@ -128,8 +134,8 @@ module PowerTom
       def allocate_slide_rids(parts, count)
         rels = REXML::Document.new(parts.fetch("ppt/_rels/presentation.xml.rels"))
         max = REXML::XPath.match(rels, "//Relationship")
-              .filter_map { |r| r.attributes["Id"].to_s[/\ArId(\d+)\z/, 1] }
-              .map(&:to_i).max || 0
+                          .filter_map { |r| r.attributes["Id"].to_s[/\ArId(\d+)\z/, 1] }
+                          .map(&:to_i).max || 0
         (1..count).map { |i| "rId#{max + i}" }
       end
 
@@ -139,6 +145,7 @@ module PowerTom
         unless xml.sub!(%r{<p:sldIdLst>.*?</p:sldIdLst>}m, "<p:sldIdLst>#{entries}</p:sldIdLst>")
           raise Error, "presentation.xml 中未找到 sldIdLst"
         end
+
         xml.force_encoding(Encoding::BINARY)
       end
 
@@ -146,9 +153,9 @@ module PowerTom
         xml = parts.fetch("ppt/_rels/presentation.xml.rels").dup.force_encoding(Encoding::UTF_8)
         xml = xml.gsub(%r{<Relationship\b[^>]*Target="slides/slide\d+\.xml"[^>]*/>}, "")
         new_rels = (0...count).map do |i|
-          %(<Relationship Id="#{new_rids[i]}" ) +
-            %(Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide" ) +
-            %(Target="slides/#{slide_name(i)}"/>)
+          "<Relationship Id=\"#{new_rids[i]}\" " \
+            "Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide\" " \
+            "Target=\"slides/#{slide_name(i)}\"/>"
         end
         xml.sub!(%r{</Relationships>}, "#{new_rels.join}</Relationships>")
         xml.force_encoding(Encoding::BINARY)
@@ -204,6 +211,7 @@ module PowerTom
           parts.each do |name, data|
             next if name == "[Content_Types].xml"
             next if SKIP_PATTERNS.any? { |re| name.match?(re) }
+
             zos.put_next_entry(name)
             zos.write(data)
           end
