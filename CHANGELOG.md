@@ -4,6 +4,18 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- Chart binding pre-research: `docs/chart-binding-design.md` and the
+  `tools/chart_binding_spike.rb` feasibility spike. Finding: ruby_pptx 0.2.0
+  already provides `Chart#replace_data` (series add/remove, `c:idx`/`c:order`
+  maintenance, embedded workbook regeneration), so binding charts via a
+  `powertom:chart:<field>` naming convention is feasible in core. Key
+  constraint: cloned slides share the chart part, so binding must deep-copy
+  the chart part per output page.
+
 ## [0.3.1] - 2026-11-17
 
 ### Added
