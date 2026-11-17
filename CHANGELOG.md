@@ -131,6 +131,28 @@ and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
 - The mini golden sample now includes a chart page (categories 3→2
   reduction, two series) exercised in the public CI fidelity job.
 
+## [0.3.2] - 2026-11-17
+
+> Bugfix-only release cut from `release/v0.3.2`; main carries the same fixes
+> inside 0.4.0.
+
+### Added
+
+- OOXML structural lint (`tools/ooxml_lint.rb`, L1): detects dangling
+  `[Content_Types].xml` overrides, dangling relationship targets, duplicate
+  zip entries and broken `sldId` references — the defects PowerPoint repairs
+  on open while LibreOffice silently tolerates them. CLI exits non-zero on
+  findings; the mini golden and page-surgery specs assert their outputs lint
+  clean, so the structural layer runs in CI.
+
+### Fixed
+
+- `PageSurgery` no longer declares a `notesSlide` content-type override for
+  output pages whose source page has no notes. The surgery output is now a
+  valid OPC package on its own (final rendered decks were already clean —
+  ruby_pptx regenerates `[Content_Types].xml` on save — but the intermediate
+  file used to carry dangling overrides).
+
 ## [0.3.1] - 2026-11-17
 
 ### Added
