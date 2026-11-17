@@ -1,8 +1,9 @@
 # Chart data binding design (§5.4 pre-research)
 
-> Status: **implemented (v0.4.0)** · 2026-11-17
-> Spike: `tools/chart_binding_spike.rb` · Supersedes the assumptions in
-> project design document §5.4.
+> Status: **implemented** — v0.4.0 (single-plot families, combo) and v0.4.1
+> (scatter / bubble / radar, schema normalization) · 2026-11-17
+> Spikes: `tools/chart_binding_spike.rb`, `tools/chart_binding_spike2.rb` ·
+> Supersedes the assumptions in project design document §5.4.
 
 ---
 
@@ -143,16 +144,16 @@ from data.
 
 | Phase | Content |
 | --- | --- |
-| v0.4.0 | Naming-convention locator + per-clone chart part deep copy + `replace_data` binding + `check` reconciliation + mini-golden regression |
-| v0.4.x | Scatter / bubble, combo charts |
+| v0.4.0 (shipped) | Naming-convention locator + per-clone chart part deep copy + `replace_data` binding + `check` reconciliation + mini-golden regression |
+| v0.4.1 (shipped) | Combo charts (document order + exact series count), scatter / bubble (adapter-level XY rewriter), radar, workbook theme font, schema normalization for L3 |
 
 > The spike removes the two assumptions that postponed §5.4: no XML surgery is
 > needed (upstream `SeriesRewriter`) and no separate gem is warranted (the
 > PowerTom layer is naming convention + data mapping + validation).
 
-## 9. Extension: combo / scatter / bubble (v0.4.x, spike2 verified)
+## 9. Extension: combo / scatter / bubble / radar (v0.4.1, spike2 verified)
 
-`tools/chart_binding_spike2.rb` (2026-11-17) tested the three remaining chart
+`tools/chart_binding_spike2.rb` (2026-11-17) tested the remaining chart
 families. Evidence:
 
 | Scenario | Result |
@@ -162,6 +163,10 @@ families. Evidence:
 | Combo series 2→1 | the emptied line **plot is removed** — the chart silently degrades to a plain bar chart |
 | `replace_data(XyChartData)` on a scatter | raises `NoMethodError` (`categories`) — upstream does not support it |
 | `replace_data(ChartData)` on a scatter | produces a **schema-invalid** `c:ser` (a `c:val` is injected while the stale `c:xVal` remains) — unusable |
+| Radar filled, same-shape rebind (R1) | `c:radarStyle` stays `filled`, data updated |
+| Radar series 2→3 / 2→1 (R2) | pure `c:ser` add/remove; the `c:radarChart` plot always stays |
+| Radar with radial-axis max=100, rebound to data capped at 20 (R3) | `valAx` scaling untouched — the chart does not collapse |
+| Radar with a nil value (R4) | `c:pt` omitted while `ptCount` is intact (standard gap semantics) |
 
 Consequences:
 
@@ -182,5 +187,26 @@ Consequences:
    upstream's `num_ref_xml`, positioned by the same `CT_Series` zero-or-one
    macros) and regenerate the workbook from `XyChartData#xlsx_blob`. Data
    shape: per-series `points` (`{x, y}`; bubble adds `size`), no shared
-   categories; series count must equal the template's. Radar remains
-   rejected.
+   categories; series count must equal the template's.
+3. **Radar is a line-chart variant.** It shares the `cat+val` model, so it
+   rides upstream `replace_data` unchanged — no guard beyond the standard data
+   shape. `radarStyle` and the radial axis' scaling survive the rebind, and nil
+   values degrade to gaps (the renderer still rejects nil because `values` must
+   be numbers). Radar simply joins the supported kinds.
+
+## 10. L3 findings: upstream schema defects in generated charts
+
+Microsoft's `OpenXmlValidator` (the L3 layer) flagged every chart created by
+ruby_pptx 0.2.0, and the retained decks after binding inherited the same
+defects:
+
+| Defect | Where | Impact |
+| --- | --- | --- |
+| Axis id constants are negative (`VAL_AX_ID = "-2112772216"`, `"-2068027336"`, …) | `xml_writer.rb`, every chart writer | `axId`/`crossAx` validate against MaxInclusive 2147483647; PowerPoint and LibreOffice tolerate it, the official validator does not |
+| `c:smooth` inside radar series | `RadarChartWriter#series_blocks` | the radar `c:ser` schema has no `smooth` child |
+
+PowerTom normalizes charts on save (`RubyPptxAdapter#normalize_chart_quirks`):
+negative axis ids become their absolute value (references stay
+self-consistent and inside the int32 bound), and illegal radar `c:smooth`
+nodes are removed. Both are upstream defects reported separately; the
+normalization can be retired once upstream fixes them.

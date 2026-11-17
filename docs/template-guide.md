@@ -83,7 +83,7 @@ Two practical rules:
 
 Table cells can contain tags; if a whole row should expand per array item, see §2.4 Table row loops.
 
-Chart data **is bound** (v0.4.0 and later): draw a real chart with placeholder series, and name the chart frame — or its alt text — `powertom:chart:sales`. The renderer replaces the whole data set, keeping your chart type and formatting. See §5 Chart placeholders.
+Chart data **is bound** (v0.4.x and later): draw a real chart with placeholder series, and name the chart frame — or its alt text — `powertom:chart:sales`. The renderer replaces the whole data set, keeping your chart type and formatting. See §5 Chart placeholders.
 
 ### 1.5 What happens when the data has no such field
 
@@ -270,10 +270,11 @@ shape name = powertom:image:field_name
 
 For example, name the cover key visual `powertom:image:cover` and a team page `powertom:image:team_photo`. The value of the matching data field is an **image file path** (absolute paths recommended); PNG and JPEG both work.
 
-- The replacement strategy is fixed: **fill the shape and crop from the centre**. The output is cropped to the proportion of the placeholder image, so **use the target aspect ratio for the placeholder** (put a 16:9 placeholder on a 16:9 layout).
+- The default replacement strategy is **fill**: fill the shape and crop from the centre. The output is cropped to the proportion of the placeholder image, so **use the target aspect ratio for the placeholder** (put a 16:9 placeholder on a 16:9 layout).
+- For images that must not be cropped (logos, diagrams), append `; mode=contain` to the placeholder name: `powertom:image:logo; mode=contain`. The whole image is scaled to fit inside the frame and centred; the margins show whatever is behind the picture (slide background or another shape) — no background fill is synthesised. The aspect-ratio warning applies to `fill` only.
 - `#each` cloned pages are supported too: put a placeholder on the loop page and give each data item its own path; every cloned page receives its own picture.
 - When a picture field is missing (non-strict mode), the placeholder is kept and a warning is recorded; if the field is present but the **file does not exist**, rendering raises an error.
-- `powertom:check` checks picture fields: missing fields, wrong types and missing files all report errors — running it before delivery is the safest bet.
+- `powertom:check` checks picture fields: missing fields, wrong types, missing files and invalid placeholder options (`mode=` other than `fill`/`contain`) all report errors — running it before delivery is the safest bet.
 
 ---
 
@@ -285,7 +286,7 @@ Charts are data-bound like pictures, with the same naming convention:
 shape name = powertom:chart:field_name
 ```
 
-Draw a **real chart** in PowerPoint (column, bar, line, area, pie or doughnut) with placeholder series, and name the chart frame `powertom:chart:sales` — or set that text as its alt text. The value of the matching data field is the whole data set:
+Draw a **real chart** in PowerPoint (column, bar, line, area, pie, doughnut, radar, a combo such as column + line, or a scatter / bubble chart) with placeholder series, and name the chart frame `powertom:chart:sales` — or set that text as its alt text. The value of the matching data field is the whole data set:
 
 ```toml
 [sales]
@@ -303,6 +304,7 @@ values = [16.0, 21.0, 20.0, 25.5]
 
 - The renderer replaces the **whole data set**: categories and series are rewritten, while your chart type, layout and series formatting stay. Extra series inherit the last template series' formatting; surplus template series are removed.
 - `categories` and every series' `values` must have the same length, and `values` must be numbers. Zero-series data is rejected (it would delete the plot).
+- Pie charts plot exactly one series; more than one is rejected (use a doughnut for multiple rings). Doughnut charts accept multiple series as concentric rings.
 - `#each` cloned pages are supported: every cloned page binds its own item's data, and each gets an independent chart part.
 - Combo charts (a column chart with a line over it is the classic case) are bound too: the data provides **exactly the template's total series count**, in document order — the first series fills the first plot, and so on. A count mismatch is an error that names the template's distribution (e.g. `column×1 + line×1`).
 - Scatter and bubble charts take per-series `points` — `{x, y}` pairs (bubble adds `size`) — instead of shared categories. A series-count mismatch is an error.
@@ -315,7 +317,7 @@ values = [16.0, 21.0, 20.0, 25.5]
 
 ## 6. Masters, layouts and covers
 
-- **Do not put tags on masters or layouts.** The engine only processes shapes on slides; `{{x}}` on a master is not replaced and does not raise — it simply appears on every page as-is.
+- **Do not put tags on masters or layouts.** The engine only processes shapes on slides; `{{x}}` on a master is not replaced and does not raise at render time — it simply appears on every page as-is. `powertom:check` now reports such tags as **errors**, so the problem surfaces before delivery instead of only in the project lint tool.
 - Keep the number of layouts small: 3–5 layouts per template is plenty (the HaiMate template had 62 layouts and used only 4). Fewer layouts make cloned pages more predictable.
 - **Covers:** if the cover title is baked into a full-bleed background image (text drawn inside the picture), the engine cannot bind it. For a replaceable cover title, place a real text box with `{{cover_title}}`.
 - Shapes with the same name on one slide (two "TextBox 8") are allowed, and error messages distinguish them as "TextBox 8#2"; still, give key text boxes meaningful names (such as "pain-point-title") so errors are easy to locate.

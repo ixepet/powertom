@@ -135,7 +135,7 @@ Conventions:
 | --- | --- | --- |
 | Text / number / date formatting | ✅ | Four formatter families |
 | One page per class | ✅ | `#each classes` |
-| Charts | ✅ Data binding since v0.4.0 (`powertom:chart:<field>`) | Native charts are bound directly; the PNG workaround (`powertom:image:`) remains valid for highly customised visuals |
+| Charts | ✅ Data binding since v0.4.0 (single-plot families, combo in v0.4.1, scatter / bubble / radar in v0.4.1) | Native charts are bound directly via `powertom:chart:<field>`; the PNG workaround (`powertom:image:`) remains valid for highly customised visuals |
 | Tables | ✅ Rows/columns/blocks/conditions | Single-level `[]`, two-level `#rows`, dynamic columns `#grid`/`#cols`; multi-row records and three-level structures use paired blocks; conditional rows use `{{#if}}...{{/if}}` |
 | 5 recommendations in a fixed layout | ✅ | `tips[0..4]` |
 | Appendix page shown by a toggle | ✅ | `#if show_appendix` |

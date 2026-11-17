@@ -28,9 +28,9 @@ Two consequences worth stating explicitly:
 | Area | Decision | Main reason |
 | --- | --- | --- |
 | Chart series add/remove | Keep for standard charts, reject for pie, keep strict for combo / scatter / bubble | Upstream already handles standard charts; pie silently drops extra series; combo and XY need structural guards |
-| Picture contain mode | Feasible and bounded; defer until concrete demand | Geometry is simple, but background and rotation semantics need a product decision |
+| Picture contain mode | Implemented as opt-in `mode=contain`; `fill` remains the default | Geometry is bounded; margins show what is behind the picture |
 | JSON / YAML input | No built-in loaders; document adapter snippets | Small dependency surface; `Hash` is the stable API |
-| Master / layout tags | Defer; keep runtime ignoring them and lint rejecting them | Shared parts and placeholder inheritance create a high blast radius |
+| Master / layout tags | Runtime still ignores them; `PowerTom.check` now reports them as errors | Shared parts and placeholder inheritance rule out binding; the public check closes the validation gap |
 | General principle | Accepted as written | Matches the existing check-first, all-or-nothing design |
 
 ---
@@ -141,12 +141,13 @@ aspect-ratio warning only applies to `fill`.
 
 ### Decision
 
-- Feasible, bounded, opt-in.
-- Defer implementation until a real template needs it; `fill` stays the
-  default.
-- If implemented: document that margins are transparent/behind-the-picture,
-  add a regression test for centring and aspect preservation, and keep the
-  current fill warning unchanged.
+- **Implemented** as an opt-in suffix: `powertom:image:<field>; mode=contain`.
+  `fill` remains the default, so existing templates are unchanged.
+- Margins show whatever is behind the picture; no background fill is
+  synthesised.
+- Regression tests cover geometry, explicit `mode=fill`, alt-text syntax,
+  invalid modes and warning suppression in contain mode.
+- Rotated placeholders remain a caveat: contain fits the unrotated bounds.
 
 ---
 
@@ -164,8 +165,8 @@ and symbol keys, so a `Hash` produced by any parser works without conversion.
 
 ### Decision
 
-Do not add built-in loaders. Keep `Hash` as the stable input contract and
-document the adapter pattern.
+Do not add built-in loaders. Keep `Hash` as the stable input contract. The
+adapter pattern is documented in `docs/usage.md` §7:
 
 ```ruby
 require "json"
@@ -187,8 +188,8 @@ Document two caveats:
 
 - JSON/YAML have no native date type. Date-like strings stay strings, so a
   `date` formatter needs them converted to `Date` / `Time` first.
-- The TOML loader's error message still says "v0 only supports .toml"; reword
-  it to "the built-in loader only supports .toml" so it does not go stale.
+- The TOML loader's error message was reworded to "the built-in loader only
+  supports .toml" so it no longer says "v0".
 
 Adding optional auto-detection later is acceptable only as a separate opt-in
 path; it should not change the meaning of the `data:` argument for existing
@@ -202,12 +203,9 @@ callers.
 
 - Runtime binding scans normal slides only. Tags on masters and layouts are
   never rendered.
-- `template_lint` already reports tags on masters/layouts as **errors**:
-  "tags on masters/layouts never take effect".
-- The public `PowerTom.check` API does **not** inspect masters/layouts, so a
-  user who only calls `check` gets silence. `template_lint` is a project tool,
-  not part of the gem. This is a validation gap: the only safety net lives
-  outside the public API.
+- `template_lint` and `PowerTom.check` both report tags on masters/layouts as
+  **errors**: "tags on masters/layouts never take effect". The public API no
+  longer relies on the project-only tool.
 
 ### Feasibility notes
 
@@ -229,10 +227,9 @@ The risks are not primarily technical:
 
 ### Decision
 
-- Defer. Keep runtime ignoring master/layout tags.
-- Move the existing lint rule into `PowerTom.check` as an **error** (or at least
-  a warning) so the public validation path reports it without the project
-  tool. This is a small, high-value fix that does not require master binding.
+- Defer master/layout **binding**. Runtime continues to ignore tags there.
+- **Implemented**: `PowerTom.check` reports master/layout tags as **errors**,
+  matching `template_lint`; no project tool is required.
 - Do not support loops, conditionals, images, charts or tables on masters or
   layouts, now or later.
 - If a concrete repeated need appears, implement only the scalar `global`
@@ -251,10 +248,14 @@ The risks are not primarily technical:
 - Chart data shape, zero-series rejection and the combo/XY/bubble count guards
   live in `PowerTom::Render#validate_chart_data!`,
   `#validate_chart_series_count!` and `PowerTom::Validator`.
-- Picture fill/crop and the 20% warning live in
-  `RubyPptxAdapter#replace_image` / `#image_aspect_mismatch` and
-  `PowerTom::Render#warn_image_aspect`.
+- Picture fill/crop, contain geometry and the 20% warning live in
+  `RubyPptxAdapter#replace_image` / `#fit_image_inside` /
+  `#image_aspect_mismatch` and `PowerTom::Render#warn_image_aspect`.
+  Contain is covered by `spec/powertom/image_contain_spec.rb`.
 - Master/layout detection lives in `RubyPptxAdapter#container_texts` and is
-  consumed by `tools/template_lint.rb`.
+  consumed by both `tools/template_lint.rb` and `PowerTom.check`
+  (`spec/powertom/check_container_spec.rb`).
+- JSON/YAML adapter snippets are documented in `docs/usage.md` §7; there is no
+  built-in loader by design.
 - LibreOffice was used for visual probes. PowerPoint-specific checks are still
   required for new chart/picture templates, as with every visual feature.

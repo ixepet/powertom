@@ -184,7 +184,7 @@ The replacement rule is fixed: **fill the shape and crop from the centre**. The 
 | --- | --- |
 | Tags on masters / layouts | The engine only processes slide shapes; tags on masters appear as-is on every page |
 | Two directives in one page's notes | Validation reports an error immediately |
-| Tags inside tables / charts | Not bound in v0.1; tags stay as-is |
+| Tags inside tables / charts | Not bound in this v1 spec; tags stay as-is. (Native chart binding exists since v0.4.x — this deck keeps chart PNG placeholders by design, because the analysis service already exports them.) |
 | Mixing sizes/colours in a paragraph with a tag | After replacement, everything takes the first run's style |
 | Writing `{{tips[3].text}}` with only 4 items | Indices must match the data count; a missing item is an error |
 | A misspelled picture placeholder name | It does not error, but it also does not replace (silent failure); double-check after naming |

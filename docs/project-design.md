@@ -154,15 +154,19 @@ Principle: leave these XML details to ruby_pptx as much as possible; PowerTom on
 
 ### 5.3 Picture replacement
 
-Placeholder pictures are located by shape name or alt text (convention: name is `powertom:image:field_name`). When replacing the media part, keep the extension and content type consistent. The aspect-ratio strategy is fixed in v0 as "fill the shape and crop from the centre" (proportional scaling via ruby_pptx's crop attributes), with no configurability.
+Placeholder pictures are located by shape name or alt text (convention: name is `powertom:image:field_name`, optionally `powertom:image:field_name; mode=contain`). When replacing the media part, keep the extension and content type consistent. Two modes, decided per placeholder: **fill** (default) fills the shape and crops from the centre via ruby_pptx's crop attributes, with a warning when the image aspect differs by more than 20%; **contain** scales the image by `min(width ratio, height ratio)` and centres the fitted rectangle inside the frame, clearing any `srcRect` crop — the margins show whatever is behind the picture (slide background or another shape), and the adapter does not synthesise a background fill. Vector images keep their geometry in both modes. Invalid `mode=` values are reported by `check` and rejected at render time.
 
-### 5.4 Chart data binding (candidate after v1.0)
+### 5.4 Chart data binding
 
-Drive `c:ser` series values and category names from data. The difficulty is that when the series count differs from the template, `c:ser` nodes must be added/removed while keeping `c:idx` / `c:order` consistent. It goes last because it may be better as a separate gem (powertom-charts) or an upstream PR.
+**Implemented in v0.4.0 (single-plot families, combo) and v0.4.1 (scatter / bubble / radar)** — see [chart-binding-design.md](chart-binding-design.md) for the verified design and spike evidence.
+
+Charts are located by naming convention (`powertom:chart:<field>` on the shape name or alt text) and the whole data set is replaced through ruby_pptx `Chart#replace_data`; bar/column, line, area, pie, doughnut, radar and combo charts ride upstream directly. Scatter and bubble charts cannot — upstream rewrites only `c:tx/c:cat/c:val` — so the adapter rewrites `c:xVal`/`c:yVal`/`c:bubbleSize` itself and regenerates the XY workbook. Cloned (`#each`) chart pages are deep-copied per page so clones never share data.
+
+Guards: combo / scatter / bubble require the data's series count to equal the template's (upstream trim/clone would otherwise silently add or remove plots); pie accepts exactly one series; unsupported kinds are rejected with a located error. Saving normalizes the chart XML (axis ids that upstream emits negative, illegal radar `c:smooth`) so the output passes Microsoft's OpenXmlValidator.
 
 ### 5.5 Fidelity acceptance
 
-The output must open in PowerPoint without a "repair" dialog. CI strategy is layered: L1 structural lint (`tools/ooxml_lint.rb`, run on golden outputs in specs — dangling `[Content_Types].xml` overrides / relationship targets are the top repair trigger and LibreOffice silently tolerates them), then LibreOffice headless PDF conversion with three assertions — conversion succeeds, the page count is correct, and a PDF text spot-check contains the expected values. LibreOffice is more lenient than PowerPoint, so a manual acceptance checklist remains (for every new golden sample, open it once in real PowerPoint). Chart templates additionally need a per-clone-page "Edit Data" click to confirm no page shows another page's data.
+The output must open in PowerPoint without a "repair" dialog. CI strategy is layered: **L1** structural lint (`tools/ooxml_lint.rb`, run on golden outputs in specs — dangling `[Content_Types].xml` overrides / relationship targets are the top repair trigger and LibreOffice silently tolerates them), **L3** official schema validation (`tools/openxml_validator` via `.github/workflows/l3.yml`, a Windows runner running Microsoft's OpenXmlValidator; a hard gate), and **L4** LibreOffice headless PDF conversion with three assertions — conversion succeeds, the page count is correct, and a PDF text spot-check contains the expected values. LibreOffice is more lenient than PowerPoint, so a manual acceptance checklist remains (**L5**: for every new golden sample, open it once in real PowerPoint). Chart templates additionally need a per-clone-page "Edit Data" click to confirm no page shows another page's data.
 
 ## 6. Milestones
 
@@ -173,7 +177,8 @@ The output must open in PowerPoint without a "repair" dialog. CI strategy is lay
 | M2 · weeks 4-6 | `#each` page cloning, `#if` page removal; error model and location info | Golden sample 2 (loop pages) passes; errors carry slide number and shape name |
 | M3 · weeks 7-8 | Validator reconciliation + `rake powertom:check` + warnings | Bad templates fail in CI, and errors guide designers to self-diagnose |
 | M4 · weeks 9-10 | Picture replacement; formatters; dogfooding: one real export scenario in a company product | Real business output, with template changes needing no developer involvement |
-| After 1.0 | Chart binding, Docxtemplater compatibility layer (evaluation), standalone site and docs | Scheduled by dogfooding feedback |
+| v0.4.0 – v0.4.1 | Chart data binding: single-plot families, combo, scatter / bubble, radar; schema normalization; L3 official validation | All chart families bind; L3 validates every golden deck clean |
+| After 1.0 | Docxtemplater compatibility layer (evaluation), standalone site and docs | Scheduled by dogfooding feedback |
 
 Between milestones, completeness of the library is not the goal; every phase should produce something "that can really be used".
 
@@ -188,7 +193,7 @@ Competitors generally treat validation as a by-product of logging; PowerTom make
 
 ## 8. Testing and quality strategy
 
-- **Golden fixtures**: produced in real PowerPoint, covering: single page with multiple tags, tags split across runs, loop pages, conditional pages, Chinese fonts, chart pages (later). Each golden sample = template + data + assertions (page count, key text, LibreOffice PDF conversion succeeds)
+- **Golden fixtures**: produced in real PowerPoint, covering: single page with multiple tags, tags split across runs, loop pages, conditional pages, Chinese fonts, chart pages (included since v0.4.0; the committed mini golden carries a chart page, the L3 deck set covers every chart family). Each golden sample = template + data + assertions (page count, key text, LibreOffice PDF conversion succeeds)
 - **Unit layer**: Scanner / Binder / Validator do no file I/O, pure structure in and out, target coverage > 90%
 - **Double regression safety net**: LibreOffice headless conversion + `ruby_pptx` read-back assertions (a successful read-back proves the package structure is self-consistent)
 - **Fuzzy inputs**: under `strict: false`, missing tags, nil data and empty arrays (a loop page should become 0 pages by removing the whole group) all need explicit semantics tests

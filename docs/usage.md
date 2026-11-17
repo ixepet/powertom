@@ -183,7 +183,12 @@ column items where the condition is falsy:
 
 - Name a picture shape (or its alt text) `powertom:image:cover`.
 - Put the image file path in the data under the matching field.
-- Replacement always fills the shape and crops from the centre; use a placeholder with the target aspect ratio.
+- Default `fill` mode fills the shape and crops from the centre; use a
+  placeholder with the target aspect ratio. Append `; mode=contain` to fit the
+  whole image inside the frame and centre it without cropping:
+  `powertom:image:cover; mode=contain`. The margins show whatever is behind
+  the picture (slide background or another shape); no background fill is
+  synthesised.
 - A missing field keeps the placeholder (`strict: false`); a path that does not exist is an error.
 
 ## 6. Charts
@@ -256,6 +261,26 @@ avg = 82.4
 - Write top-level scalars **before** the first `[[array]]`; otherwise TOML attaches them to the last array item.
 - Dates are normalised to Ruby `Date` / `Time` and can use the `date` formatter.
 - Keys may be Strings or Symbols in a Hash; TOML keys arrive as Strings.
+- JSON and YAML are not built-in. Load them outside PowerTom and pass a Hash:
+
+```ruby
+require "json"
+
+data = JSON.load_file("data.json")
+PowerTom.render("template.pptx", data: data)
+```
+
+```ruby
+require "date"
+require "yaml"
+
+data = YAML.safe_load_file("data.yaml", permitted_classes: [Date, Time], aliases: true)
+PowerTom.render("template.pptx", data: data)
+```
+
+  Use `YAML.safe_load_file`, not `YAML.load_file`. JSON/YAML have no native
+  date type, so convert date-like strings to `Date` / `Time` before using the
+  `date` formatter.
 
 ## 8. Validation
 
@@ -289,8 +314,8 @@ designers can locate the problem without reading the code.
 | Pie charts are single-series | Binding rejects more than one series because PowerPoint would silently drop the extras; use a doughnut chart for multiple rings. |
 | Text tags inside charts are not rendered | Tags inside chart data are left as-is and reported as warnings. |
 | Notes are not rendered | Notes are only read for page directives; ordinary tags in notes produce a warning. |
-| Image replacement always fills and centre-crops | When the image aspect differs from the placeholder by more than 20%, a render warning explains that the image will be cropped. Use a placeholder with the target aspect ratio. |
-| Tags on masters/layouts are ignored | Only shapes on slides are processed. |
+| Pictures default to fill + centre-crop | Append `; mode=contain` to fit the image inside the frame without cropping. In fill mode, an aspect difference above 20% produces a render warning. |
+| Tags on masters/layouts never take effect | Only shapes on slides are processed; `PowerTom.check` reports such tags as errors. |
 
 Missing fields are errors in strict mode. Known limitations above degrade with a warning
 instead of silently doing nothing.

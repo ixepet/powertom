@@ -34,7 +34,8 @@ Designer                                   Engineer
                     PowerTom.render("template.pptx", data: "report.toml")
                                    ▼
                     Finished deck: tags bound, pages cloned/removed,
-                    pictures replaced — opens in PowerPoint without repair.
+                    pictures and charts bound — opens in PowerPoint
+                    without repair.
 ```
 
 ## Why another one
@@ -55,7 +56,7 @@ PowerTom fills the middle layer: a **template engine on top of [`ruby_pptx`](htt
 gem "powertom"
 ```
 
-Requires Ruby >= 3.3; depends on `ruby_pptx ~> 0.2.0` (read/write) and `tomlrb ~> 3.0` (data files).
+Requires Ruby >= 3.3; depends on `ruby_pptx >= 0.2.0, < 1.0` (read/write) and `tomlrb ~> 3.0` (data files).
 
 ## Quick start
 
@@ -88,7 +89,7 @@ detail = "Ready automatically every Sunday"
 ```ruby
 require "powertom"
 
-# Read the template, bind tags, clone/remove pages, replace images
+# Read the template, bind tags, clone/remove pages, replace images and charts
 result = PowerTom.render("templates/report.pptx", data: "data/report.toml")
 result.save("out/report.pptx")
 result.warnings.each { |w| warn w }   # unused fields, fallback values…
@@ -131,7 +132,7 @@ result = PowerTom.render("templates/report.pptx", data: {
 - **Nested table rows**: `{{#rows groups}}` occupies a whole row (first cell only), and the next row is the parent content row; `{{#rows groups[].items}}` followed by its own content row adds one nesting level. Two levels maximum; parent and child tags use full paths (`{{groups[].name}}`, `{{groups[].items[].name}}`).
 - **Dynamic columns**: put `{{#grid rows: distribution cols: bands value: counts}}` in the header row's first cell. The header row's second cell is the column template (`{{col.label}}`), and the next row is the row template (`{{row.name}}` in the first cell, `{{cell}}` in the data columns). Exactly two columns; `value:` is optional (defaults to `row[col.key]`).
 - **Row blocks (v0.2.x)**: `{{#rows groups}} ... {{/rows}}` each occupy a whole row; everything between them is one record template and is cloned per item. Up to 3 nested levels; `{{row.name}}` refers to the current record. A `{{#cols ...}}` band may be declared in the header or directly inside a row block, and may span several template columns; `value: scores,rates` maps one field to each template column (a single field is shared by all). A `{{#if ...}} ... {{/if}}` block inside a row block removes its rows when the condition is falsy; inside a `#cols` band it removes the wrapped columns per column item.
-- **Pictures**: name the shape or its alt text `powertom:image:cover` and pass a file path in the data. Replacement always fills the shape and crops from the centre.
+- **Pictures**: name the shape or its alt text `powertom:image:cover` and pass a file path in the data. Replacement fills the shape and crops from the centre by default; append `; mode=contain` (`powertom:image:logo; mode=contain`) to fit the whole image inside the frame instead.
 - **Charts**: name the chart shape or its alt text `powertom:chart:sales` and pass `{ categories, series, number_format }` in the data; the whole data set is replaced and series formatting is inherited from the template. Supported: bar/column, line, area, pie (exactly one series), doughnut and **radar** (including the filled variant — `radarStyle` and radial-axis scaling such as a fixed maximum are preserved). Combo charts and scatter/bubble charts use a different contract — see Limitations.
 - One directive per notes page, maximum.
 - TOML dates are written unquoted (`report_date = 2026-01-20`), normalised to Ruby `Date`, and can be formatted with `{{report_date:date.cn}}`.
@@ -178,7 +179,7 @@ result.report       # the human-readable report shown above
 result.exit_code    # 0 or 1 — usable in CI
 ```
 
-Checks: missing fields (including each item of an `#each` array), unregistered formatters, directive syntax, more than one directive per page, picture fields and missing files, chart data shape, placeholder overflow warnings, unused data fields, leftover tags in notes.
+Checks: missing fields (including each item of an `#each` array), unregistered formatters, directive syntax, more than one directive per page, picture fields and placeholder options, missing files, chart kind and data shape, tags on masters/layouts (they never take effect), placeholder overflow warnings, unused data fields, leftover tags in notes.
 
 ## Error model
 
@@ -198,11 +199,11 @@ Output is **all or nothing**: every check runs before anything is written to dis
 | Tables support row loops, paired row blocks, nesting and dynamic columns | `{{classes[].name}}` clones one row; `{{#rows ...}} ... {{/rows}}` clones multi-row records (3 levels); `{{#grid ...}}` / `{{#cols ...}}` clone columns; merged cells inside loops are rejected |
 | Charts: bar/column/line/area/pie/doughnut, radar, combo and scatter/bubble are data-bound | Name the chart shape `powertom:chart:<field>`; pie charts accept exactly one series (use doughnut for multiple rings); combo/scatter/bubble bind in document order and require exactly the template's series count (scatter/bubble carry `points: [{x, y(, size)}]` per series instead of shared categories); text tags inside charts are left as-is and reported as warnings |
 | Notes are not rendered | Notes are only read for page directives; ordinary tags in notes produce a warning |
-| Tags on masters/layouts are ignored | Only shapes on slides are processed |
+| Tags on masters/layouts are rejected | Only shapes on slides are processed; `PowerTom.check` reports these tags as errors because they never take effect |
 | No PPT → PDF | Use LibreOffice headless |
 | `.pptx` only | No legacy 97-2003 binary format |
-| TOML or Hash only | No YAML / JSON loader |
-| Fixed picture cropping | Always fill the shape and crop from the centre; a warning is emitted when the image aspect differs by more than 20% |
+| TOML or Hash only | No YAML / JSON loader; load them yourself and pass a Hash (see `docs/usage.md` §7) |
+| Pictures default to fill + centre-crop | Append `; mode=contain` to `powertom:image:<field>` to fit the image inside the frame without cropping; the aspect-ratio warning only applies to fill mode |
 
 ## Security
 

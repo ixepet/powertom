@@ -18,6 +18,18 @@ and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
   `c:smooth` — both fixed below); the rerun validates all four decks clean.
   The workflow is a **hard gate**: any schema-level finding fails the build;
   a daily schedule guards against silent upstream drift.
+- Picture placeholders support `; mode=contain`, which scales the image to fit
+  inside the frame and centres it without cropping. `fill` remains the default.
+  Margins show whatever is behind the picture; no background fill is added.
+- `PowerTom.check` reports tags on slide masters/layouts as errors. They never
+  take effect at render time, so the public validation path no longer leaves
+  them silent.
+
+### Changed
+
+- Documented the JSON/YAML adapter pattern in `docs/usage.md`; no built-in
+  loader is added. The existing `.toml`-only error no longer says "v0" and
+  points to the Hash adapter.
 
 ### Fixed
 
