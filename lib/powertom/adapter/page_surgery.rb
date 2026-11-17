@@ -124,7 +124,7 @@ module PowerTom
         {
           "ppt/presentation.xml" => rewrite_presentation(parts, count, new_rids),
           "ppt/_rels/presentation.xml.rels" => rewrite_presentation_rels(parts, count, new_rids),
-          "[Content_Types].xml" => rewrite_content_types(parts, count),
+          "[Content_Types].xml" => rewrite_content_types(parts, outputs),
           "slide_parts" => slide_parts,
           "notes_parts" => notes_parts
         }
@@ -161,13 +161,19 @@ module PowerTom
         xml.force_encoding(Encoding::BINARY)
       end
 
-      def rewrite_content_types(parts, count)
+      # 每张输出页必有 slide Override;notesSlide Override 只在源页有 notes
+      # 时声明——notes part 同样只为这些页写出,无条件声明会产生悬空
+      # Override(P0-1,PowerPoint 对悬空声明会提示修复,LibreOffice 则静默容忍)。
+      def rewrite_content_types(parts, outputs)
         xml = parts.fetch("[Content_Types].xml").dup.force_encoding(Encoding::UTF_8)
         xml = xml.gsub(%r{<Override [^>]*PartName="/ppt/slides/slide\d+\.xml"[^>]*/>}, "")
         xml = xml.gsub(%r{<Override [^>]*PartName="/ppt/notesSlides/notesSlide\d+\.xml"[^>]*/>}, "")
-        overrides = (0...count).flat_map do |i|
-          [%(<Override PartName="/ppt/slides/slide#{i + 1}.xml" ContentType="#{SLIDE_CT}"/>),
-           %(<Override PartName="/ppt/notesSlides/notesSlide#{i + 1}.xml" ContentType="#{NOTES_CT}"/>)]
+        overrides = outputs.each_with_index.flat_map do |out, i|
+          entries = [%(<Override PartName="/ppt/slides/slide#{i + 1}.xml" ContentType="#{SLIDE_CT}"/>)]
+          if out[:src_notes]
+            entries << %(<Override PartName="/ppt/notesSlides/notesSlide#{i + 1}.xml" ContentType="#{NOTES_CT}"/>)
+          end
+          entries
         end
         xml.sub!(%r{</Types>}, "#{overrides.join}</Types>")
         xml.force_encoding(Encoding::BINARY)

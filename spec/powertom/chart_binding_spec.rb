@@ -4,6 +4,7 @@ require "securerandom"
 require "tmpdir"
 require "fileutils"
 require "zip"
+require_relative "../../tools/ooxml_lint"
 
 # §5.4 图表数据绑定(powertom:chart:字段名):整体替换 categories/series,
 # 克隆页各自持有独立 chart part,错误带定位,check 逐项对账
@@ -114,6 +115,8 @@ RSpec.describe PowerTom, ".render 图表绑定" do
       Zip::File.open(out) do |zip|
         [1, 2].each { |n| expect(zip.find_entry("ppt/charts/#{chart_part_ref(out, n)}")).not_to be_nil }
       end
+      # 克隆 + 深拷贝 + 绑定后的包结构仍然合法(L1)
+      expect(PowerTomDev::OoxmlLint.lint(out)).to be_empty
     end
   end
 

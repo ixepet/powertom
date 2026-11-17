@@ -162,7 +162,7 @@ Drive `c:ser` series values and category names from data. The difficulty is that
 
 ### 5.5 Fidelity acceptance
 
-The output must open in PowerPoint without a "repair" dialog. CI strategy: after rendering each golden sample, convert to PDF with LibreOffice headless and assert three things — conversion succeeds, the page count is correct, and a PDF text spot-check contains the expected values. LibreOffice is more lenient than PowerPoint, so a manual acceptance checklist remains (for every new golden sample, open it once in real PowerPoint).
+The output must open in PowerPoint without a "repair" dialog. CI strategy is layered: L1 structural lint (`tools/ooxml_lint.rb`, run on golden outputs in specs — dangling `[Content_Types].xml` overrides / relationship targets are the top repair trigger and LibreOffice silently tolerates them), then LibreOffice headless PDF conversion with three assertions — conversion succeeds, the page count is correct, and a PDF text spot-check contains the expected values. LibreOffice is more lenient than PowerPoint, so a manual acceptance checklist remains (for every new golden sample, open it once in real PowerPoint). Chart templates additionally need a per-clone-page "Edit Data" click to confirm no page shows another page's data.
 
 ## 6. Milestones
 
