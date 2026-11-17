@@ -3,6 +3,7 @@
 require "tmpdir"
 require "fileutils"
 require "zip"
+require_relative "../../tools/ooxml_lint"
 
 # 公开金样本(§5.5):提交在库内的微型模板,让 split-run 合并(§5.1)、一段多标签、
 # {{#each}} 页克隆、{{#if}} 删页、图片替换(§5.3)与 LibreOffice 保真的端到端
@@ -119,6 +120,10 @@ RSpec.describe PowerTom, ".render mini golden" do
 
   it "比例匹配的图片不触发居中裁切告警" do
     expect(@warnings.join).not_to include("centre-cropped")
+  end
+
+  it "输出通过 OOXML 结构校验:无悬空声明/引用,无重复 entry(L1)" do
+    expect(PowerTomDev::OoxmlLint.lint(@out)).to be_empty
   end
 
   it "空数组与假条件:整组删除(all or nothing)" do
