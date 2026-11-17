@@ -13,9 +13,11 @@ and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
   plus an `L3 OpenXML validation` workflow — ubuntu renders the L3 deck set
   (`tools/build_l3_decks.rb`: every supported chart family, `#each`-cloned
   combo pages, the mini golden render), a windows-latest job runs the
-  validator against the decks and the committed mini template. Observation
-  mode (`continue-on-error`) until false positives are triaged; a daily
-  schedule guards against silent upstream drift.
+  validator against the decks and the committed mini template. First run
+  surfaced two upstream writer defects (negative axis ids, illegal radar
+  `c:smooth` — both fixed below); the rerun validates all four decks clean.
+  Observation mode (`continue-on-error`) is kept with a daily schedule
+  guarding against silent upstream drift.
 
 ## [0.4.1] - 2026-11-17
 
