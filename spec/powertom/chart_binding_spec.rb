@@ -79,6 +79,36 @@ RSpec.describe PowerTom, ".render 图表绑定" do
     path
   end
 
+  def build_combo_template(notes: nil)
+    prs = Pptx::Presentation.new_default
+    prs.slide_width = Pptx.inches(13.333)
+    prs.slide_height = Pptx.inches(7.5)
+    slide = prs.slides.add(prs.slide_layouts["Blank"])
+    data = Pptx::ChartData.new
+    data.categories = %w[Q1 Q2 Q3]
+    data.add_series("Revenue", [120, 150, 180])
+    data.add_series("Margin", [0.18, 0.22, 0.25])
+    frame = slide.shapes.add_combo_chart(data,
+                                         at: [Pptx.inches(1), Pptx.inches(1)],
+                                         size: [Pptx.inches(10), Pptx.inches(5)]) do |combo|
+      combo.plot :column_clustered, series: "Revenue"
+      combo.plot :line, series: "Margin", secondary_axis: true
+    end
+    frame.name = "powertom:chart:combo"
+    slide.notes = notes if notes
+
+    path = File.join(@dir, "combo_template_#{SecureRandom.hex(4)}.pptx")
+    prs.save(path)
+    path
+  end
+
+  # 组合图逐 plot 读回:[[plot1 系列...], [plot2 系列...]],每个系列 [name, values]
+  def read_combo(pptx, slide_no, shape_name = "powertom:chart:combo")
+    adapter = PowerTom::Adapter::RubyPptxAdapter.new
+    chart = adapter.find_shape(adapter.open(pptx), slide_no, shape_name).chart
+    chart.plots.map { |plot| plot.series.map { |s| [s.name, s.values.map(&:to_f)] } }
+  end
+
   SALES = {
     categories: %w[Jan Feb Mar],
     series: [{ name: "2026", values: [10, 20, 30] }]
@@ -135,6 +165,54 @@ RSpec.describe PowerTom, ".render 图表绑定" do
         [1, 2].each { |n| expect(zip.find_entry("ppt/charts/#{chart_part_ref(out, n)}")).not_to be_nil }
       end
       # 克隆 + 深拷贝 + 绑定后的包结构仍然合法(L1)
+      expect(PowerTomDev::OoxmlLint.lint(out)).to be_empty
+    end
+  end
+
+  COMBO_SALES = {
+    categories: %w[Jan Feb Mar],
+    series: [{ name: "Rev", values: [100, 110, 120] }, { name: "Mgn", values: [0.3, 0.28, 0.26] }]
+  }.freeze
+
+  it "组合图按文档顺序整体重绑定:柱状与折线两个 plot 各自独立" do
+    template = build_combo_template
+    out = File.join(@dir, "out_combo.pptx")
+    PowerTom.render(template, data: { combo: COMBO_SALES }).save(out)
+
+    expect(read_combo(out, 1)).to eq(
+      [[["Rev", [100.0, 110.0, 120.0]]], [["Mgn", [0.3, 0.28, 0.26]]]]
+    )
+    expect(PowerTomDev::OoxmlLint.lint(out)).to be_empty
+  end
+
+  it "组合图系列数不匹配 → 报错说明模板分布与文档顺序要求" do
+    template = build_combo_template
+    too_many = { categories: %w[Jan Feb Mar],
+                 series: COMBO_SALES[:series] + [{ name: "Extra", values: [1, 2, 3] }] }
+    expect { PowerTom.render(template, data: { combo: too_many }) }
+      .to raise_error(
+        PowerTom::Error,
+        /combo template draws column×1 \+ line×1 \(2 series in total\).*exactly 2 series.*got 3/
+      )
+  end
+
+  it "组合图 #each 克隆页各自持有独立 chart part 并绑定本项数据" do
+    template = build_combo_template(notes: "{{#each regions}}")
+    out = File.join(@dir, "out_combo_each.pptx")
+    data = {
+      regions: [
+        { combo: COMBO_SALES },
+        { combo: { categories: %w[X Y],
+                   series: [{ name: "Rev", values: [1, 2] }, { name: "Mgn", values: [0.1, 0.2] }] } }
+      ]
+    }
+    PowerTom.render(template, data: data).save(out)
+
+    aggregate_failures do
+      expect(slide_count(out)).to eq(2)
+      expect(read_combo(out, 1)).to eq([[["Rev", [100.0, 110.0, 120.0]]], [["Mgn", [0.3, 0.28, 0.26]]]])
+      expect(read_combo(out, 2)).to eq([[["Rev", [1.0, 2.0]]], [["Mgn", [0.1, 0.2]]]])
+      expect(chart_part_ref(out, 1)).not_to eq(chart_part_ref(out, 2))
       expect(PowerTomDev::OoxmlLint.lint(out)).to be_empty
     end
   end
@@ -224,6 +302,20 @@ RSpec.describe PowerTom, ".render 图表绑定" do
                               ] })
       e = result.errors.find { |x| x.message.include?("item 2") }
       expect(e.message).to include("regions[1].sales")
+    end
+
+    it "组合图 check:数量匹配 → 无 error,数量不匹配 → error 带分布" do
+      template = build_combo_template
+      aggregate_failures do
+        ok = PowerTom.check(template, data: { combo: COMBO_SALES })
+        expect(ok.ok?).to be(true)
+
+        bad = PowerTom.check(template,
+                             data: { combo: { categories: %w[Jan Feb Mar],
+                                              series: [{ name: "Rev", values: [1, 2, 3] }] } })
+        expect(bad.errors.first.message).to include("column×1 + line×1")
+        expect(bad.errors.first.message).to include("exactly 2 series")
+      end
     end
   end
 

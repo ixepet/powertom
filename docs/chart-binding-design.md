@@ -144,3 +144,34 @@ from data.
 > The spike removes the two assumptions that postponed §5.4: no XML surgery is
 > needed (upstream `SeriesRewriter`) and no separate gem is warranted (the
 > PowerTom layer is naming convention + data mapping + validation).
+
+## 9. Extension: combo / scatter / bubble (v0.4.x, spike2 verified)
+
+`tools/chart_binding_spike2.rb` (2026-11-17) tested the three remaining chart
+families. Evidence:
+
+| Scenario | Result |
+| --- | --- |
+| Combo bar(1)+line(1, secondary axis), same-shape rebind | both plots rebound independently; LibreOffice conversion OK |
+| Combo series 2→3 | extra series cloned from the **last series of the last plot** (the line plot) |
+| Combo series 2→1 | the emptied line **plot is removed** — the chart silently degrades to a plain bar chart |
+| `replace_data(XyChartData)` on a scatter | raises `NoMethodError` (`categories`) — upstream does not support it |
+| `replace_data(ChartData)` on a scatter | produces a **schema-invalid** `c:ser` (a `c:val` is injected while the stale `c:xVal` remains) — unusable |
+
+Consequences:
+
+1. **Combo binding is feasible with the current machinery.** `SeriesRewriter`
+   zips series across plots in document order and rewrites each `c:ser`'s
+   `c:tx/c:cat/c:val`; bar/line/area plots all share the `cat+val` model. The
+   data shape is identical to a normal chart (`categories` + `series`). One
+   rule must be added: a combo placeholder requires the data's series count to
+   equal the template's total series count — otherwise trim/clone silently
+   adds or removes plots and destroys the designer's combo structure. The
+   bind error reports the template's per-plot distribution (e.g.
+   `column×1 + line×1`).
+2. **Scatter/bubble cannot ride upstream `replace_data`**: `SeriesFragments`
+   only emits `c:tx/c:cat/c:val` fragments and `rewrite_series` never
+   removes `c:xVal/c:yVal/c:bubbleSize`. Supporting them needs either an
+   adapter-level XY rewriter (build `c:xVal`/`c:yVal` num-ref fragments —
+   `XyChartData#xlsx_blob` already exists) or an upstream contribution. They
+   stay guarded (rejected with an error) until that work is scheduled.

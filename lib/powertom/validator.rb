@@ -155,7 +155,8 @@ module PowerTom
         end
       end
 
-      # 2.6 图表类型守卫:命名占位本身即声明绑定意图,不支持类型直接报 error。
+      # 2.6 图表类型守卫:命名占位本身即声明绑定意图,不支持类型直接报 error
+      # (combo 是支持的 kind,走 reconcile 阶段的系列数量规则)。
       # 这是模板属性,不依赖样例数据,与字段对账分开检查
       chart_placeholders.each do |cctx|
         kind = cctx[:kind]
@@ -164,7 +165,7 @@ module PowerTom
         entries << error_entry(
           cctx[:slide_no], cctx[:shape], cctx[:field],
           "#{kind_label(kind)} charts are not supported for data binding " \
-          "(supported: column/bar, line, area, pie, doughnut)"
+          "(supported: column/bar, line, area, pie, doughnut, combo)"
         )
       end
 
@@ -456,6 +457,7 @@ module PowerTom
             next
           end
           check_chart_value(value, ctx, path, entries, k)
+          check_combo_series_count(value, cctx, entries, k)
         end
       else
         value = begin
@@ -465,7 +467,28 @@ module PowerTom
           return
         end
         check_chart_value(value, ctx, path, entries)
+        check_combo_series_count(value, cctx, entries)
       end
+    end
+
+    # 组合图数量守卫(check 侧,设计文档 §9):绑定系列数必须等于模板的
+    # 系列总数,否则渲染时上游会静默增删 plot(与 render 同一规则)
+    def check_combo_series_count(value, cctx, entries, item_index = nil)
+      return if value.nil?
+      return unless cctx[:kind] == :combo
+
+      series = value.key?(:series) ? value[:series] : value["series"]
+      return unless series.is_a?(Array)
+
+      return if series.size == cctx[:series_count]
+
+      where = item_index ? "item #{item_index + 1}: " : ""
+      entries << error_entry(
+        cctx[:slide_no], cctx[:shape], cctx[:field],
+        "#{where}combo template draws #{cctx[:distribution]} (#{cctx[:series_count]} series in " \
+        "total); the data must provide exactly #{cctx[:series_count]} series in document " \
+        "order, got #{series.size}"
+      )
     end
 
     def check_chart_value(value, ctx, path, entries, item_index = nil)

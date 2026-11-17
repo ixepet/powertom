@@ -231,15 +231,15 @@ module PowerTom
         value = binder.value_at(cctx[:field], ctx, purpose: "chart placeholder; keeping the placeholder")
         next if value.nil? # 缺失(non-strict):保留占位图表
 
-        kind = cctx[:kind]
-        if Adapter::RubyPptxAdapter.unsupported_chart_kind?(kind)
+        validate_chart_data!(value, cctx)
+        if cctx[:kind] == :combo
+          validate_combo_series_count!(value, cctx)
+        elsif Adapter::RubyPptxAdapter.unsupported_chart_kind?(cctx[:kind])
           raise PowerTom::Error,
                 "slide #{cctx[:slide_no]} chart '#{cctx[:shape]}' field '#{cctx[:field]}': " \
-                "#{Adapter::RubyPptxAdapter.unsupported_chart_kind_label(kind)} charts are not supported for " \
-                "data binding (supported: column/bar, line, area, pie, doughnut)"
+                "#{Adapter::RubyPptxAdapter.unsupported_chart_kind_label(cctx[:kind])} charts are not " \
+                "supported for data binding (supported: column/bar, line, area, pie, doughnut, combo)"
         end
-
-        validate_chart_data!(value, cctx)
         adapter.replace_chart_data(prs, cctx[:chart_shape], cctx[:slide], value)
       end
     end
@@ -286,6 +286,20 @@ module PowerTom
 
     def chart_field_value(hash, key)
       hash.key?(key.to_sym) ? hash[key.to_sym] : hash[key.to_s]
+    end
+
+    # 组合图数量守卫(设计文档 §9):上游 SeriesRewriter 对组合图做跨 plot
+    # 扁平 zip,系列多了从最后 plot 克隆、少了会移除空 plot——两者都会静默
+    # 改变设计师的组合结构,所以要求恰好提供模板的系列总数
+    def validate_combo_series_count!(value, cctx)
+      count = chart_field_value(value, "series").size
+      return if count == cctx[:series_count]
+
+      raise PowerTom::Error,
+            "slide #{cctx[:slide_no]} chart '#{cctx[:shape]}' field '#{cctx[:field]}': " \
+            "combo template draws #{cctx[:distribution]} (#{cctx[:series_count]} series in " \
+            "total); the data must provide exactly #{cctx[:series_count]} series in document " \
+            "order, got #{count}"
     end
 
     # 图表数据可绑定(powertom:chart:*),但图表内的文本标签不支持:

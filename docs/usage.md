@@ -210,10 +210,13 @@ values = [16.0, 21.0, 20.0, 25.5]
   removed. Chart type, layout and series formatting come from the template.
 - `categories` and every series' `values` must have the same length; `values`
   must be numbers; zero-series data is rejected.
-- Supported chart types: bar / column / line / area / pie / doughnut.
-  Scatter, bubble, radar and combo charts are rejected with an error when a
-  field is bound to them; text tags inside charts are left as-is and
-  reported as warnings.
+- Supported chart types: bar / column / line / area / pie / doughnut, and
+  combo charts (e.g. column + line with a secondary axis): a combo binds its
+  series in document order and the data must provide exactly the template's
+  total series count, otherwise the combo structure would change.
+- Scatter, bubble and radar charts are rejected with an error when a field is
+  bound to them; text tags inside charts are left as-is and reported as
+  warnings.
 - `#each` cloned pages are supported: each clone binds its own item's data in
   its own chart part.
 - A missing field keeps the placeholder chart (`strict: false`); a wrong data

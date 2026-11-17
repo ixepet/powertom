@@ -118,8 +118,8 @@ module PowerTom
 
       # §5.4 图表数据绑定:形状 name 或 alt text = powertom:chart:字段名 的图表
       # 即为占位(docs/chart-binding-design.md)。返回 [{slide_no:, shape:, field:,
-      # slide:, chart_shape:, kind:}] ;kind 为绘图类型(combo 图返回 :combo),
-      # 供渲染层与 check 做类型守卫
+      # slide:, chart_shape:, kind:}] ;kind 为绘图类型(combo 图返回 :combo);
+      # combo 额外携带 series_count/distribution,供绑定层做数量守卫
       def chart_contexts(prs)
         contexts = []
         prs.slides.each_with_index do |slide, i|
@@ -129,18 +129,23 @@ module PowerTom
             field = chart_field(shape)
             next unless field
 
-            contexts << { slide_no: i + 1, shape: shape.name, field: field,
-                          slide: slide, chart_shape: shape,
-                          kind: chart_kind(shape.chart) }
+            kind = chart_kind(shape.chart)
+            entry = { slide_no: i + 1, shape: shape.name, field: field,
+                      slide: slide, chart_shape: shape, kind: kind }
+            if kind == :combo
+              entry[:series_count] = combo_series_count(shape.chart)
+              entry[:distribution] = combo_distribution_label(shape.chart)
+            end
+            contexts << entry
           end
         end
         contexts
       end
 
-      # 支持整体替换数据的绘图类型(:BAR 同时覆盖柱形与条形)。scatter/bubble
-      # 的数据形状不同(XyChartData),combo 是多 plot,radar 超出首期范围;
-      # 绑定这些类型会产出错误形状的数据,必须显式拒绝
-      SUPPORTED_PLOT_TYPES = %i[BAR LINE AREA PIE DOUGHNUT].freeze
+      # 支持绑定数据的图表 kind::普通绘图类型(bar 覆盖柱形/条形)与 :combo。
+      # scatter/bubble 的数据形状不同(XyChartData),上游 replace_data 会产出
+      # schema 非法的 ser(spike2 取证);radar 超出首期范围——绑定必须拒绝
+      SUPPORTED_CHART_KINDS = %i[BAR LINE AREA PIE DOUGHNUT combo].freeze
 
       # plot_type 只描述第一个 plot,combo 图会被误判成它的首个类型,
       # 所以先数 plot 数量(访问链与上游 Chart#plot_area 一致)
@@ -153,12 +158,28 @@ module PowerTom
 
       # 判定与文案是模板层规则,check(validator)以类方法复用,不持有实例
       def self.unsupported_chart_kind?(kind)
-        !SUPPORTED_PLOT_TYPES.include?(kind)
+        !SUPPORTED_CHART_KINDS.include?(kind)
       end
 
       def self.unsupported_chart_kind_label(kind)
         { XY: "scatter", BUBBLE: "bubble", RADAR: "radar",
-          combo: "combo (multi-plot)", unknown: "unknown" }.fetch(kind, kind.to_s.downcase)
+          unknown: "unknown" }.fetch(kind, kind.to_s.downcase)
+      end
+
+      PLOT_FAMILY_LABELS = { "c:barChart" => "column", "c:lineChart" => "line",
+                             "c:areaChart" => "area", "c:area3DChart" => "area" }.freeze
+
+      # 组合图各 plot 的系列分布,如 "column×1 + line×1"(错误定位与校验消息用)
+      def combo_distribution_label(chart)
+        chart.element.chart.plotArea.plot_elements.map do |plot|
+          "#{PLOT_FAMILY_LABELS.fetch(plot.nsptag, plot.nsptag)}×#{plot.ser_list.size}"
+        end.join(" + ")
+      end
+
+      # 组合图全部 plot 的系列总数(绑定数据必须恰好提供这么多系列,
+      # 否则上游 trim/clone 会静默增删 plot,破坏设计师的组合结构)
+      def combo_series_count(chart)
+        chart.element.chart.plotArea.plot_elements.sum { |plot| plot.ser_list.size }
       end
 
       CHART_FIELD_PREFIX = "powertom:chart:"

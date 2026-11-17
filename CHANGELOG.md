@@ -8,10 +8,18 @@ and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
 
 ### Added
 
-- Unsupported chart kinds (scatter, bubble, radar, combo, unknown) are now
-  rejected with a located error in `PowerTom.render` and reported as errors
-  by `PowerTom.check` (independent of sample data), instead of silently
-  binding wrong-shaped data into a non-`c:val` plot.
+- Combo chart binding (§9): a combo placeholder (e.g. column + line with a
+  secondary axis) binds its series in document order through the same
+  `categories`/`series` data shape as single-plot charts. The data must
+  provide exactly the template's total series count — a mismatch raises a
+  located error naming the template's distribution (e.g.
+  `column×1 + line×1`), both in `PowerTom.render` and `PowerTom.check`.
+- Unsupported chart kinds (scatter, bubble, radar, unknown) are rejected
+  with a located error in `PowerTom.render` and reported as errors by
+  `PowerTom.check` (independent of sample data), instead of silently
+  binding wrong-shaped data into a non-`c:val` plot. Verified by
+  `tools/chart_binding_spike2.rb`: upstream `replace_data` cannot rebind
+  XY/bubble series (`SeriesFragments` never emits `c:xVal`/`c:yVal`).
 
 ## [0.4.0] - 2026-11-17
 
