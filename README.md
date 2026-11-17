@@ -1,7 +1,16 @@
 # PowerTom — PowerPoint template engine for Ruby
 
+[![Gem Version](https://img.shields.io/gem/v/powertom)](https://rubygems.org/gems/powertom)
+
 > Designers keep the template in PowerPoint. Engineers pass a Ruby Hash (or a TOML file) and get a finished deck.
 > Layout, fonts, colours, masters and theme stay under the designer's control; the code only scans tags, binds data and clones slides.
+
+```ruby
+require "powertom"
+
+data = { title: "Final exams", classes: [{ name: "Grade 8 (3)", avg: 82.4 }] }
+PowerTom.render("template.pptx", data: data).save("report.pptx")
+```
 
 <sub>Not affiliated with Microsoft or TomTom.</sub>
 
@@ -44,9 +53,6 @@ PowerTom fills the middle layer: a **template engine on top of [`ruby_pptx`](htt
 ```ruby
 # Gemfile
 gem "powertom"
-
-# Chemin local tant que le gem n'est pas publié sur RubyGems
-# gem "powertom", path: "/chemin/vers/PowerTom"
 ```
 
 Requires Ruby >= 3.3; depends on `ruby_pptx ~> 0.2.0` (read/write) and `tomlrb ~> 3.0` (data files).
@@ -102,6 +108,8 @@ result = PowerTom.render("templates/report.pptx", data: {
 
 ## Template syntax
 
+> Full tag reference: [docs/usage.md](https://github.com/ixepet/powertom/blob/main/docs/usage.md) — data shape, every tag form, table blocks, formatters, images and errors.
+
 | Syntax | Where | Meaning |
 | --- | --- | --- |
 | `{{title}}` | body | Bind a field |
@@ -126,7 +134,8 @@ result = PowerTom.render("templates/report.pptx", data: {
 - **Pictures**: name the shape or its alt text `powertom:image:cover` and pass a file path in the data. Replacement always fills the shape and crops from the centre.
 - One directive per notes page, maximum.
 - TOML dates are written unquoted (`report_date = 2026-01-20`), normalised to Ruby `Date`, and can be formatted with `{{report_date:date.cn}}`.
-- Full guide for designers (Chinese): [docs/模板制作规范.md](docs/模板制作规范.md).
+- Full guide for designers (Chinese): [docs/模板制作规范.md](https://github.com/ixepet/powertom/blob/main/docs/模板制作规范.md).
+- Full usage reference (English): [docs/usage.md](https://github.com/ixepet/powertom/blob/main/docs/usage.md).
 
 Built-in formatters: `currency`, `percent`, `number`, `date` (with `.year_month` / `.cn` / `.short`).
 Register your own:
@@ -328,6 +337,8 @@ result = PowerTom.render("templates/report.pptx", data: {
 
 ## Syntaxe des modèles
 
+> Référence complète : [docs/usage.md](https://github.com/ixepet/powertom/blob/main/docs/usage.md) — données, balises, blocs de tableaux, formateurs, images et erreurs.
+
 | Syntaxe | Emplacement | Signification |
 | --- | --- | --- |
 | `{{title}}` | corps | Lier un champ |
@@ -352,7 +363,7 @@ result = PowerTom.render("templates/report.pptx", data: {
 - **Images** : nommez la forme ou son texte de remplacement `powertom:image:cover` et fournissez un chemin de fichier dans les données. Le remplacement remplit toujours la forme et recadre depuis le centre.
 - Une seule directive par page de notes, au maximum.
 - Les dates TOML s'écrivent sans guillemets (`report_date = 2026-01-20`), sont normalisées en `Date` Ruby et peuvent être formatées avec `{{report_date:date.cn}}`.
-- Guide complet pour les designers (en chinois) : [docs/模板制作规范.md](docs/模板制作规范.md).
+- Guide complet pour les designers (en chinois) : [docs/模板制作规范.md](https://github.com/ixepet/powertom/blob/main/docs/模板制作规范.md).
 
 Formateurs intégrés : `currency`, `percent`, `number`, `date` (avec `.year_month` / `.cn` / `.short`).
 Ajoutez les vôtres :

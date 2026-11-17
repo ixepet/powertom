@@ -13,7 +13,8 @@ Gem::Specification.new do |spec|
   spec.homepage = "https://github.com/ixepet/powertom"
   spec.metadata = {
     "source_code_uri" => spec.homepage,
-    "bug_tracker_uri" => "#{spec.homepage}/issues"
+    "bug_tracker_uri" => "#{spec.homepage}/issues",
+    "documentation_uri" => "#{spec.homepage}/blob/main/docs/usage.md"
   }
   # ruby_pptx 0.2 与 tomlrb 3.0 均要求 >= 3.3
   spec.required_ruby_version = ">= 3.3"
