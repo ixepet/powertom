@@ -1,7 +1,7 @@
 # PowerTom usage reference
 
 > Companion to the README: the data shape, every tag form, and the rules the engine enforces.
-> Designer-facing guide (Chinese): [模板制作规范](模板制作规范.md).
+> Designer-facing guide: [template-guide.md](template-guide.md).
 
 ## 1. Minimal render
 
@@ -45,7 +45,7 @@ Rules:
 - `currency`, `percent`, `number` and `date` are built in. A custom formatter is registered with:
 
   ```ruby
-  PowerTom.register_formatter("rmb") { |value, _arg| "人民币#{value}元" }
+  PowerTom.register_formatter("rmb") { |value, _arg| "CNY#{value}" }
   ```
 
 - Tags on masters and layouts are ignored. Put tags on slide shapes.
@@ -69,9 +69,9 @@ Table loops are opt-in per table; header and total rows stay static.
 ### 4.1 Single-level row loop: `{{array[].field}}`
 
 ```text
-| 班级                  | 均分                  |
+| Class                 | Average               |
 | {{classes[].name}}    | {{classes[].avg}}     |
-| 合计                  | {{total}}             |
+| Total                 | {{total}}             |
 ```
 
 - The row containing `[]` is the template; it is cloned once per array item.
@@ -114,7 +114,7 @@ Table loops are opt-in per table; header and total rows stay static.
 ### 4.4 Column bands: `{{#cols path}} ... {{/cols}}`
 
 ```text
-| 班级 | {{#cols subjects value: scores}}{{col.label}}{{/cols}} |
+| Class | {{#cols subjects value: scores}}{{col.label}}{{/cols}} |
 | {{#rows classes}}            |          |
 | {{classes[].name}}           | {{cell}} |
 | {{/rows}}                    |          |
@@ -137,7 +137,7 @@ Table loops are opt-in per table; header and total rows stay static.
 column items where the condition is falsy:
 
 ```text
-| 班级 | {{#cols subjects value: scores}}{{#if subjects[].show}}{{col.label}}{{/if}}{{/cols}} |
+| Class | {{#cols subjects value: scores}}{{#if subjects[].show}}{{col.label}}{{/if}}{{/cols}} |
 | {{#rows classes}} | |
 | {{classes[].name}} | {{cell}} |
 | {{/rows}} | |

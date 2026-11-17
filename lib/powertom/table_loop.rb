@@ -5,7 +5,7 @@ require_relative "scanner"
 module PowerTom
   # 表格行/列循环的纯逻辑部分:根据表格单元格文本生成展开计划。
   #
-  # 三种语法(设计见 docs/表格循环语法设计.md):
+  # 三种语法(设计见 docs/table-loop-design.md):
   #   L0  {{数组[].字段}}              单级行循环(一张表一个循环行)
   #   L1  {{#rows 路径}} 标记行        两级嵌套:父行 → 子行
   #   L2  {{#grid rows: .. cols: ..}}  动态列:首列固定,列按 cols 克隆

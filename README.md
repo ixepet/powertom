@@ -134,16 +134,16 @@ result = PowerTom.render("templates/report.pptx", data: {
 - **Pictures**: name the shape or its alt text `powertom:image:cover` and pass a file path in the data. Replacement always fills the shape and crops from the centre.
 - One directive per notes page, maximum.
 - TOML dates are written unquoted (`report_date = 2026-01-20`), normalised to Ruby `Date`, and can be formatted with `{{report_date:date.cn}}`.
-- Full guide for designers (Chinese): [docs/模板制作规范.md](https://github.com/ixepet/powertom/blob/main/docs/模板制作规范.md).
-- Full usage reference (English): [docs/usage.md](https://github.com/ixepet/powertom/blob/main/docs/usage.md).
+- Full guide for designers: [docs/template-guide.md](https://github.com/ixepet/powertom/blob/main/docs/template-guide.md).
+- Full usage reference: [docs/usage.md](https://github.com/ixepet/powertom/blob/main/docs/usage.md).
 
 Built-in formatters: `currency`, `percent`, `number`, `date` (with `.year_month` / `.cn` / `.short`).
 Register your own:
 
 ```ruby
-# Formateur personnalisé — reçoit (value, arg) et renvoie le texte à écrire
+# Custom formatter — receives (value, arg) and returns the text to write
 PowerTom.register_formatter("rmb") { |value, _arg| "#{value} RMB" }
-# Utilisation dans le modèle : {{amount:rmb}}
+# Use in a template: {{amount:rmb}}
 ```
 
 ## Template checker
@@ -169,12 +169,12 @@ PowerTom 模板校验 — report.pptx
 Programmatic API:
 
 ```ruby
-# Vérifie sans rendre ; les erreurs sont rapportées, pas levées
+# Validate without rendering; errors are reported, not raised
 result = PowerTom.check("templates/report.pptx", data: "data/sample.toml")
 result.ok?          # => false
-result.errors       # chaque entrée porte slide_no / shape / label / message
-result.report       # le rapport lisible ci-dessus
-result.exit_code    # 0 ou 1 — utilisable en CI
+result.errors       # each entry carries slide_no / shape / label / message
+result.report       # the human-readable report shown above
+result.exit_code    # 0 or 1 — usable in CI
 ```
 
 Checks: missing fields (including each item of an `#each` array), unregistered formatters, directive syntax, more than one directive per page, picture fields and missing files, placeholder overflow warnings, unused data fields, leftover tags in notes.
@@ -228,230 +228,3 @@ MIT.
 ## Why PowerTom
 
 The Tom in PowerTom is a dedication — left unexplained, on purpose.
-
-Le Tom de PowerTom est une dédicace — laissée sans explication, à dessein.
-
----
----
-
-# PowerTom — moteur de modèles PowerPoint pour Ruby
-
-> Les designers maintiennent le modèle dans PowerPoint. Les développeurs passent un Hash Ruby (ou un fichier TOML) et obtiennent une présentation finalisée.
-> La mise en page, les polices, les couleurs, les masques et le thème restent sous le contrôle du designer ; le code se contente de scanner les balises, de lier les données et de dupliquer les diapositives.
-
-<sub>Non affilié à Microsoft ni à TomTom.</sub>
-
----
-
-## En 30 secondes
-
-```text
-Designer                                   Développeur
-┌──────────────────────────┐              ┌──────────────────────────┐
-│ Un pptx ordinaire dans    │              │ report.toml              │
-│ PowerPoint :              │              │   title = "Examens"       │
-│   corps : {{title}}       │  ─────────▶  │   [[classes]]            │
-│   notes : {{#each classes}}│              │   name = "8e (3)"         │
-│   image nommée            │              │   avg  = 82.4             │
-│   powertom:image:cover    │              │                          │
-└──────────────────────────┘              └──────────────────────────┘
-                    │                                  │
-                    └──────────────┬───────────────────┘
-                                   ▼
-                    PowerTom.render("template.pptx", data: "report.toml")
-                                   ▼
-                    Présentation finale : balises liées, pages dupliquées
-                    ou supprimées, images remplacées — s'ouvre dans
-                    PowerPoint sans message de réparation.
-```
-
-## Pourquoi un nouveau moteur
-
-Ruby propose aujourd'hui deux façons de produire des PPTX, et aucune ne convient à la réutilisation d'un actif de design :
-
-| Approche | Exemples | Problème |
-| --- | --- | --- |
-| Génération pilotée par le code | `powerpoint`, `ruby_slides` | La mise en page est codée en dur ; changer une taille de police exige un développeur |
-| Bibliothèque OOXML bas niveau | `ruby_pptx`, `rbpptx` | Des briques XML, pas de couche modèle ; inutilisable par un designer |
-
-PowerTom occupe la couche intermédiaire : un **moteur de modèles au-dessus de [`ruby_pptx`](https://rubygems.org/gems/ruby_pptx)**, sans analyser OOXML lui-même. L'équivalent Ruby de Carbone / Docxtemplater — sans dépendance Node, sans service externe, une ligne dans le Gemfile.
-
-## Installation
-
-```ruby
-# Gemfile
-gem "powertom"
-```
-
-Nécessite Ruby >= 3.3 ; dépend de `ruby_pptx ~> 0.2.0` (lecture/écriture) et de `tomlrb ~> 3.0` (fichiers de données).
-
-## Démarrage rapide
-
-**1. Le designer construit le modèle** — un pptx normal, les balises dans le corps, les directives de page dans les notes :
-
-```text
-Corps : Bienvenue sur {{product_name}}
-        Taux d'adoption {{kpis[0].value}}
-Notes : {{#each scenarios}}
-```
-
-**2. Le développeur prépare les données** — TOML est le format de données par défaut :
-
-```toml
-# TOML — format de données par défaut
-product_name = "Espace de travail enseignant"
-show_compare = true
-
-[[kpis]]
-name = "Taux d'adoption"
-value = "29.7%"
-
-[[scenarios]]
-headline = "Pack de lecture du matin"
-detail = "Prêt automatiquement chaque dimanche"
-```
-
-**3. Rendu :**
-
-```ruby
-require "powertom"
-
-# Lecture du modèle, liaison des balises, duplication/suppression de pages,
-# remplacement des images
-result = PowerTom.render("templates/report.pptx", data: "data/report.toml")
-result.save("out/report.pptx")
-result.warnings.each { |w| warn w }   # champs inutilisés, valeurs de repli…
-```
-
-Ou passez directement un Hash quand les données viennent d'une base ou d'une API :
-
-```ruby
-# Même appel avec des données en mémoire
-result = PowerTom.render("templates/report.pptx", data: {
-  product_name: "Espace de travail enseignant",
-  kpis: [{ name: "Taux d'adoption", value: "29.7%" }],
-  scenarios: [{ headline: "Pack de lecture", detail: "Prêt chaque dimanche" }]
-})
-```
-
-## Syntaxe des modèles
-
-> Référence complète : [docs/usage.md](https://github.com/ixepet/powertom/blob/main/docs/usage.md) — données, balises, blocs de tableaux, formateurs, images et erreurs.
-
-| Syntaxe | Emplacement | Signification |
-| --- | --- | --- |
-| `{{title}}` | corps | Lier un champ |
-| `{{kpis[0].value}}` | corps | Chemin pointé + indice de tableau |
-| `{{classes[].name}}` | cellule de tableau | Boucle de lignes : duplique la ligne pour chaque élément |
-| `{{#rows groups}}` | ligne de tableau | Marqueur de boucle imbriquée : déclare le tableau parent (la ligne de marqueur n'est pas imprimée) |
-| `{{#rows groups[].items}}` | ligne de tableau | Marqueur de boucle imbriquée : déclare le tableau enfant |
-| `{{#grid rows: .. cols: ..}}` | en-tête de tableau | Colonnes dynamiques : duplique la colonne modèle pour chaque élément de `cols` |
-| `{{#rows groups}} ... {{/rows}}` | lignes de tableau | Bloc de lignes apparié : duplique toutes les lignes entre les marqueurs par élément (3 niveaux max) |
-| `{{#cols subjects}} ... {{/cols}}` | ligne de tableau | Bande de colonnes : une ou plusieurs colonnes modèles ; peut être déclarée dans l'en-tête ou dans un bloc de lignes |
-| `{{#if groups[].flag}} ... {{/if}}` | lignes de tableau | Bloc de lignes conditionnel à l'intérieur d'un bloc `#rows` |
-| `{{price:currency}}` | corps | Formateur : `¥1,234.56` |
-| `{{ratio:percent.1}}` | corps | Formateur : `29.7%` |
-| `{{day:date.year_month}}` | corps | Formateur : 2026年11月 |
-| `{{#each scenarios}}` | notes | Duplique la page pour chaque élément (tableau vide = groupe supprimé) |
-| `{{#if show_compare}}` | notes | Supprime la page si la valeur est fausse |
-
-- **Les runs fractionnés sont gérés** : si PowerPoint découpe `{{title}}` en plusieurs runs, le moteur fusionne le paragraphe et remplace correctement ; le résultat hérite du style du premier run.
-- **Lignes de tableau imbriquées** : `{{#rows groups}}` occupe une ligne entière (première cellule uniquement), et la ligne suivante est la ligne de contenu parent ; `{{#rows groups[].items}}` suivie de sa propre ligne de contenu ajoute un niveau. Deux niveaux maximum ; les balises parent et enfant utilisent le chemin complet (`{{groups[].name}}`, `{{groups[].items[].name}}`).
-- **Colonnes dynamiques** : placez `{{#grid rows: distribution cols: bands value: counts}}` dans la première cellule de l'en-tête. La deuxième cellule de l'en-tête est le modèle de colonne (`{{col.label}}`), et la ligne suivante est le modèle de ligne (`{{row.name}}` dans la première cellule, `{{cell}}` dans les colonnes de données). Exactement deux colonnes ; `value:` est facultatif (par défaut `row[col.key]`).
-- **Blocs de lignes (v0.2.x)** : `{{#rows groups}} ... {{/rows}}` occupent chacun une ligne entière ; tout ce qui se trouve entre eux est le modèle d'un enregistrement, dupliqué par élément. Jusqu'à 3 niveaux ; `{{row.name}}` désigne l'enregistrement courant. Une bande `{{#cols ...}}` peut être déclarée dans l'en-tête ou directement dans un bloc de lignes, et couvrir plusieurs colonnes modèles ; `value: scores,rates` associe un champ à chaque colonne modèle (un seul champ est partagé par toutes). Un bloc `{{#if ...}} ... {{/if}}` dans un bloc de lignes supprime toutes ses lignes pour les éléments dont la condition est fausse.
-- **Images** : nommez la forme ou son texte de remplacement `powertom:image:cover` et fournissez un chemin de fichier dans les données. Le remplacement remplit toujours la forme et recadre depuis le centre.
-- Une seule directive par page de notes, au maximum.
-- Les dates TOML s'écrivent sans guillemets (`report_date = 2026-01-20`), sont normalisées en `Date` Ruby et peuvent être formatées avec `{{report_date:date.cn}}`.
-- Guide complet pour les designers (en chinois) : [docs/模板制作规范.md](https://github.com/ixepet/powertom/blob/main/docs/模板制作规范.md).
-
-Formateurs intégrés : `currency`, `percent`, `number`, `date` (avec `.year_month` / `.cn` / `.short`).
-Ajoutez les vôtres :
-
-```ruby
-# Formateur personnalisé — reçoit (value, arg) et renvoie le texte à écrire
-PowerTom.register_formatter("rmb") { |value, _arg| "#{value} RMB" }
-# Utilisation dans le modèle : {{amount:rmb}}
-```
-
-## Vérificateur de modèles
-
-La plupart des outils traitent la validation comme un effet de bord des logs. PowerTom en fait une étape de premier ordre : un modèle défectueux échoue en CI avant tout rendu.
-
-```bash
-bundle exec rake powertom:check TEMPLATE=templates/report.pptx DATA=data/sample.toml
-```
-
-Exemple de rapport (les messages sont actuellement en chinois) :
-
-```text
-PowerTom 模板校验 — report.pptx
-[warning] 第 9 页 形状'(备注)' {{scenarios}} 数组 'scenarios' 为空(0 项):渲染时该组页面将被整组删除
-[error  ] 第 2 页 形状'圆角矩形 4' {{workload}} 数据里没有字段 'workload'
-[error  ] 第 5 页 形状'powertom:image:banner' {{banner}} 图片文件不存在:/tmp/a.png
-[warning] 数据字段 'unused_field' 未被模板使用
-------------------------------------------------
-2 个 error,2 个 warning(error 阻断渲染,修正后再调用 PowerTom.render)
-```
-
-API programmatique :
-
-```ruby
-# Vérifie sans rendre ; les erreurs sont rapportées, pas levées
-result = PowerTom.check("templates/report.pptx", data: "data/sample.toml")
-result.ok?          # => false
-result.errors       # chaque entrée porte slide_no / shape / label / message
-result.report       # le rapport lisible ci-dessus
-result.exit_code    # 0 ou 1 — utilisable en CI
-```
-
-Contrôles : champs manquants (y compris chaque élément d'un tableau `#each`), formateurs non enregistrés, syntaxe des directives, plus d'une directive par page, champs d'image et fichiers absents, avertissements de débordement de texte, champs de données inutilisés, balises oubliées dans les notes.
-
-## Modèle d'erreurs
-
-| Situation | Comportement |
-| --- | --- |
-| Champ manquant | `PowerTom::MissingDataError` par défaut, avec numéro de diapositive, nom de forme et balise ; avec `strict: false`, remplit par du vide et enregistre un avertissement |
-| Syntaxe de balise invalide | `PowerTom::TemplateSyntaxError` avant le rendu |
-| Fichier pptx invalide | `PowerTom::InvalidTemplateError` |
-| Chemin `#each` manquant | Lève toujours — aucune page n'est supprimée silencieusement |
-
-La sortie est **tout ou rien** : tous les contrôles ont lieu avant la moindre écriture sur disque.
-
-## Limites (v0.1)
-
-| Limite | Précision |
-| --- | --- |
-| Tableaux : boucles de lignes, blocs appariés, imbrication et colonnes dynamiques ; graphiques non liés | `{{classes[].name}}` duplique une ligne ; `{{#rows ...}} ... {{/rows}}` duplique des enregistrements multi-lignes (3 niveaux) ; `{{#grid ...}}` / `{{#cols ...}}` dupliquent des colonnes ; les cellules fusionnées dans une boucle sont refusées |
-| Les notes ne sont pas rendues | Elles servent uniquement aux directives de page |
-| Les balises sur les masques/dispositions sont ignorées | Seules les formes des diapositives sont traitées |
-| Pas de PPT → PDF | Utilisez LibreOffice en mode headless |
-| `.pptx` uniquement | Pas de format binaire 97-2003 |
-| TOML ou Hash uniquement | Pas de chargeur YAML / JSON |
-| Recadrage d'image fixe | Toujours remplir la forme et recadrer depuis le centre |
-| Messages en chinois uniquement | La localisation est prévue ; le format du rapport est neutre |
-
-## Développement
-
-```bash
-bundle install
-bundle exec rspec
-```
-
-Le modèle de référence utilisé par les tests de bout en bout (runs fractionnés, duplication, remplacement d'images, fidélité) n'est pas versionné, pour des raisons de taille et de propriété ; seule son empreinte structurelle `spec/fixtures/hai_mate/manifest.toml` l'est. Avec le modèle d'origine :
-
-```bash
-bundle exec rake fixtures:generate TEMPLATE=/chemin/vers/modele.pptx OUT=spec/fixtures/hai_mate
-bundle exec rake fixtures:check OUT=spec/fixtures/hai_mate
-```
-
-Sans `template.pptx`, les exemples qui en dépendent sont ignorés et la suite unitaire s'exécute normalement. Les tests de fidélité nécessitent LibreOffice (`soffice`).
-
-## Licence
-
-MIT.
-
-## Pourquoi PowerTom
-
-The Tom in PowerTom is a dedication — left unexplained, on purpose.
-
-Le Tom de PowerTom est une dédicace — laissée sans explication, à dessein.

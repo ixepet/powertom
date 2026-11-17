@@ -4,6 +4,24 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.7] - 2026-11-17
+
+### Changed
+
+- All documentation is now English-only: the designer guide, template production spec,
+  dogfooding plan, table loop design and project design document were translated from Chinese.
+- Documentation files renamed to English kebab-case names:
+  `docs/template-guide.md`, `docs/score-report-template-spec.md`, `docs/dogfooding-plan.md`,
+  `docs/table-loop-design.md`, `docs/project-design.md`.
+- `README.md` is English-only again; the French translation was removed and remaining French
+  comments were translated.
+- The gemspec description is English-only.
+- Cross-links between the README and the guides point at the new file names.
+
+### Note
+
+- 0.2.6 was tagged and never published to RubyGems; 0.2.7 supersedes it.
+
 ## [0.2.6] - 2026-11-17
 
 ### Added
@@ -29,7 +47,7 @@ and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
   `bug_tracker_uri` and `documentation_uri`.
 - `README.md` and `LICENSE` are included in both `spec.files` and `spec.extra_rdoc_files`.
 - English README comments translated from French.
-- Engineering design document moved to `docs/PowerTom-ruby-pptx-模板引擎项目设计文档.md`.
+- Engineering design document moved to `docs/project-design.md`.
 
 ## [0.2.4] - 2026-11-17
 
