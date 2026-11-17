@@ -214,9 +214,25 @@ values = [16.0, 21.0, 20.0, 25.5]
   combo charts (e.g. column + line with a secondary axis): a combo binds its
   series in document order and the data must provide exactly the template's
   total series count, otherwise the combo structure would change.
-- Scatter, bubble and radar charts are rejected with an error when a field is
-  bound to them; text tags inside charts are left as-is and reported as
-  warnings.
+- Scatter and bubble charts bind per-series `points` instead of shared
+  categories:
+
+```toml
+[scatter]
+[[scatter.series]]
+name = "Group A"
+[[scatter.series.points]]
+x = 1.0
+y = 10.0
+[[scatter.series.points]]
+x = 2.0
+y = 20.0
+```
+
+  Bubble points additionally carry `size`. The series count must equal the
+  template's series count.
+- Radar charts are rejected with an error when a field is bound to them;
+  text tags inside charts are left as-is and reported as warnings.
 - `#each` cloned pages are supported: each clone binds its own item's data in
   its own chart part.
 - A missing field keeps the placeholder chart (`strict: false`); a wrong data

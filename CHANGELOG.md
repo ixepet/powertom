@@ -8,6 +8,15 @@ and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
 
 ### Added
 
+- Scatter and bubble chart binding (§9): each series carries its own
+  `points` (`{x, y}` pairs; bubble adds `size`) instead of shared
+  categories. Upstream `replace_data` cannot rebind XY series
+  (`SeriesFragments` never emits `c:xVal`/`c:yVal`, and rebinding a scatter
+  with `ChartData` produces a schema-invalid `c:ser`), so the adapter
+  rewrites `c:tx/c:xVal/c:yVal/c:bubbleSize` itself through the same
+  remove/insert macros upstream uses, and regenerates the embedded workbook
+  via `XyChartData#xlsx_blob`. The series count must equal the template's
+  series count; `categories` in scatter data is an explicit error.
 - Combo chart binding (§9): a combo placeholder (e.g. column + line with a
   secondary axis) binds its series in document order through the same
   `categories`/`series` data shape as single-plot charts. The data must

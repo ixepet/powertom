@@ -71,10 +71,11 @@ module PowerTomDev
       raise "shape #{shape_name} not found in #{path}"
     end
 
-    # 逐 plot 读回:[[plot1 系列...], [plot2 系列...]],每个系列 [name, values]
+    # 逐 plot 读回:[[plot1 系列...], [plot2 系列...]],每个系列 [name, values]。
+    # 值做精度截断(4 位小数),避免浮点噪声干扰断言
     def read_plots(path, shape_name)
       chart = chart_of(path, shape_name)
-      chart.plots.map { |plot| plot.series.map { |s| [s.name, s.values.map(&:to_f)] } }
+      chart.plots.map { |plot| plot.series.map { |s| [s.name, s.values.map { |v| v.to_f.round(4) }] } }
     end
 
     def rebind(src, dst, data)

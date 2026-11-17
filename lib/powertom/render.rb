@@ -231,14 +231,19 @@ module PowerTom
         value = binder.value_at(cctx[:field], ctx, purpose: "chart placeholder; keeping the placeholder")
         next if value.nil? # 缺失(non-strict):保留占位图表
 
-        validate_chart_data!(value, cctx)
-        if cctx[:kind] == :combo
-          validate_combo_series_count!(value, cctx)
-        elsif Adapter::RubyPptxAdapter.unsupported_chart_kind?(cctx[:kind])
-          raise PowerTom::Error,
-                "slide #{cctx[:slide_no]} chart '#{cctx[:shape]}' field '#{cctx[:field]}': " \
-                "#{Adapter::RubyPptxAdapter.unsupported_chart_kind_label(cctx[:kind])} charts are not " \
-                "supported for data binding (supported: column/bar, line, area, pie, doughnut, combo)"
+        if %i[XY BUBBLE].include?(cctx[:kind])
+          validate_xy_chart_data!(value, cctx)
+          validate_chart_series_count!(value, cctx)
+        else
+          if Adapter::RubyPptxAdapter.unsupported_chart_kind?(cctx[:kind])
+            label = Adapter::RubyPptxAdapter.unsupported_chart_kind_label(cctx[:kind])
+            raise PowerTom::Error,
+                  "slide #{cctx[:slide_no]} chart '#{cctx[:shape]}' field '#{cctx[:field]}': " \
+                  "#{label} charts are not supported for data binding " \
+                  "(supported: column/bar, line, area, pie, doughnut, combo, scatter, bubble)"
+          end
+          validate_chart_data!(value, cctx)
+          validate_chart_series_count!(value, cctx) if cctx[:kind] == :combo
         end
         adapter.replace_chart_data(prs, cctx[:chart_shape], cctx[:slide], value)
       end
@@ -288,18 +293,70 @@ module PowerTom
       hash.key?(key.to_sym) ? hash[key.to_sym] : hash[key.to_s]
     end
 
-    # 组合图数量守卫(设计文档 §9):上游 SeriesRewriter 对组合图做跨 plot
-    # 扁平 zip,系列多了从最后 plot 克隆、少了会移除空 plot——两者都会静默
-    # 改变设计师的组合结构,所以要求恰好提供模板的系列总数
-    def validate_combo_series_count!(value, cctx)
+    # 绑定系列数守卫(设计文档 §9,combo/XY/BUBBLE 通用):上游对 combo 做
+    # 跨 plot 扁平 zip,系列多了从最后 plot 克隆、少了会移除空 plot——两者
+    # 都会静默改变设计师的组合结构;scatter/bubble 的适配层重写同样按数量
+    # 守卫,所以要求恰好提供模板的系列总数
+    def validate_chart_series_count!(value, cctx)
       count = chart_field_value(value, "series").size
       return if count == cctx[:series_count]
 
       raise PowerTom::Error,
             "slide #{cctx[:slide_no]} chart '#{cctx[:shape]}' field '#{cctx[:field]}': " \
-            "combo template draws #{cctx[:distribution]} (#{cctx[:series_count]} series in " \
+            "chart template draws #{cctx[:distribution]} (#{cctx[:series_count]} series in " \
             "total); the data must provide exactly #{cctx[:series_count]} series in document " \
             "order, got #{count}"
+    end
+
+    # 散点/气泡数据形状:{series: [{name:, points: [{x:, y:(, size:)}]}]}。
+    # 每个系列自带坐标对,没有共享 categories;误传 categories 视为形状错误
+    def validate_xy_chart_data!(value, cctx)
+      where = "slide #{cctx[:slide_no]} chart '#{cctx[:shape]}' field '#{cctx[:field]}'"
+      unless value.is_a?(Hash)
+        raise PowerTom::Error,
+              "#{where} requires an object with 'series' (each with 'points'), got #{value.class}"
+      end
+      unless chart_field_value(value, "categories").nil?
+        raise PowerTom::Error,
+              "#{where}: scatter/bubble data has no 'categories'; each series carries its own 'points'"
+      end
+
+      series = chart_field_value(value, "series")
+      unless series.is_a?(Array) && !series.empty?
+        raise PowerTom::Error, "#{where} 'series' must be a non-empty array of {name, points}"
+      end
+
+      bubble = cctx[:kind] == :BUBBLE
+      series.each_with_index do |item, i|
+        unless item.is_a?(Hash)
+          raise PowerTom::Error,
+                "#{where} series item #{i + 1} must be an object with 'name' and 'points', got #{item.class}"
+        end
+        points = chart_field_value(item, "points")
+        unless points.is_a?(Array) && !points.empty?
+          name = chart_field_value(item, "name")
+          raise PowerTom::Error,
+                "#{where} series '#{name}' 'points' must be a non-empty array of {x, y#{', size' if bubble}}"
+        end
+
+        points.each_with_index do |point, k|
+          validate_xy_point!(point, bubble, where, chart_field_value(item, "name"), k)
+        end
+      end
+    end
+
+    def validate_xy_point!(point, bubble, where, name, point_index)
+      at = "series '#{name}' point #{point_index + 1}"
+      unless point.is_a?(Hash)
+        raise PowerTom::Error, "#{where} #{at} must be an object with 'x' and 'y', got #{point.class}"
+      end
+
+      (bubble ? %w[x y size] : %w[x y]).each do |key|
+        value = chart_field_value(point, key)
+        next if value.is_a?(Numeric)
+
+        raise PowerTom::Error, "#{where} #{at} '#{key}' must be a number, got #{value.class}"
+      end
     end
 
     # 图表数据可绑定(powertom:chart:*),但图表内的文本标签不支持:

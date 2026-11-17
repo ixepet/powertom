@@ -134,9 +134,9 @@ module PowerTom
             kind = chart_kind(shape.chart)
             entry = { slide_no: i + 1, shape: shape.name, field: field,
                       slide: slide, chart_shape: shape, kind: kind }
-            if kind == :combo
-              entry[:series_count] = combo_series_count(shape.chart)
-              entry[:distribution] = combo_distribution_label(shape.chart)
+            if %i[combo XY BUBBLE].include?(kind)
+              entry[:series_count] = chart_series_count(shape.chart)
+              entry[:distribution] = chart_distribution_label(shape.chart)
             end
             contexts << entry
           end
@@ -144,10 +144,10 @@ module PowerTom
         contexts
       end
 
-      # 支持绑定数据的图表 kind::普通绘图类型(bar 覆盖柱形/条形)与 :combo。
-      # scatter/bubble 的数据形状不同(XyChartData),上游 replace_data 会产出
-      # schema 非法的 ser(spike2 取证);radar 超出首期范围——绑定必须拒绝
-      SUPPORTED_CHART_KINDS = %i[BAR LINE AREA PIE DOUGHNUT combo].freeze
+      # 支持绑定数据的图表 kind:普通绘图类型(bar 覆盖柱形/条形)、:combo 与
+      # XY 家族(:XY 散点 / :BUBBLE 气泡,适配层自行重写 xVal/yVal/bubbleSize,
+      # 上游 replace_data 不能绑它们——spike2 取证)。radar 超出首期范围,拒绝。
+      SUPPORTED_CHART_KINDS = %i[BAR LINE AREA PIE DOUGHNUT combo XY BUBBLE].freeze
 
       # plot_type 只描述第一个 plot,combo 图会被误判成它的首个类型,
       # 所以先数 plot 数量(访问链与上游 Chart#plot_area 一致)
@@ -164,23 +164,25 @@ module PowerTom
       end
 
       def self.unsupported_chart_kind_label(kind)
-        { XY: "scatter", BUBBLE: "bubble", RADAR: "radar",
-          unknown: "unknown" }.fetch(kind, kind.to_s.downcase)
+        { RADAR: "radar", unknown: "unknown" }.fetch(kind, kind.to_s.downcase)
       end
 
       PLOT_FAMILY_LABELS = { "c:barChart" => "column", "c:lineChart" => "line",
-                             "c:areaChart" => "area", "c:area3DChart" => "area" }.freeze
+                             "c:areaChart" => "area", "c:area3DChart" => "area",
+                             "c:scatterChart" => "scatter", "c:bubbleChart" => "bubble" }.freeze
 
-      # 组合图各 plot 的系列分布,如 "column×1 + line×1"(错误定位与校验消息用)
-      def combo_distribution_label(chart)
+      # 各 plot 的系列分布,如 "column×1 + line×1" / "scatter×1"
+      # (错误定位与校验消息用)
+      def chart_distribution_label(chart)
         chart.element.chart.plotArea.plot_elements.map do |plot|
           "#{PLOT_FAMILY_LABELS.fetch(plot.nsptag, plot.nsptag)}×#{plot.ser_list.size}"
         end.join(" + ")
       end
 
-      # 组合图全部 plot 的系列总数(绑定数据必须恰好提供这么多系列,
-      # 否则上游 trim/clone 会静默增删 plot,破坏设计师的组合结构)
-      def combo_series_count(chart)
+      # 全部 plot 的系列总数(绑定数据必须恰好提供这么多系列:
+      # combo 数量不匹配会让上游 trim/clone 静默增删 plot 破坏结构;
+      # scatter/bubble 的适配层重写同样按数量守卫)
+      def chart_series_count(chart)
         chart.element.chart.plotArea.plot_elements.sum { |plot| plot.ser_list.size }
       end
 
@@ -207,23 +209,138 @@ module PowerTom
       # shared=true),绑定前为该形状深拷贝独立 part,再 replace_data;
       # value: {categories:, series: [{name:, values:}], number_format:}
       def replace_chart_data(prs, shape, slide, value)
-        data = Pptx::ChartData.new(number_format: part_value(value, "number_format") || "General")
-        data.categories = part_value(value, "categories")
-        part_value(value, "series").each do |s|
-          data.add_series(part_value(s, "name").to_s, part_value(s, "values"))
-        end
-
         chart = shape.chart
         if chart_part_shared?(prs, chart.part)
           new_part = clone_chart_part(chart.part)
           rewire_chart_rel(slide, shape, new_part)
           chart = new_part.chart
         end
-        chart.replace_data(data)
+
+        kind = chart_kind(chart)
+        if %i[XY BUBBLE].include?(kind)
+          xy = build_xy_chart_data(value, bubble: kind == :BUBBLE)
+          rewrite_xy_series(chart, xy)
+          chart.part.workbook.replace_with(xy.xlsx_blob)
+        else
+          data = Pptx::ChartData.new(number_format: part_value(value, "number_format") || "General")
+          data.categories = part_value(value, "categories")
+          part_value(value, "series").each do |s|
+            data.add_series(part_value(s, "name").to_s, part_value(s, "values"))
+          end
+          chart.replace_data(data)
+        end
         harmonize_workbook_font(chart.part)
       rescue StandardError => e
         raise PowerTom::Error,
               "chart data binding failed (#{shape.name}): #{e.class} #{e.message}"
+      end
+
+      # 散点/气泡数据:{series: [{name:, points: [{x:, y:(, size:)}]}]}。
+      # 上游 replace_data 不能重绑 XY(SeriesFragments 只产 tx/cat/val,
+      # spike2 取证),适配层自行重写 ser 的 xVal/yVal/bubbleSize。
+      def build_xy_chart_data(value, bubble:)
+        xy = (bubble ? Pptx::BubbleChartData : Pptx::XyChartData)
+             .new(number_format: part_value(value, "number_format") || "General")
+        part_value(value, "series").each do |s|
+          series = xy.add_series(part_value(s, "name").to_s)
+          part_value(s, "points").each do |point|
+            if bubble
+              series.add_point(part_value(point, "x"), part_value(point, "y"), part_value(point, "size"))
+            else
+              series.add_point(part_value(point, "x"), part_value(point, "y"))
+            end
+          end
+        end
+        xy
+      end
+
+      # 与上游 rewrite_series 同构:remove 后 insert,元素定位交给
+      # CT_Series 的 zero_or_one 宏(TAG_SEQ 保证 schema 顺序)
+      def rewrite_xy_series(chart, xy)
+        sers = chart.element.chart.plotArea.series_elements
+        if sers.size != xy.size
+          raise PowerTom::Error,
+                "chart template draws #{chart_distribution_label(chart)} " \
+                "(#{sers.size} series in total), got #{xy.size} series"
+        end
+
+        sers.zip(xy.series.to_a) do |ser, series|
+          ser.remove_tx
+          ser.remove_cat
+          ser.remove_val
+          ser.remove_xVal
+          ser.remove_yVal
+          ser.remove_bubbleSize
+
+          tx, x_val, y_val, bubble_size = xy_fragments(xy, series)
+          ser.insert_tx(ser.build_from_xml(tx))
+          ser.insert_xVal(ser.build_from_xml(x_val))
+          ser.insert_yVal(ser.build_from_xml(y_val))
+          ser.insert_bubbleSize(ser.build_from_xml(bubble_size)) if bubble_size
+        end
+      end
+
+      def xy_fragments(xy_data, series)
+        number_format = series.number_format || xy_data.number_format
+        tx = xy_namespaced(xy_tx_fragment(series))
+        x_val = xy_namespaced(xy_num_ref_fragment("xVal", series.x_values_ref, series.x_values, number_format))
+        y_val = xy_namespaced(xy_num_ref_fragment("yVal", series.y_values_ref, series.y_values, number_format))
+        bubble_size = if xy_data.bubble?
+                        xy_namespaced(xy_num_ref_fragment("bubbleSize", series.bubble_sizes_ref,
+                                                          series.bubble_sizes, number_format))
+                      end
+        [tx, x_val, y_val, bubble_size]
+      end
+
+      # 与上游 SeriesFragments#namespaced 一致:独立解析的片段需要自带
+      # 命名空间声明
+      def xy_namespaced(fragment)
+        fragment.sub(/\A<(c:\w+)/) { |tag| "#{tag} #{Pptx::Oxml::Ns.nsdecls('c', 'a', 'r')}" }
+      end
+
+      def xy_tx_fragment(series)
+        <<~XML
+          <c:tx>
+            <c:strRef>
+              <c:f>#{series.name_ref}</c:f>
+              <c:strCache>
+                <c:ptCount val="1"/>
+                <c:pt idx="0"><c:v>#{xy_escape(series.name)}</c:v></c:pt>
+              </c:strCache>
+            </c:strRef>
+          </c:tx>
+        XML
+      end
+
+      # 与上游 num_ref_xml 同构:引用 + 缓存;nil 值省点但 ptCount 照计(空档)
+      def xy_num_ref_fragment(tag, reference, values, number_format)
+        points = values.each_with_index.filter_map do |value, index|
+          next if value.nil?
+
+          %(<c:pt idx="#{index}"><c:v>#{xy_format_number(value)}</c:v></c:pt>)
+        end.join
+        <<~XML
+          <c:#{tag}>
+            <c:numRef>
+              <c:f>#{reference}</c:f>
+              <c:numCache>
+                <c:formatCode>#{number_format}</c:formatCode>
+                <c:ptCount val="#{values.size}"/>
+                #{points}
+              </c:numCache>
+            </c:numRef>
+          </c:#{tag}>
+        XML
+      end
+
+      def xy_format_number(value)
+        return value.to_s unless value.is_a?(Float)
+
+        value == value.truncate ? value.to_i.to_s : value.to_s
+      end
+
+      def xy_escape(value)
+        value.to_s.gsub("&", "&amp;").gsub("<", "&lt;").gsub(">", "&gt;")
       end
 
       # 绑定会重建内嵌 workbook,上游 writer 只在含日期分类时才写 styles.xml

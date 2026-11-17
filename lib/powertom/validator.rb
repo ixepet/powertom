@@ -156,7 +156,7 @@ module PowerTom
       end
 
       # 2.6 图表类型守卫:命名占位本身即声明绑定意图,不支持类型直接报 error
-      # (combo 是支持的 kind,走 reconcile 阶段的系列数量规则)。
+      # (combo/XY/BUBBLE 是支持的 kind,走 reconcile 阶段的系列数量规则)。
       # 这是模板属性,不依赖样例数据,与字段对账分开检查
       chart_placeholders.each do |cctx|
         kind = cctx[:kind]
@@ -165,7 +165,7 @@ module PowerTom
         entries << error_entry(
           cctx[:slide_no], cctx[:shape], cctx[:field],
           "#{kind_label(kind)} charts are not supported for data binding " \
-          "(supported: column/bar, line, area, pie, doughnut, combo)"
+          "(supported: column/bar, line, area, pie, doughnut, combo, scatter, bubble)"
         )
       end
 
@@ -457,7 +457,7 @@ module PowerTom
             next
           end
           check_chart_value(value, ctx, path, entries, k)
-          check_combo_series_count(value, cctx, entries, k)
+          check_chart_series_count(value, cctx, entries, k)
         end
       else
         value = begin
@@ -466,16 +466,21 @@ module PowerTom
           entries << error_entry(ctx[:slide_no], ctx[:shape], path, e.message)
           return
         end
-        check_chart_value(value, ctx, path, entries)
-        check_combo_series_count(value, cctx, entries)
+        if %i[XY BUBBLE].include?(cctx[:kind])
+          check_xy_chart_value(value, ctx, path, entries, cctx)
+        else
+          check_chart_value(value, ctx, path, entries)
+        end
+        check_chart_series_count(value, cctx, entries)
       end
     end
 
-    # 组合图数量守卫(check 侧,设计文档 §9):绑定系列数必须等于模板的
-    # 系列总数,否则渲染时上游会静默增删 plot(与 render 同一规则)
-    def check_combo_series_count(value, cctx, entries, item_index = nil)
+    # 绑定系列数守卫(check 侧,设计文档 §9):绑定系列数必须等于模板的
+    # 系列总数,否则渲染时上游会静默增删 plot(与 render 同一规则);
+    # combo 与 XY 家族(scatter/bubble)通用
+    def check_chart_series_count(value, cctx, entries, item_index = nil)
       return if value.nil?
-      return unless cctx[:kind] == :combo
+      return unless %i[combo XY BUBBLE].include?(cctx[:kind])
 
       series = value.key?(:series) ? value[:series] : value["series"]
       return unless series.is_a?(Array)
@@ -485,10 +490,74 @@ module PowerTom
       where = item_index ? "item #{item_index + 1}: " : ""
       entries << error_entry(
         cctx[:slide_no], cctx[:shape], cctx[:field],
-        "#{where}combo template draws #{cctx[:distribution]} (#{cctx[:series_count]} series in " \
+        "#{where}chart template draws #{cctx[:distribution]} (#{cctx[:series_count]} series in " \
         "total); the data must provide exactly #{cctx[:series_count]} series in document " \
         "order, got #{series.size}"
       )
+    end
+
+    # 散点/气泡数据形状校验(check 侧,与 render 的 validate_xy_chart_data!
+    # 同一规则):误传 categories、points 非坐标对、x/y/size 非数字都报 error
+    def check_xy_chart_value(value, ctx, path, entries, cctx)
+      return if value.nil?
+
+      unless value.is_a?(Hash)
+        entries << error_entry(ctx[:slide_no], ctx[:shape], path,
+                               "chart field requires an object with 'series' (each with 'points'), " \
+                               "got #{value.class}")
+        return
+      end
+
+      slide_no = ctx[:slide_no]
+      shape = ctx[:shape]
+      if value.key?(:categories) || value.key?("categories")
+        entries << error_entry(slide_no, shape, path,
+                               "scatter/bubble data has no 'categories'; each series carries its own 'points'")
+        return
+      end
+
+      series = value.key?(:series) ? value[:series] : value["series"]
+      unless series.is_a?(Array) && !series.empty?
+        entries << error_entry(slide_no, shape, path,
+                               "chart 'series' must be a non-empty array of {name, points}")
+        return
+      end
+
+      bubble = cctx[:kind] == :BUBBLE
+      series.each_with_index do |item, i|
+        unless item.is_a?(Hash)
+          entries << error_entry(slide_no, shape, path,
+                                 "series item #{i + 1} must be an object with 'name' and 'points', " \
+                                 "got #{item.class}")
+          next
+        end
+
+        name = item.key?(:name) ? item[:name] : item["name"]
+        points = item.key?(:points) ? item[:points] : item["points"]
+        unless points.is_a?(Array) && !points.empty?
+          entries << error_entry(slide_no, shape, path,
+                                 "series '#{name}' 'points' must be a non-empty array of " \
+                                 "{x, y#{', size' if bubble}}")
+          next
+        end
+
+        points.each_with_index do |point, k|
+          unless point.is_a?(Hash)
+            entries << error_entry(slide_no, shape, path,
+                                   "series '#{name}' point #{k + 1} must be an object with 'x' and 'y', " \
+                                   "got #{point.class}")
+            next
+          end
+
+          (bubble ? %w[x y size] : %w[x y]).each do |key|
+            v = point.key?(key.to_sym) ? point[key.to_sym] : point[key.to_s]
+            next if v.is_a?(Numeric)
+
+            entries << error_entry(slide_no, shape, path,
+                                   "series '#{name}' point #{k + 1} '#{key}' must be a number, got #{v.class}")
+          end
+        end
+      end
     end
 
     def check_chart_value(value, ctx, path, entries, item_index = nil)

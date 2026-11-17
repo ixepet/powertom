@@ -109,6 +109,36 @@ RSpec.describe PowerTom, ".render 图表绑定" do
     chart.plots.map { |plot| plot.series.map { |s| [s.name, s.values.map(&:to_f)] } }
   end
 
+  def build_bubble_template
+    prs = Pptx::Presentation.new_default
+    prs.slide_width = Pptx.inches(13.333)
+    prs.slide_height = Pptx.inches(7.5)
+    slide = prs.slides.add(prs.slide_layouts["Blank"])
+    bubble_data = Pptx::BubbleChartData.new
+    series = bubble_data.add_series("s1")
+    series.add_point(1, 10, 5)
+    series.add_point(2, 20, 8)
+    frame = slide.shapes.add_chart(Pptx::Enum::XL_CHART_TYPE::BUBBLE, bubble_data,
+                                   at: [Pptx.inches(1), Pptx.inches(1)],
+                                   size: [Pptx.inches(10), Pptx.inches(5)])
+    frame.name = "powertom:chart:bubble"
+
+    path = File.join(@dir, "bubble_template_#{SecureRandom.hex(4)}.pptx")
+    prs.save(path)
+    path
+  end
+
+  def xy_ser_xml(pptx, shape_name = "powertom:chart:sales")
+    adapter = PowerTom::Adapter::RubyPptxAdapter.new
+    chart = adapter.find_shape(adapter.open(pptx), 1, shape_name).chart
+    chart.element.chart.plotArea.series_elements.first.to_xml
+  end
+
+  def xy_val_pts(pptx, tag, shape_name = "powertom:chart:sales")
+    xy_ser_xml(pptx, shape_name)[%r{<c:#{tag}>.*?</c:#{tag}>}m]
+      .scan(%r{<c:pt idx="\d+"[^>]*><c:v>([^<]*)</c:v>}).flatten
+  end
+
   SALES = {
     categories: %w[Jan Feb Mar],
     series: [{ name: "2026", values: [10, 20, 30] }]
@@ -192,7 +222,7 @@ RSpec.describe PowerTom, ".render 图表绑定" do
     expect { PowerTom.render(template, data: { combo: too_many }) }
       .to raise_error(
         PowerTom::Error,
-        /combo template draws column×1 \+ line×1 \(2 series in total\).*exactly 2 series.*got 3/
+        /chart template draws column×1 \+ line×1 \(2 series in total\).*exactly 2 series.*got 3/
       )
   end
 
@@ -301,19 +331,66 @@ RSpec.describe PowerTom, ".render 图表绑定" do
     end
   end
 
-  it "不支持的图表类型(scatter)→ render 明确报错而非绑错形状的数据" do
+  it "散点图绑定:按 points 重写 xVal/yVal,系列名与坐标逐点落入缓存" do
     template = build_xy_chart_template
-    expect { PowerTom.render(template, data: { sales: SALES }) }
-      .to raise_error(PowerTom::Error,
-                      /slide 1 chart 'powertom:chart:sales' field 'sales': scatter charts are not supported/)
+    out = File.join(@dir, "out_xy.pptx")
+    PowerTom.render(template, data: { sales: { series: [{ name: "G1", points: [{ x: 1, y: 10 }, { x: 2, y: 20 }] }] } })
+            .save(out)
+
+    ser = xy_ser_xml(out)
+    aggregate_failures do
+      expect(ser).to include(">G1<")
+      expect(xy_val_pts(out, "xVal")).to eq(%w[1 2])
+      expect(xy_val_pts(out, "yVal")).to eq(%w[10 20])
+      expect(ser).not_to include("<c:val>")
+      expect(ser).not_to include("<c:cat>")
+      expect(PowerTomDev::OoxmlLint.lint(out)).to be_empty
+    end
   end
 
-  it "不支持的图表类型 → check 无需样例数据即报 error" do
+  it "散点图系列数不匹配 → 报错说明模板分布" do
+    template = build_xy_chart_template
+    data = { sales: { series: [
+      { name: "A", points: [{ x: 1, y: 1 }] },
+      { name: "B", points: [{ x: 2, y: 2 }] }
+    ] } }
+    expect { PowerTom.render(template, data: data) }
+      .to raise_error(PowerTom::Error,
+                      /chart template draws scatter×1 \(1 series in total\).*exactly 1 series.*got 2/)
+  end
+
+  it "散点图误传 categories → 明确报错指向 points" do
+    template = build_xy_chart_template
+    data = { sales: { categories: %w[A B], series: [{ name: "G1", points: [{ x: 1, y: 10 }] }] } }
+    expect { PowerTom.render(template, data: data) }
+      .to raise_error(PowerTom::Error, %r{scatter/bubble data has no 'categories'})
+  end
+
+  it "气泡图绑定:size 进入 bubbleSize 缓存" do
+    template = build_bubble_template
+    out = File.join(@dir, "out_bubble.pptx")
+    PowerTom.render(template,
+                    data: { bubble: { series: [{ name: "B1",
+                                                 points: [{ x: 1, y: 10, size: 5 }, { x: 2, y: 20, size: 8 }] }] } })
+            .save(out)
+
+    ser = xy_ser_xml(out, "powertom:chart:bubble")
+    aggregate_failures do
+      expect(ser).to include(">B1<")
+      expect(xy_val_pts(out, "bubbleSize", "powertom:chart:bubble")).to eq(%w[5 8])
+      expect(xy_val_pts(out, "xVal", "powertom:chart:bubble")).to eq(%w[1 2])
+      expect(PowerTomDev::OoxmlLint.lint(out)).to be_empty
+    end
+  end
+
+  it "check:散点图数据齐全 → 无 error;缺 points → error" do
     template = build_xy_chart_template
     aggregate_failures do
-      result = PowerTom.check(template, data: nil)
-      expect(result.errors.first.message).to include("scatter charts are not supported")
-      expect(result.errors.first.slide_no).to eq(1)
+      ok = PowerTom.check(template, data: { sales: { series: [{ name: "G1", points: [{ x: 1, y: 10 }] }] } })
+      expect(ok.ok?).to be(true)
+
+      bad = PowerTom.check(template, data: { sales: { series: [{ name: "G1" }] } })
+      expect(bad.errors.first.message).to include("'points' must be a non-empty array")
     end
   end
 

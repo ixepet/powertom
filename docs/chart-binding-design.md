@@ -171,7 +171,11 @@ Consequences:
    `column×1 + line×1`).
 2. **Scatter/bubble cannot ride upstream `replace_data`**: `SeriesFragments`
    only emits `c:tx/c:cat/c:val` fragments and `rewrite_series` never
-   removes `c:xVal/c:yVal/c:bubbleSize`. Supporting them needs either an
-   adapter-level XY rewriter (build `c:xVal`/`c:yVal` num-ref fragments —
-   `XyChartData#xlsx_blob` already exists) or an upstream contribution. They
-   stay guarded (rejected with an error) until that work is scheduled.
+   removes `c:xVal/c:yVal/c:bubbleSize`. **Implemented resolution**: the
+   adapter rewrites XY series itself — remove the four nodes, insert
+   regenerated `c:tx`/`c:xVal`/`c:yVal`/`c:bubbleSize` fragments (mirroring
+   upstream's `num_ref_xml`, positioned by the same `CT_Series` zero-or-one
+   macros) and regenerate the workbook from `XyChartData#xlsx_blob`. Data
+   shape: per-series `points` (`{x, y}`; bubble adds `size`), no shared
+   categories; series count must equal the template's. Radar remains
+   rejected.
