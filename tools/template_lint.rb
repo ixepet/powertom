@@ -155,10 +155,10 @@ module PowerTomDev
       labels.transform_values(&:uniq)
     end
 
-    # 图片占位统一成「powertom:image:字段」,name 与 alt text 两种写法学等价
+    # 图片占位统一成「powertom:image:字段[; mode=...]」,name 与 alt text 等价
     def collect_images(adapter, prs)
       adapter.picture_contexts(prs).group_by { |p| p[:slide_no] }
-             .transform_values { |list| list.map { |p| "powertom:image:#{p[:field]}" }.uniq }
+             .transform_values { |list| list.map { |p| p[:placeholder] }.uniq }
     end
 
     # ---- 核对 ----

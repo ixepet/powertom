@@ -76,10 +76,11 @@ module PowerTom
     # tables:   [{slide_no:, shape:, run_texts:, in_table:}](表格单元格段落)
     # table_structures: [{slide_no:, shape:, rows:, merged_rows:}](表格结构,校验行循环)
     # notes:    [{slide_no:, text:}]
+    # container_texts: [{container:, shape:, text:}](母版/版式上的文本)
     # pictures: [{slide_no:, shape:, field:}](powertom:image 占位)
     # data:     Hash 或 nil(nil → 跳过字段对账,只做语法与结构检查)
     def check(contexts:, notes:, data:, pictures: [], charts: [], tables: [], table_structures: [],
-              chart_placeholders: [], template_name: "template.pptx")
+              chart_placeholders: [], container_texts: [], template_name: "template.pptx")
       entries = []
       used_roots = Set.new
 
@@ -166,6 +167,25 @@ module PowerTom
           cctx[:slide_no], cctx[:shape], cctx[:field],
           "#{kind_label(kind)} charts are not supported for data binding " \
           "(supported: column/bar, line, area, pie, doughnut, radar, combo, scatter, bubble)"
+        )
+      end
+
+      # 2.7 图片占位选项:mode=fill|contain;非法选项不依赖样例数据先报错
+      pictures.each do |pctx|
+        next unless pctx[:mode_error]
+
+        entries << error_entry(pctx[:slide_no], pctx[:shape], pctx[:field], pctx[:mode_error])
+      end
+
+      # 2.8 母版/版式标签:运行时不会绑定,提前报 error(不依赖样例数据)
+      container_texts.each do |entry|
+        tags = entry[:text].to_s.scan(Scanner::TAG_RE).uniq
+        next if tags.empty?
+
+        entries << error_entry(
+          nil, nil, nil,
+          "#{entry[:container]} shape '#{entry[:shape]}' contains tags #{tags.join(', ')}: " \
+          "tags on masters/layouts never take effect"
         )
       end
 
@@ -383,6 +403,8 @@ module PowerTom
     # 图片字段对账(§5.3):与文本标签同一套 #each/普通 语义;额外检查
     # 值必须是 String 且文件真实存在(设计师漏传图是最常见的交付事故)
     def reconcile_picture(pctx, directive, data, entries)
+      return if pctx[:mode_error] # 占位选项错误已在模板属性检查中报告
+
       path = pctx[:field]
       ctx = { slide_no: pctx[:slide_no], shape: pctx[:shape] }
       if directive && directive[:kind] == :each

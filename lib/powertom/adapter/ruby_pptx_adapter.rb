@@ -98,17 +98,21 @@ module PowerTom
       end
 
       # 图片占位上下文:形状 name 或 alt text 符合 powertom:image:字段名 约定(§5.3)
-      # 返回 [{slide_no:, shape:, field:, slide:, picture:}]
+      # 返回 [{slide_no:, shape:, field:, mode:, mode_error:, placeholder:,
+      #        slide:, picture:}]
+      # 占位语法:powertom:image:<field>[; mode=fill|contain],默认 fill
       def picture_contexts(prs)
         contexts = []
         prs.slides.each_with_index do |slide, i|
           walk_shapes(slide.shapes) do |shape|
             next unless shape.is_a?(Pptx::Picture)
 
-            field = image_field(shape)
-            next unless field
+            spec = image_spec(shape)
+            next unless spec
 
-            contexts << { slide_no: i + 1, shape: shape.name, field: field,
+            contexts << { slide_no: i + 1, shape: shape.name, field: spec[:field],
+                          mode: spec[:mode], mode_error: spec[:error],
+                          placeholder: "#{IMAGE_FIELD_PREFIX}#{spec[:raw]}",
                           slide: slide, picture: shape }
           end
         end
@@ -541,14 +545,17 @@ module PowerTom
       end
 
       # §5.3 图片替换:get_or_add 新 image part(按内容 sha1 去重,扩展名/content type
-      # 由 ruby_pptx 按真实图片类型维护),repoint blip 引用,再按"填满形状、居中裁切"
-      # 设置 srcRect。SVG 等矢量图不做裁切。
-      def replace_image(slide, picture, image_path)
+      # 由 ruby_pptx 按真实图片类型维护),repoint blip 引用。
+      # fill:填满形状、居中裁切;contain:等比缩放到形状内、居中留边。
+      # SVG 等矢量图没有原生像素尺寸,contain 保持原几何,fill 不做裁切。
+      def replace_image(slide, picture, image_path, mode: :fill)
         _image_part, r_id = slide.part.get_or_add_image_part(image_path)
         pic_el = picture.element
         pic_el.blip.embed = r_id
         image = Pptx::Image.from_file(image_path)
-        unless image.vector?
+        if mode == :contain
+          fit_image_inside(picture, image)
+        elsif !image.vector?
           view = [picture.width, picture.height]
           if view[0] && view[1]
             # crop_to_fit 只关心比例;Length 没有 to_f,传 EMU 裸值
@@ -561,6 +568,32 @@ module PowerTom
       rescue StandardError => e
         raise PowerTom::Error,
               "picture replacement failed (#{File.basename(image_path.to_s)}): #{e.class} #{e.message}"
+      end
+
+      # contain:按 min(宽比, 高比) 缩放,居中写入 picture 的 xfrm,并清掉旧裁切。
+      # 边距露出的是图片后面的内容(幻灯片背景或其它形状),这里不合成背景填充。
+      def fit_image_inside(picture, image)
+        return if image.vector?
+
+        native = image.native_size
+        left = picture.left&.emu
+        top = picture.top&.emu
+        width = picture.width&.emu
+        height = picture.height&.emu
+        return unless [left, top, width, height].none?(&:nil?)
+        return unless width.positive? && height.positive?
+
+        image_width = native[0].emu
+        image_height = native[1].emu
+        scale = [width.to_f / image_width, height.to_f / image_height].min
+        fitted_width = (image_width * scale).round
+        fitted_height = (image_height * scale).round
+
+        picture.left = Pptx::Length.emu(left + ((width - fitted_width) / 2))
+        picture.top = Pptx::Length.emu(top + ((height - fitted_height) / 2))
+        picture.width = Pptx::Length.emu(fitted_width)
+        picture.height = Pptx::Length.emu(fitted_height)
+        picture.element.xpath("./p:blipFill").first&.remove_all("a:srcRect")
       end
 
       # 逐页形状名(含组合内、含无文本形状),用于模板结构自检。
@@ -841,15 +874,34 @@ module PowerTom
       end
 
       IMAGE_FIELD_PREFIX = "powertom:image:"
+      IMAGE_MODES = %w[fill contain].freeze
 
-      def image_field(shape)
+      # 从形状 name / alt text 解析图片占位;不是图片占位时返回 nil
+      def image_spec(shape)
         name = shape.name.to_s
-        return name.delete_prefix(IMAGE_FIELD_PREFIX) if name.start_with?(IMAGE_FIELD_PREFIX)
+        raw = if name.start_with?(IMAGE_FIELD_PREFIX)
+                name.delete_prefix(IMAGE_FIELD_PREFIX)
+              else
+                descr = alt_text_of(shape)
+                descr.delete_prefix(IMAGE_FIELD_PREFIX) if descr&.start_with?(IMAGE_FIELD_PREFIX)
+              end
+        raw && parse_image_spec(raw)
+      end
 
-        descr = alt_text_of(shape)
-        return descr.delete_prefix(IMAGE_FIELD_PREFIX) if descr&.start_with?(IMAGE_FIELD_PREFIX)
-
-        nil
+      # field[; mode=fill|contain];默认 fill,未知选项保留为 mode_error
+      def parse_image_spec(raw)
+        field, *options = raw.split(";").map(&:strip)
+        mode = :fill
+        error = field.empty? ? "picture placeholder has no field name" : nil
+        options.each do |option|
+          key, value = option.split("=", 2).map(&:strip)
+          if key == "mode" && IMAGE_MODES.include?(value)
+            mode = value.to_sym
+          else
+            error ||= "unsupported picture option '#{option}'; supported: mode=fill|contain"
+          end
+        end
+        { field: field, mode: mode, error: error, raw: raw.strip }
       end
 
       def alt_text_of(shape)

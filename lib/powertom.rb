@@ -75,6 +75,7 @@ module PowerTom
         tables: adapter.table_cell_contexts(prs),
         table_structures: adapter.table_contexts(prs),
         notes: adapter.notes_texts(prs),
+        container_texts: adapter.container_texts(prs),
         pictures: adapter.picture_contexts(prs),
         charts: adapter.chart_tags(prs),
         chart_placeholders: adapter.chart_contexts(prs),

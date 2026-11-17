@@ -189,6 +189,12 @@ module PowerTom
     # 时保留占位图并记 warning。
     def replace_images(adapter, prs, page_scopes, binder, warnings)
       adapter.picture_contexts(prs).each do |pctx|
+        if pctx[:mode_error]
+          raise PowerTom::Error,
+                "slide #{pctx[:slide_no]} picture '#{pctx[:shape]}' field '#{pctx[:field]}': " \
+                "#{pctx[:mode_error]}"
+        end
+
         page = page_scopes[pctx[:slide_no] - 1]
         ctx = { slide_no: pctx[:slide_no], shape: pctx[:shape],
                 scope: page[:scope], scope_root: page[:scope_root] }
@@ -203,8 +209,8 @@ module PowerTom
           raise PowerTom::Error,
                 "slide #{pctx[:slide_no]} picture field '#{pctx[:field]}' file does not exist: #{value}"
         end
-        warn_image_aspect(adapter, pctx, value, warnings)
-        adapter.replace_image(pctx[:slide], pctx[:picture], value)
+        warn_image_aspect(adapter, pctx, value, warnings) if pctx[:mode] == :fill
+        adapter.replace_image(pctx[:slide], pctx[:picture], value, mode: pctx[:mode])
       end
     end
 

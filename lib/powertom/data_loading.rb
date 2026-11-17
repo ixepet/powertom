@@ -15,7 +15,8 @@ module PowerTom
 
       unless data.end_with?(".toml")
         raise InvalidTemplateError,
-              "data file #{data} is not .toml: TOML is PowerTom's default data format; v0 only supports .toml"
+              "data file #{data} is not .toml: the built-in loader only supports .toml; " \
+              "load JSON/YAML yourself and pass a Hash"
       end
       raise InvalidTemplateError, "data file not found: #{data}" unless File.file?(data)
 

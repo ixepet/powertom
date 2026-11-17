@@ -60,6 +60,21 @@ RSpec.describe PowerTom, ".render 图表绑定" do
     end
   end
 
+  # 指定页的 chart part、其内嵌 workbook part 名及 workbook 字节(spike2 深拷贝断言)
+  def chart_and_workbook_ref(pptx, slide_no)
+    Zip::File.open(pptx) do |zip|
+      slide_rels = zip.get_input_stream("ppt/slides/_rels/slide#{slide_no}.xml.rels").read
+      chart = slide_rels[%r{charts/(chart\d+\.xml)}, 1]
+      chart_rels = zip.get_input_stream("ppt/charts/_rels/#{chart}.rels").read
+      workbook = chart_rels[%r{embeddings/([^"]+\.xlsx)}, 1]
+      {
+        chart: chart,
+        workbook: workbook,
+        workbook_blob: zip.get_input_stream("ppt/embeddings/#{workbook}").read
+      }
+    end
+  end
+
   def build_xy_chart_template
     prs = Pptx::Presentation.new_default
     prs.slide_width = Pptx.inches(13.333)
@@ -232,6 +247,37 @@ RSpec.describe PowerTom, ".render 图表绑定" do
         [1, 2].each { |n| expect(zip.find_entry("ppt/charts/#{chart_part_ref(out, n)}")).not_to be_nil }
       end
       # 克隆 + 深拷贝 + 绑定后的包结构仍然合法(L1)
+      expect(PowerTomDev::OoxmlLint.lint(out)).to be_empty
+    end
+  end
+
+  # spike2:同一页克隆两次,分别绑定不同数据后,chart part 与内嵌 workbook
+  # 都必须各自独立;否则第二次 replace_data 会改到第一页的 workbook。
+  it "spike2:克隆页深拷贝后 chart part 与内嵌 workbook 均独立" do
+    template = build_chart_template(notes: "{{#each regions}}")
+    out = File.join(@dir, "out_deep_copy.pptx")
+    data = {
+      regions: [
+        { sales: { categories: %w[Jan Feb],
+                   series: [{ name: "East", values: [1, 2] }] } },
+        { sales: { categories: %w[Oct Nov Dec],
+                   series: [{ name: "West", values: [3, 4, 5] }] } }
+      ]
+    }
+    PowerTom.render(template, data: data).save(out)
+
+    first = chart_and_workbook_ref(out, 1)
+    second = chart_and_workbook_ref(out, 2)
+
+    aggregate_failures do
+      expect(slide_count(out)).to eq(2)
+      expect(first[:chart]).not_to eq(second[:chart])
+      expect(first[:workbook]).not_to eq(second[:workbook])
+      expect(first[:workbook_blob]).not_to eq(second[:workbook_blob])
+      expect(read_chart(out, 1)).to eq(plot_type: :BAR, categories: %w[Jan Feb],
+                                       series: [["East", [1.0, 2.0]]])
+      expect(read_chart(out, 2)).to eq(plot_type: :BAR, categories: %w[Oct Nov Dec],
+                                       series: [["West", [3.0, 4.0, 5.0]]])
       expect(PowerTomDev::OoxmlLint.lint(out)).to be_empty
     end
   end
@@ -528,6 +574,21 @@ RSpec.describe PowerTom, ".render 图表绑定" do
     aggregate_failures do
       expect(bad.errors.first.message).to include("a pie chart plots exactly 1 series, got 2")
       expect(ok.ok?).to be(true)
+    end
+  end
+
+  it "饼图 0 系列 → 由空系列校验拒绝,不触发饼图守卫" do
+    template = build_pie_template
+    empty = { categories: %w[A B C], series: [] }
+
+    aggregate_failures do
+      expect { PowerTom.render(template, data: { share: empty }) }
+        .to raise_error(PowerTom::Error, /'series' must be a non-empty array/)
+
+      result = PowerTom.check(template, data: { share: empty })
+      messages = result.errors.map(&:message).join("\n")
+      expect(messages).to include("'series' must be a non-empty array")
+      expect(messages).not_to include("exactly 1 series")
     end
   end
 
