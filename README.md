@@ -70,7 +70,7 @@ Notes:  {{#each scenarios}}
 **2. The engineer prepares the data** — TOML is the default data format:
 
 ```toml
-# TOML — format de données par défaut
+# TOML — default data format
 product_name = "Student workspace"
 show_compare = true
 
@@ -88,17 +88,16 @@ detail = "Ready automatically every Sunday"
 ```ruby
 require "powertom"
 
-# Lecture du modèle, liaison des balises, duplication/suppression de pages,
-# remplacement des images
+# Read the template, bind tags, clone/remove pages, replace images
 result = PowerTom.render("templates/report.pptx", data: "data/report.toml")
 result.save("out/report.pptx")
-result.warnings.each { |w| warn w }   # champs inutilisés, valeurs de repli…
+result.warnings.each { |w| warn w }   # unused fields, fallback values…
 ```
 
 Or pass a Hash directly when the data comes from a database or an API:
 
 ```ruby
-# Même appel avec des données en mémoire
+# Same call with in-memory data
 result = PowerTom.render("templates/report.pptx", data: {
   product_name: "Student workspace",
   kpis: [{ name: "Adoption rate", value: "29.7%" }],
@@ -280,9 +279,6 @@ PowerTom occupe la couche intermédiaire : un **moteur de modèles au-dessus de 
 ```ruby
 # Gemfile
 gem "powertom"
-
-# Chemin local tant que le gem n'est pas publié sur RubyGems
-# gem "powertom", path: "/chemin/vers/PowerTom"
 ```
 
 Nécessite Ruby >= 3.3 ; dépend de `ruby_pptx ~> 0.2.0` (lecture/écriture) et de `tomlrb ~> 3.0` (fichiers de données).

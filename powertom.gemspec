@@ -17,6 +17,7 @@ Gem::Specification.new do |spec|
   spec.license = "MIT"
   spec.homepage = "https://github.com/ixepet/powertom"
   spec.metadata = {
+    "homepage_uri" => spec.homepage,
     "source_code_uri" => spec.homepage,
     "bug_tracker_uri" => "#{spec.homepage}/issues",
     "documentation_uri" => "#{spec.homepage}/blob/main/docs/usage.md"
@@ -25,6 +26,7 @@ Gem::Specification.new do |spec|
   spec.required_ruby_version = ">= 3.3"
 
   spec.files = Dir["lib/**/*.rb"] + %w[README.md LICENSE]
+  spec.extra_rdoc_files = %w[README.md LICENSE]
   spec.require_paths = ["lib"]
 
   # 设计文档 §4:上游依赖锁版本(0.x API 不稳定,锁到 0.2.x)
