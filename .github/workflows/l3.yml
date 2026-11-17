@@ -5,7 +5,7 @@
 #
 # 分两步:ubuntu 渲染 L3 deck 集(tools/build_l3_decks.rb)→ windows 校验
 # (tools/openxml_validator,net8.0 + DocumentFormat.OpenXml)。
-# 新上线为观察模式(continue-on-error),稳定后转为阻塞;
+# 硬门禁:任何 deck 出现 schema 级违规即 job 失败、阻塞合并;
 # 每日定时跑一次,防止上游依赖漂移静默劣化。
 name: L3 OpenXML validation
 
@@ -48,8 +48,6 @@ jobs:
     name: OpenXmlValidator(windows)
     needs: build-decks
     runs-on: windows-latest
-    # L3 观察模式:先收集误报,稳定后移除此行转为阻塞
-    continue-on-error: true
     steps:
       - uses: actions/checkout@v4
 

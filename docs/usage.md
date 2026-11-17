@@ -210,10 +210,15 @@ values = [16.0, 21.0, 20.0, 25.5]
   removed. Chart type, layout and series formatting come from the template.
 - `categories` and every series' `values` must have the same length; `values`
   must be numbers; zero-series data is rejected.
+- Pie charts plot exactly one series; data with more than one series is
+  rejected. Doughnut charts accept multiple series as concentric rings.
 - Supported chart types: bar / column / line / area / pie / doughnut / radar,
   and combo charts (e.g. column + line with a secondary axis): a combo binds
   its series in document order and the data must provide exactly the
   template's total series count, otherwise the combo structure would change.
+- Radar charts (including the filled variant) bind like line charts: the
+  template's `radarStyle` and radial-axis settings — such as a fixed maximum
+  of 100 — survive the rebind untouched.
 - Scatter and bubble charts bind per-series `points` instead of shared
   categories:
 
@@ -281,7 +286,8 @@ designers can locate the problem without reading the code.
 
 | Limitation | Behaviour |
 | --- | --- |
-| Charts: bar/column/line/area/pie/doughnut only | Charts named `powertom:chart:<field>` are data-bound; scatter / bubble / combo charts and text tags inside charts are left untouched (text tags are reported as warnings). |
+| Pie charts are single-series | Binding rejects more than one series because PowerPoint would silently drop the extras; use a doughnut chart for multiple rings. |
+| Text tags inside charts are not rendered | Tags inside chart data are left as-is and reported as warnings. |
 | Notes are not rendered | Notes are only read for page directives; ordinary tags in notes produce a warning. |
 | Image replacement always fills and centre-crops | When the image aspect differs from the placeholder by more than 20%, a render warning explains that the image will be cropped. Use a placeholder with the target aspect ratio. |
 | Tags on masters/layouts are ignored | Only shapes on slides are processed. |

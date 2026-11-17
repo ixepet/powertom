@@ -47,7 +47,7 @@ combo, scatter (XY) and bubble charts.
 | --- | --- | --- |
 | Bar / column, line, area, radar | Add/remove allowed. Additional series are cloned from the last series and inherit its formatting; surplus series are removed and emptied plots deleted. | None |
 | Doughnut | Same as above; additional series become concentric rings. | None |
-| Pie | Only the first series is drawn; extra series are silently ignored. | None — should be added |
+| Pie | Only the first series is drawn; extra series are silently ignored. | **Implemented**: hard error in both `check` and render when more than one series is supplied |
 | Combo | Series are flattened across plots; adding/removing can silently reassign plot structure. | Hard error in both `check` and render |
 | Scatter / bubble | Adapter rewrites `xVal` / `yVal` / `bubbleSize` in place and zips by index. | Hard error in both `check` and render |
 
@@ -60,7 +60,8 @@ Additional verified details:
   designer gets no warning that extra series inherit the last series' style.
 - Pie silently ignoring extra series was confirmed by rendering a one-series
   pie rebound to two series: the output still showed one pie. Doughnut with two
-  series rendered two rings.
+  series rendered two rings. A hard guard now rejects more than one pie series
+  before any OOXML is written.
 - `number_format` is written only into each series' cached value block
   (`c:val/c:numRef/c:numCache/c:formatCode`). It does not touch `c:numFmt` on
   axes or data labels, and it does not format the embedded workbook's value
@@ -85,8 +86,8 @@ Additional verified details:
 
 1. Keep dynamic add/remove for bar/column, line, area, radar and doughnut; it
    is already delivered, not a future feature.
-2. Add a **pie guard**: exactly one series in both `check` and render. This is
-   a correctness fix, not a feature flag.
+2. **Pie guard delivered**: exactly one series in both `check` and render,
+   reported as a located error. This is a correctness fix, not a feature flag.
 3. Optionally add a **warning** when a standard chart's series count differs
    from the template: state that added series inherit the last series'
    formatting and that removed series' formatting disappears.

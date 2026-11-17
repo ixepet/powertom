@@ -132,7 +132,7 @@ result = PowerTom.render("templates/report.pptx", data: {
 - **Dynamic columns**: put `{{#grid rows: distribution cols: bands value: counts}}` in the header row's first cell. The header row's second cell is the column template (`{{col.label}}`), and the next row is the row template (`{{row.name}}` in the first cell, `{{cell}}` in the data columns). Exactly two columns; `value:` is optional (defaults to `row[col.key]`).
 - **Row blocks (v0.2.x)**: `{{#rows groups}} ... {{/rows}}` each occupy a whole row; everything between them is one record template and is cloned per item. Up to 3 nested levels; `{{row.name}}` refers to the current record. A `{{#cols ...}}` band may be declared in the header or directly inside a row block, and may span several template columns; `value: scores,rates` maps one field to each template column (a single field is shared by all). A `{{#if ...}} ... {{/if}}` block inside a row block removes its rows when the condition is falsy; inside a `#cols` band it removes the wrapped columns per column item.
 - **Pictures**: name the shape or its alt text `powertom:image:cover` and pass a file path in the data. Replacement always fills the shape and crops from the centre.
-- **Charts**: name the chart shape or its alt text `powertom:chart:sales` and pass `{ categories, series, number_format }` in the data; the whole data set is replaced and series formatting is inherited from the template. Bar/column/line/area/pie/doughnut are supported.
+- **Charts**: name the chart shape or its alt text `powertom:chart:sales` and pass `{ categories, series, number_format }` in the data; the whole data set is replaced and series formatting is inherited from the template. Supported: bar/column, line, area, pie (exactly one series), doughnut and **radar** (including the filled variant — `radarStyle` and radial-axis scaling such as a fixed maximum are preserved). Combo charts and scatter/bubble charts use a different contract — see Limitations.
 - One directive per notes page, maximum.
 - TOML dates are written unquoted (`report_date = 2026-01-20`), normalised to Ruby `Date`, and can be formatted with `{{report_date:date.cn}}`.
 - Full guide for designers: [docs/template-guide.md](https://github.com/ixepet/powertom/blob/main/docs/template-guide.md).
@@ -196,7 +196,7 @@ Output is **all or nothing**: every check runs before anything is written to dis
 | Limitation | Notes |
 | --- | --- |
 | Tables support row loops, paired row blocks, nesting and dynamic columns | `{{classes[].name}}` clones one row; `{{#rows ...}} ... {{/rows}}` clones multi-row records (3 levels); `{{#grid ...}}` / `{{#cols ...}}` clone columns; merged cells inside loops are rejected |
-| Charts: bar/column/line/area/pie/doughnut, radar, combo and scatter/bubble are data-bound | Name the chart shape `powertom:chart:<field>`; combo/scatter/bubble bind in document order and require exactly the template's series count (scatter/bubble carry `points: [{x, y(, size)}]` per series instead of shared categories); text tags inside charts are left as-is and reported as warnings |
+| Charts: bar/column/line/area/pie/doughnut, radar, combo and scatter/bubble are data-bound | Name the chart shape `powertom:chart:<field>`; pie charts accept exactly one series (use doughnut for multiple rings); combo/scatter/bubble bind in document order and require exactly the template's series count (scatter/bubble carry `points: [{x, y(, size)}]` per series instead of shared categories); text tags inside charts are left as-is and reported as warnings |
 | Notes are not rendered | Notes are only read for page directives; ordinary tags in notes produce a warning |
 | Tags on masters/layouts are ignored | Only shapes on slides are processed |
 | No PPT → PDF | Use LibreOffice headless |
@@ -234,7 +234,9 @@ Two fixture tiers cover the end-to-end paths:
 - **L3 official validation** (`.github/workflows/l3.yml`): the rendered deck set
   (`tools/build_l3_decks.rb`) is checked with Microsoft's OpenXmlValidator on a
   Windows runner (`tools/openxml_validator`) — the closest machine-checkable
-  approximation of PowerPoint's own tolerance. Currently in observation mode.
+  approximation of PowerPoint's own tolerance. A **hard gate**: any
+  schema-level finding fails the build. Also runs on a daily schedule to catch
+  upstream drift.
 - **Private golden sample**: the larger real-world deck used by the HaiMate
   examples (`spec/fixtures/hai_mate/template.pptx`) is not committed, because of
   size and ownership; only its structural snapshot `spec/fixtures/hai_mate/manifest.toml` is. With the original template at hand:

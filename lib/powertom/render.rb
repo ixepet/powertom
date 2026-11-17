@@ -240,10 +240,11 @@ module PowerTom
             raise PowerTom::Error,
                   "slide #{cctx[:slide_no]} chart '#{cctx[:shape]}' field '#{cctx[:field]}': " \
                   "#{label} charts are not supported for data binding " \
-                  "(supported: column/bar, line, area, pie, doughnut, combo, scatter, bubble)"
+                  "(supported: column/bar, line, area, pie, doughnut, radar, combo, scatter, bubble)"
           end
           validate_chart_data!(value, cctx)
           validate_chart_series_count!(value, cctx) if cctx[:kind] == :combo
+          validate_pie_series_count!(value, cctx) if cctx[:kind] == :PIE
         end
         adapter.replace_chart_data(prs, cctx[:chart_shape], cctx[:slide], value)
       end
@@ -306,6 +307,18 @@ module PowerTom
             "chart template draws #{cctx[:distribution]} (#{cctx[:series_count]} series in " \
             "total); the data must provide exactly #{cctx[:series_count]} series in document " \
             "order, got #{count}"
+    end
+
+    # 饼图只绘制第一个系列:多余系列会被静默丢弃,必须在写入前拒绝。
+    # 圆环图支持多系列(同心环),不受此守卫影响。
+    def validate_pie_series_count!(value, cctx)
+      series = chart_field_value(value, "series")
+      return unless series.is_a?(Array) && series.size > 1
+
+      raise PowerTom::Error,
+            "slide #{cctx[:slide_no]} chart '#{cctx[:shape]}' field '#{cctx[:field]}': " \
+            "a pie chart plots exactly 1 series, got #{series.size}; " \
+            "use a doughnut chart for multiple rings"
     end
 
     # 散点/气泡数据形状:{series: [{name:, points: [{x:, y:(, size:)}]}]}。

@@ -165,7 +165,7 @@ module PowerTom
         entries << error_entry(
           cctx[:slide_no], cctx[:shape], cctx[:field],
           "#{kind_label(kind)} charts are not supported for data binding " \
-          "(supported: column/bar, line, area, pie, doughnut, combo, scatter, bubble)"
+          "(supported: column/bar, line, area, pie, doughnut, radar, combo, scatter, bubble)"
         )
       end
 
@@ -457,6 +457,7 @@ module PowerTom
             next
           end
           check_chart_value(value, ctx, path, entries, k)
+          check_pie_series_count(value, ctx, path, entries, k) if cctx[:kind] == :PIE
           check_chart_series_count(value, cctx, entries, k)
         end
       else
@@ -471,6 +472,7 @@ module PowerTom
         else
           check_chart_value(value, ctx, path, entries)
         end
+        check_pie_series_count(value, ctx, path, entries) if cctx[:kind] == :PIE
         check_chart_series_count(value, cctx, entries)
       end
     end
@@ -493,6 +495,21 @@ module PowerTom
         "#{where}chart template draws #{cctx[:distribution]} (#{cctx[:series_count]} series in " \
         "total); the data must provide exactly #{cctx[:series_count]} series in document " \
         "order, got #{series.size}"
+      )
+    end
+
+    # 饼图只绘制第一个系列:多余系列会被静默丢弃,check 阶段直接报 error
+    def check_pie_series_count(value, ctx, path, entries, item_index = nil)
+      return unless value.is_a?(Hash)
+
+      series = value.key?(:series) ? value[:series] : value["series"]
+      return unless series.is_a?(Array) && series.size > 1
+
+      where = item_index ? "item #{item_index + 1}: " : ""
+      entries << error_entry(
+        ctx[:slide_no], ctx[:shape], path,
+        "#{where}a pie chart plots exactly 1 series, got #{series.size}; " \
+        "use a doughnut chart for multiple rings"
       )
     end
 

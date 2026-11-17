@@ -108,6 +108,11 @@ for rewrites, last series cloned for extras).
 - `categories` not an array of strings, `series` missing or empty → error
   (zero-series binding is rejected; the spike showed it deletes the plot)
 - Every `values` entry must be Numeric and `values.size == categories.size`
+- Pie charts accept exactly one series; extra series are rejected because
+  PowerPoint would silently draw only the first one. Doughnut charts accept
+  multiple series as concentric rings.
+- Combo charts require the template's total series count; scatter and bubble
+  charts require the template's series count as well.
 - `check` reconciles the same shape per `#each` item, mirroring picture
   reconciliation
 - The existing "chart contains `{{tags}}`" warning stays: text tags inside

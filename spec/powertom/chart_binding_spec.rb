@@ -158,6 +158,24 @@ RSpec.describe PowerTom, ".render 图表绑定" do
     path
   end
 
+  def build_pie_template(chart_type = Pptx::Enum::XL_CHART_TYPE::PIE)
+    prs = Pptx::Presentation.new_default
+    prs.slide_width = Pptx.inches(13.333)
+    prs.slide_height = Pptx.inches(7.5)
+    slide = prs.slides.add(prs.slide_layouts["Blank"])
+    data = Pptx::ChartData.new
+    data.categories = %w[A B C]
+    data.add_series("One", [1, 2, 3])
+    frame = slide.shapes.add_chart(chart_type, data,
+                                   at: [Pptx.inches(1), Pptx.inches(1)],
+                                   size: [Pptx.inches(8), Pptx.inches(5)])
+    frame.name = "powertom:chart:share"
+
+    path = File.join(@dir, "pie_template_#{SecureRandom.hex(4)}.pptx")
+    prs.save(path)
+    path
+  end
+
   SALES = {
     categories: %w[Jan Feb Mar],
     series: [{ name: "2026", values: [10, 20, 30] }]
@@ -470,6 +488,58 @@ RSpec.describe PowerTom, ".render 图表绑定" do
     result = PowerTom.check(template, data: { radar: { categories: %w[Jan Feb Mar],
                                                        series: [{ name: "Team C", values: [60, 70, 80] }] } })
     expect(result.ok?).to be(true)
+  end
+
+  PIE_SALES = {
+    categories: %w[A B C],
+    series: [{ name: "One", values: [1, 2, 3] }]
+  }.freeze
+
+  it "饼图单系列 → 正常绑定" do
+    template = build_pie_template
+    out = File.join(@dir, "out_pie.pptx")
+    PowerTom.render(template, data: { share: PIE_SALES }).save(out)
+
+    expect(read_chart(out, 1, "powertom:chart:share")).to eq(
+      plot_type: :PIE, categories: %w[A B C], series: [["One", [1.0, 2.0, 3.0]]]
+    )
+  end
+
+  it "饼图多系列 → 渲染前报错,避免静默丢弃" do
+    template = build_pie_template
+    data = { share: { categories: %w[A B C],
+                      series: [{ name: "One", values: [1, 2, 3] },
+                               { name: "Two", values: [3, 2, 1] }] } }
+
+    expect { PowerTom.render(template, data: data) }
+      .to raise_error(
+        PowerTom::Error,
+        /chart 'powertom:chart:share' field 'share'.*exactly 1 series, got 2.*doughnut/
+      )
+  end
+
+  it "check:饼图多系列 → error;单系列 → 无 error" do
+    template = build_pie_template
+    bad = PowerTom.check(template, data: { share: { categories: %w[A B C],
+                                                    series: [{ name: "One", values: [1, 2, 3] },
+                                                             { name: "Two", values: [3, 2, 1] }] } })
+    ok = PowerTom.check(template, data: { share: PIE_SALES })
+
+    aggregate_failures do
+      expect(bad.errors.first.message).to include("a pie chart plots exactly 1 series, got 2")
+      expect(ok.ok?).to be(true)
+    end
+  end
+
+  it "圆环图多系列仍可用(饼图守卫不外溢)" do
+    template = build_pie_template(Pptx::Enum::XL_CHART_TYPE::DOUGHNUT)
+    out = File.join(@dir, "out_doughnut.pptx")
+    data = { share: { categories: %w[A B C],
+                      series: [{ name: "One", values: [1, 2, 3] },
+                               { name: "Two", values: [3, 2, 1] }] } }
+    PowerTom.render(template, data: data).save(out)
+
+    expect(read_chart(out, 1, "powertom:chart:share")[:series].map(&:first)).to eq(%w[One Two])
   end
 
   describe "PowerTom.check" do
