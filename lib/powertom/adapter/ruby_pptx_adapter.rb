@@ -58,9 +58,11 @@ module PowerTom
       end
 
       # 上游图表 writer 的两个缺陷(L3 OpenXmlValidator 首跑取证):
-      # 1. 轴 id 常量是负数(如 VAL_AX_ID="-2112772216"),而 ST_DrawingElementId
-      #    是 UnsignedInt —— LibreOffice/PowerPoint 宽容,官方校验器拒绝;
-      #    把全部 c:axId/c:crossAx 的负值 wrap 到 uint32,引用自洽。
+      # 1. 轴 id 常量是负数(如 VAL_AX_ID="-2112772216"),而 axId 的 schema
+      #    约束是 MaxInclusive 2147483647(ST_DrawingElementId 实际按非负有界
+      #    int32 校验,不是 uint32)—— LibreOffice/PowerPoint 宽容,官方校验器
+      #    拒绝;把全部 c:axId/c:crossAx 的负值取绝对值(上游负数都大于
+      #    -2^31,abs 后合法且图表内引用自洽)。
       # 2. RadarChartWriter 给每个 ser 写 c:smooth,但 radar ser 的 schema
       #    没有该子元素 —— 直接移除。
       def normalize_chart_quirks(prs)
@@ -76,7 +78,7 @@ module PowerTom
       def normalize_chart_element(chart_el)
         chart_el.xpath(".//c:axId | .//c:crossAx").each do |el|
           val = el.get("val").to_i
-          el.set("val", (val & 0xFFFFFFFF).to_s) if val.negative?
+          el.set("val", val.abs.to_s) if val.negative?
         end
         chart_el.xpath(".//c:radarChart//c:ser/c:smooth").each do |smooth|
           smooth.parent.remove(smooth)

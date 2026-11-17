@@ -51,7 +51,7 @@ and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
   schema. LibreOffice and PowerPoint tolerate both, but `OpenXmlValidator`
   rejects them (6 findings per axis chart, 2 per radar series). Saving now
   normalizes every chart in the package: negative `c:axId`/`c:crossAx`
-  values are wrapped to uint32 (references stay self-consistent) and illegal
+  values are converted to their absolute value (references stay self-consistent, and within the int32 bound) and illegal
   radar `c:smooth` nodes are removed.
 - Chart binding font consistency: the regenerated embedded workbook had no
   `xl/styles.xml` (except for date categories, where the base font was
