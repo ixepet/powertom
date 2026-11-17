@@ -235,6 +235,51 @@ RSpec.describe PowerTom, ".render 图表绑定" do
     end
   end
 
+  # 主题 minor 字体改成指定值(模拟中文环境演示文稿,如等线),供 workbook
+  # 字体断言用
+  def rewrite_theme_latin(path, typeface)
+    tmp = "#{path}.tmp"
+    Zip::File.open(path) do |src|
+      Zip::OutputStream.open(tmp) do |out|
+        src.entries.each do |entry|
+          next if entry.directory?
+
+          out.put_next_entry(entry.name)
+          content = entry.get_input_stream.read
+          if entry.name == "ppt/theme/theme1.xml"
+            content = content.sub(%r{<a:minorFont>.*?</a:minorFont>}m) do |minor|
+              minor.sub(/(<a:latin typeface=")[^"]*(")/, "\\1#{typeface}\\2")
+            end
+          end
+          out.write(content)
+        end
+      end
+    end
+    FileUtils.mv(tmp, path)
+  end
+
+  # 绑定产物内嵌 workbook 的基础字体名(xl/styles.xml 唯一的 font 节点)
+  # 注意:rubyzip 的 open_buffer 返回 zip 对象而非块值,须在块内取值
+  def workbook_base_font(pptx)
+    Zip::File.open(pptx) do |zip|
+      xlsx = zip.entries.map(&:name).find { |n| n.match?(%r{ppt/embeddings/.*\.xlsx\z}) }
+      font = nil
+      Zip::File.open_buffer(zip.get_input_stream(xlsx).read) do |inner|
+        font = inner.get_input_stream("xl/styles.xml").read[/<name val="([^"]*)"/, 1]
+      end
+      font
+    end
+  end
+
+  it "重建的内嵌 workbook 基础字体跟随演示文稿主题(编辑数据不再突兀)" do
+    template = build_chart_template
+    rewrite_theme_latin(template, "DengXian")
+    out = File.join(@dir, "out_font.pptx")
+    PowerTom.render(template, data: { sales: SALES }).save(out)
+
+    expect(workbook_base_font(out)).to eq("DengXian")
+  end
+
   it "数据形状错误 → 定位到页/形状/字段" do
     template = build_chart_template
     aggregate_failures do

@@ -1,6 +1,8 @@
 # frozen_string_literal: true
 
 require "ruby_pptx"
+require "tempfile"
+require "zip"
 
 module PowerTom
   module Adapter
@@ -218,9 +220,121 @@ module PowerTom
           chart = new_part.chart
         end
         chart.replace_data(data)
+        harmonize_workbook_font(chart.part)
       rescue StandardError => e
         raise PowerTom::Error,
               "chart data binding failed (#{shape.name}): #{e.class} #{e.message}"
+      end
+
+      # 绑定会重建内嵌 workbook,上游 writer 只在含日期分类时才写 styles.xml
+      # 且把基础字体写死为 Calibri(workbook_writer);其余情况根本没有
+      # styles.xml,Excel 打开"编辑数据"时回退到本地默认字体,与演示文稿
+      # 主题不一致。按 PowerPoint 自产 workbook 的做法补齐:基础字体取
+      # 主题 minorFont(与图表文本所见一致)。取不到主题或结构对不上时
+      # 保持原样(尽力而为,不影响绑定本身)。
+      def harmonize_workbook_font(chart_part)
+        rel = chart_part.rels.each_value.find do |r|
+          !r.external? && r.reltype == Pptx::Opc::RELATIONSHIP_TYPE::PACKAGE
+        end
+        workbook = rel&.target_part
+        return unless workbook.is_a?(Pptx::Opc::Part)
+
+        font = theme_minor_font_name(chart_part.package)
+        return unless font
+
+        patched = rebuild_workbook_base_font(workbook.blob, font)
+        workbook.blob = patched if patched
+      end
+
+      # 主题 minorFont 的 latin 字体名(空或 "+mn-lt" 占位时退回 ea)。
+      # xlsx 的 <name> 是单值,PowerPoint 自产 workbook 也写 latin 名。
+      def theme_minor_font_name(package)
+        theme = package.parts.find { |part| part.partname.to_s[/theme\d+\.xml\z/] }
+        return nil unless theme
+
+        minor = theme.element.xpath(".//a:minorFont").first
+        return nil unless minor
+
+        latin = minor.xpath("./a:latin").first&.get("typeface")
+        ea = minor.xpath("./a:ea").first&.get("typeface")
+        [latin, ea].compact.find { |name| !name.to_s.empty? && !name.start_with?("+") }
+      end
+
+      BASE_FONT_NAME_RE = %r{<name val="Calibri"/>}
+      STYLES_CT = "application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"
+      STYLES_RT = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles"
+
+      # 两种情形:已有 styles.xml(含日期)→ 就地替换基础字体名;
+      # 没有 → 注入最小 styles.xml + content-type Override + workbook 关系。
+      # 结构对不上时返回 nil,调用方保持原样
+      def rebuild_workbook_base_font(blob, font_name)
+        src = Tempfile.new(["powertom_wb_src", ".xlsx"])
+        dst = Tempfile.new(["powertom_wb_dst", ".xlsx"])
+        begin
+          File.binwrite(src.path, blob)
+          done = false
+          Zip::File.open(src.path) do |zip|
+            has_styles = zip.entries.any? { |entry| entry.name == "xl/styles.xml" }
+            Zip::OutputStream.open(dst.path) do |out|
+              zip.entries.each do |entry|
+                next if entry.directory?
+
+                out.put_next_entry(entry.name)
+                content = entry.get_input_stream.read
+                case entry.name
+                when "xl/styles.xml"
+                  content = content.sub(BASE_FONT_NAME_RE) do |_match|
+                    done = true
+                    %(<name val="#{font_name}"/>)
+                  end
+                when "xl/_rels/workbook.xml.rels"
+                  unless has_styles
+                    new_rel = "<Relationship Id=\"#{next_workbook_rid(content)}\" " \
+                              "Type=\"#{STYLES_RT}\" Target=\"styles.xml\"/>"
+                    content = content.sub("</Relationships>",
+                                          "#{new_rel}</Relationships>")
+                  end
+                when "[Content_Types].xml"
+                  unless has_styles
+                    content = content.sub(
+                      "</Types>",
+                      %(<Override PartName="/xl/styles.xml" ContentType="#{STYLES_CT}"/></Types>)
+                    )
+                  end
+                end
+                out.write(content)
+              end
+              unless has_styles
+                out.put_next_entry("xl/styles.xml")
+                out.write(injected_styles_xml(font_name))
+                done = true
+              end
+            end
+          end
+          done ? File.binread(dst.path) : nil
+        ensure
+          src.close!
+          dst.close!
+        end
+      end
+
+      def next_workbook_rid(rels_xml)
+        max = rels_xml.scan(/Id="rId(\d+)"/).flatten.map(&:to_i).max || 0
+        "rId#{max + 1}"
+      end
+
+      # 注入用的最小 styles.xml(无 numFmts:非日期场景没有单元格引用样式)
+      def injected_styles_xml(font_name)
+        <<~XML
+          <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+          <styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+          <fonts count="1"><font><sz val="11"/><name val="#{font_name}"/></font></fonts>
+          <fills count="2"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill></fills>
+          <borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders>
+          <cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>
+          <cellXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellXfs>
+          </styleSheet>
+        XML
       end
 
       def part_value(hash, key)

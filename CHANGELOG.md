@@ -14,6 +14,17 @@ and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
   provide exactly the template's total series count — a mismatch raises a
   located error naming the template's distribution (e.g.
   `column×1 + line×1`), both in `PowerTom.render` and `PowerTom.check`.
+
+### Fixed
+
+- Chart binding font consistency: the regenerated embedded workbook had no
+  `xl/styles.xml` (except for date categories, where the base font was
+  hardcoded to Calibri), so PowerPoint's "Edit Data" fell back to the local
+  Excel default font instead of the presentation's theme font. The binding
+  layer now writes a minimal styles part whose base font is the theme's
+  minor font — matching what PowerPoint itself produces — and patches the
+  font in place when a styles part already exists. Chart text fonts were
+  never affected (the chart XML's `c:txPr` nodes are untouched by binding).
 - Unsupported chart kinds (scatter, bubble, radar, unknown) are rejected
   with a located error in `PowerTom.render` and reported as errors by
   `PowerTom.check` (independent of sample data), instead of silently
