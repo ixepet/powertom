@@ -29,6 +29,16 @@ module PowerTom
       value_paths.size == 1 ? value_paths.first : value_paths[template_index]
     end
 
+    # 列条件取值:优先当前列项,缺失时回退整页数据(支持 subjects[].show 完整路径)
+    def column_condition_value(path, col, band_path, data)
+      relative = path.start_with?("#{band_path}[].") ? path.delete_prefix("#{band_path}[].") : path
+      begin
+        PathResolver.resolve(col, relative)
+      rescue MissingDataError
+        PathResolver.resolve(data, relative)
+      end
+    end
+
     def cell_value(row, col, value_path)
       key = column_key(col)
       container = value_path ? PathResolver.resolve(row, value_path) : row

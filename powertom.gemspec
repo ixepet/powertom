@@ -7,8 +7,13 @@ Gem::Specification.new do |spec|
   spec.version = PowerTom::VERSION
   spec.authors = ["PowerTom contributors"]
   spec.summary = "PowerTom — PowerPoint template engine for Ruby"
-  spec.description = "设计师在 PowerPoint 里维护模板,工程师传一个 Ruby Hash,产出成品 deck。" \
-                     "排版、字体、母版、主题完全由设计工具掌控,代码只负责扫描标签、绑定数据、克隆页面。"
+  spec.description = <<~DESC.strip
+    PowerTom is a PowerPoint template engine for Ruby. Designers keep the template in PowerPoint; engineers pass a Ruby Hash or a TOML file and get a finished deck. Layout, fonts, colours, masters and theme stay under the designer's control.
+
+    PowerTom est un moteur de modèles PowerPoint pour Ruby. Les designers conservent le modèle dans PowerPoint ; les ingénieurs passent un Hash Ruby ou un fichier TOML et obtiennent un deck finalisé. La mise en page, les polices, les couleurs, les masques et le thème restent sous le contrôle du designer.
+
+    设计师在 PowerPoint 里维护模板,工程师传一个 Ruby Hash 或 TOML 文件,产出成品 deck。排版、字体、配色、母版和主题完全由设计工具掌控。
+  DESC
   spec.license = "MIT"
   spec.homepage = "https://github.com/ixepet/powertom"
   spec.metadata = {

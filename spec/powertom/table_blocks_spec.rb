@@ -496,6 +496,137 @@ RSpec.describe "表格区块语法(#rows / #cols)" do
     end
   end
 
+  describe "#if 列级条件" do
+    def column_conditional_data
+      {
+        classes: [
+          { name: "一班", scores: { chinese: 100, physics: 80 } },
+          { name: "二班", scores: { chinese: 95, physics: 85 } }
+        ],
+        subjects: [
+          { key: "chinese", label: "语文", show: true },
+          { key: "physics", label: "物理", show: false }
+        ]
+      }
+    end
+
+    def column_conditional_rows
+      [
+        ["班级", "{{#cols subjects value: scores}}{{#if subjects[].show}}{{col.label}}{{/if}}{{/cols}}"],
+        ["{{#rows classes}}", ""],
+        ["{{classes[].name}}", "{{cell}}"],
+        ["{{/rows}}", ""]
+      ]
+    end
+
+    it "按列项求值:为假的列整列删除" do
+      expect(read_table(render(build_template(column_conditional_rows), column_conditional_data))).to eq([
+        ["班级", "语文"],
+        ["一班", "100"],
+        ["二班", "95"]
+      ])
+    end
+
+    it "条件不含 [] 时回退整页数据" do
+      rows = [
+        ["班级", "{{#cols subjects value: scores}}{{#if show_extra}}{{col.label}}{{/if}}{{/cols}}"],
+        ["{{#rows classes}}", ""],
+        ["{{classes[].name}}", "{{cell}}"],
+        ["{{/rows}}", ""]
+      ]
+      data = column_conditional_data.merge(show_extra: false)
+      expect(read_table(render(build_template(rows), data))).to eq([
+        ["班级"], ["一班"], ["二班"]
+      ])
+
+      data[:show_extra] = true
+      expect(read_table(render(build_template(rows), data))).to eq([
+        ["班级", "语文", "物理"],
+        ["一班", "100", "80"],
+        ["二班", "95", "85"]
+      ])
+    end
+
+    it "多列模板:条件为假时整组模板列删除" do
+      rows = [
+        ["班级", "{{#cols subjects value: scores,rates}}{{#if subjects[].show}}{{col.label}}",
+         "{{col.rate_label}}{{/if}}{{/cols}}"],
+        ["{{#rows classes}}", "", ""],
+        ["{{classes[].name}}", "{{cell}}", "{{cell}}"],
+        ["{{/rows}}", "", ""]
+      ]
+      data = {
+        classes: [{ name: "一班", scores: { chinese: 100, physics: 80 },
+                    rates: { chinese: 0.83, physics: 0.67 } }],
+        subjects: [
+          { key: "chinese", label: "语文", rate_label: "得分率", show: true },
+          { key: "physics", label: "物理", rate_label: "得分率", show: false }
+        ]
+      }
+      expect(read_table(render(build_template(rows), data))).to eq([
+        ["班级", "语文", "得分率"],
+        ["一班", "100", "0.83"]
+      ])
+    end
+
+    describe "结构校验" do
+      it "缺少 {{/if}} → 报错" do
+        rows = [
+          ["班级", "{{#cols subjects}}{{#if subjects[].show}}{{col.label}}{{/cols}}"],
+          ["{{#rows classes}}", ""],
+          ["{{classes[].name}}", "{{cell}}"],
+          ["{{/rows}}", ""]
+        ]
+        expect { render(build_template(rows), column_conditional_data) }
+          .to raise_error(PowerTom::TemplateSyntaxError, /缺少 \{\{\/if\}\}/)
+      end
+
+      it "列条件嵌套 → 报错" do
+        rows = [
+          ["班级", "{{#cols subjects}}{{#if a}}{{#if b}}{{col.label}}{{/if}}{{/if}}{{/cols}}"],
+          ["{{#rows classes}}", ""],
+          ["{{classes[].name}}", "{{cell}}"],
+          ["{{/rows}}", ""]
+        ]
+        expect { render(build_template(rows), column_conditional_data) }
+          .to raise_error(PowerTom::TemplateSyntaxError, /列条件不能嵌套/)
+      end
+
+      it "引用其他数组 → 报错" do
+        rows = [
+          ["班级", "{{#cols subjects}}{{#if other[].show}}{{col.label}}{{/if}}{{/cols}}"],
+          ["{{#rows classes}}", ""],
+          ["{{classes[].name}}", "{{cell}}"],
+          ["{{/rows}}", ""]
+        ]
+        expect { render(build_template(rows), column_conditional_data) }
+          .to raise_error(PowerTom::TemplateSyntaxError, /只能引用当前列数组/)
+      end
+
+      it "条件字段缺失 → 渲染报错" do
+        data = column_conditional_data
+        data[:subjects][1].delete(:show)
+        expect { render(build_template(column_conditional_rows), data) }
+          .to raise_error(PowerTom::MissingDataError, /show/)
+      end
+    end
+
+    describe "PowerTom.check" do
+      it "数据齐全 → 无 error" do
+        result = PowerTom.check(build_template(column_conditional_rows), data: column_conditional_data)
+        expect(result.errors).to be_empty
+      end
+
+      it "列条件字段缺失 → error 指向第几个列项" do
+        data = column_conditional_data
+        data[:subjects][1].delete(:show)
+        result = PowerTom.check(build_template(column_conditional_rows), data: data)
+        error = result.errors.find { |e| e.label == "subjects[].show" }
+        expect(error.message).to include("列条件第 2 项", "show")
+      end
+    end
+  end
+
   describe "结构校验" do
     it "缺少 {{/rows}} → 报错" do
       rows = [

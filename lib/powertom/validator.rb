@@ -162,6 +162,7 @@ module PowerTom
             ctx = l[:context]
             next if ctx[:table_shape] && failed_tables.include?([ctx[:slide_no], ctx[:table_shape]])
             next if block_row_stacks.dig([ctx[:slide_no], ctx[:table_shape]], ctx[:row_index])
+            next if block_band_cell?(table_plans, ctx)
 
             grid = grid_plan_for(table_plans, ctx)
             if grid && grid_variable_path?(l[:path])
@@ -182,6 +183,7 @@ module PowerTom
             next if l[:path].include?("[]")
             next if block_row_stacks.dig([l[:context][:slide_no], l[:context][:table_shape]],
                                           l[:context][:row_index])
+            next if block_band_cell?(table_plans, l[:context])
             next if grid_plan_for(table_plans, l[:context]) && grid_variable_path?(l[:path])
 
             overflow_check(l, directives[l[:context][:slide_no]], data, entries)
@@ -196,6 +198,10 @@ module PowerTom
             next if directive && directive[:kind] == :each
             if block_row_stacks.dig([l[:context][:slide_no], l[:context][:table_shape]],
                                      l[:context][:row_index])
+              used_roots << root_of(l[:path]) unless grid_variable_path?(l[:path])
+              next
+            end
+            if block_band_cell?(table_plans, l[:context])
               used_roots << root_of(l[:path]) unless grid_variable_path?(l[:path])
               next
             end
@@ -447,6 +453,17 @@ module PowerTom
         path == "col" || path.start_with?("col.")
     end
 
+    # 该单元格是否位于区块表格的列带范围内(含不在行区块内的表头行)
+    def block_band_cell?(plans, context)
+      return false unless context[:table_shape]
+
+      plan = plans[[context[:slide_no], context[:table_shape]]]
+      return false unless plan && plan[:kind] == :blocks && plan[:cols]
+
+      band = plan[:cols]
+      context[:col_index].to_i.between?(band[:first_col], band[:last_col])
+    end
+
     # ---- v0.2.0:行区块 + 列带对账 ----
 
     def reconcile_block_tables(plans, labels_by_row, data, entries)
@@ -455,7 +472,36 @@ module PowerTom
 
         ctx = { slide_no: slide_no, shape: shape }
         cols = plan[:cols] ? (resolve_grid_array(plan[:cols][:path], ctx, data, entries) || []) : []
+        reconcile_column_ifs(plan[:cols], cols, ctx, data, entries)
+        reconcile_static_band_header(plan, cols, labels_by_row, ctx, data, entries)
         reconcile_blocks(plan[:blocks], {}, nil, cols, plan[:cols], labels_by_row, ctx, data, entries)
+      end
+    end
+
+    # 列带表头若不在行区块内,其 {{col.*}} 也要单独对账
+    def reconcile_static_band_header(plan, cols, labels_by_row, ctx, data, entries)
+      band = plan[:cols]
+      return unless band
+
+      stacks = TableLoop.build_row_stacks(plan[:blocks])
+      return unless stacks[band[:row]].nil?
+
+      labels_by_row[[ctx[:slide_no], ctx[:shape], band[:row]]].each do |label|
+        reconcile_block_label(label, {}, nil, cols, band, "列带", data, entries)
+      end
+    end
+
+    # 列条件:每个列项都要能取到条件字段
+    def reconcile_column_ifs(band, cols, ctx, data, entries)
+      return unless band && band[:ifs]&.any?
+
+      band[:ifs].each do |node|
+        cols.each_with_index do |col, index|
+          GridValue.column_condition_value(node[:path], col, band[:path], data)
+        rescue MissingDataError => e
+          entries << error_entry(ctx[:slide_no], ctx[:shape], node[:path],
+                                 "列条件第 #{index + 1} 项:#{e.message}")
+        end
       end
     end
 

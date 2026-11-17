@@ -275,13 +275,17 @@ module PowerTom
       ctx = { slide_no: table[:slide_no], shape: table[:shape] }
       band = plan[:cols]
       cols = []
+      column_plan = []
       if band
         cols = fetch_loop_array(binder, band[:path], table, ctx)
         check_grid_columns!(cols, table, ctx)
+        visibility = column_visibility(band, cols)
+        column_plan = build_column_plan(band, cols, visibility)
         # 先剥离标记,再复制列:否则标记会被复制到每一列
         adapter.strip_column_markers(table[:element], band[:row], band[:first_col], band[:last_col])
         adapter.expand_column_band(table[:element], table[:frame],
                                    band[:first_col], band[:last_col], cols.size)
+        remove_hidden_columns(adapter, table, band, visibility)
       end
 
       # 行索引在列克隆后不变,先捕获顶层区块的开闭行元素
@@ -307,7 +311,59 @@ module PowerTom
       end
       adapter.refresh_table_height(table[:element], table[:frame])
 
-      { kind: :blocks, records: records, cols: cols, band: band }
+      { kind: :blocks, records: records, cols: cols, band: band,
+        column_plan: column_plan }
+    end
+
+    # 列条件:按列项求值,返回 [item][template_column] 的可见矩阵
+    def column_visibility(band, cols)
+      width = band[:width]
+      return cols.map { Array.new(width, true) } if band[:ifs].nil? || band[:ifs].empty?
+
+      cols.map do |col|
+        values = band[:ifs].to_h do |node|
+          [node, column_condition_truthy?(node[:path], col, band)]
+        end
+        Array.new(width) do |template_index|
+          target = band[:first_col] + template_index
+          node = band[:ifs].find { |n| target.between?(n[:open_col], n[:close_col]) }
+          node.nil? || values[node]
+        end
+      end
+    end
+
+    def column_condition_truthy?(path, col, band)
+      value = GridValue.column_condition_value(path, col, band[:path], @data)
+      !(value.nil? || value == false)
+    rescue MissingDataError => e
+      raise MissingDataError, "{{#if #{path}}} 无法求值:#{e.message}"
+    end
+
+    # 展开后的列计划:每个输出列对应哪个列项、哪个模板列
+    def build_column_plan(band, cols, visibility)
+      plan = []
+      cols.each_with_index do |col, item_index|
+        band[:width].times do |template_index|
+          next unless visibility[item_index][template_index]
+
+          plan << { col: col, template_index: template_index }
+        end
+      end
+      plan
+    end
+
+    def remove_hidden_columns(adapter, table, band, visibility)
+      hidden = []
+      visibility.each_with_index do |item, item_index|
+        item.each_with_index do |visible, template_index|
+          next if visible
+
+          hidden << band[:first_col] + item_index * band[:width] + template_index
+        end
+      end
+      return if hidden.empty?
+
+      adapter.remove_table_columns(table[:element], table[:frame], hidden)
     end
 
     # 子区块的数组依赖父项:按每个父项解析一次,供行计划与展开复用
@@ -510,11 +566,13 @@ module PowerTom
 
       col_index = ctx[:col_index].to_i
       start = band[:first_col]
-      width = band[:last_col] - start + 1
-      return nil if col_index < start || col_index >= start + width * scope[:cols].size
+      return nil if col_index < start
 
-      col = scope[:cols][(col_index - start) / width]
-      template_index = (col_index - start) % width
+      entry = scope[:column_plan][col_index - start]
+      return nil unless entry
+
+      col = entry[:col]
+      template_index = entry[:template_index]
       value_path = GridValue.band_value_path(band[:value_paths], template_index)
       record = scope[:records][ctx[:row_index]]
       row = record && record[:row_item]

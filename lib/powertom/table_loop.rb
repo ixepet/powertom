@@ -411,9 +411,11 @@ module PowerTom
     end
 
     def blocks_plan(rows, merged_rows)
-      row_tags, col_tags = collect_block_tags(rows)
-      blocks = parse_block_tree(rows, row_tags)
+      row_tags, col_tags, if_tags = collect_block_tags(rows)
       band = parse_column_band(rows, row_tags, col_tags)
+      col_ifs, row_ifs = split_ifs(if_tags, band)
+      band[:ifs] = parse_column_ifs(rows, col_ifs, band) if band
+      blocks = parse_block_tree(rows, (row_tags + row_ifs).sort_by { |t| t[:row] })
       if band && band_in_if?(blocks, band[:row])
         raise TemplateSyntaxError, "表格第 #{band[:row] + 1} 行:列带不能写在条件区块内"
       end
@@ -427,15 +429,18 @@ module PowerTom
     def collect_block_tags(rows)
       row_tags = []
       col_tags = []
+      if_tags = []
       rows.each_with_index do |cells, r|
         cells.each_with_index do |text, c|
           directive_tags(text).each do |tag|
             raw = raw_of(tag)
             item = { row: r, col: c, raw: raw, tag: tag }
-            if raw.start_with?("#rows", "/rows", "#if", "/if")
+            if raw.start_with?("#rows", "/rows")
               row_tags << item
             elsif raw.start_with?("#cols", "/cols")
               col_tags << item
+            elsif raw.start_with?("#if", "/if")
+              if_tags << item
             else
               raise TemplateSyntaxError,
                     "表格第 #{r + 1} 行:区块模式不支持 #{tag}(只支持 #rows / #cols / #if 区块)"
@@ -443,7 +448,99 @@ module PowerTom
           end
         end
       end
-      [row_tags, col_tags]
+      [row_tags, col_tags, if_tags]
+    end
+
+    # 列带表头行内、位于列带范围内的 #if 是列级条件;其余是行级条件
+    def split_ifs(tags, band)
+      return [[], tags] unless band
+
+      col_ifs = []
+      row_ifs = []
+      tags.each do |tag|
+        if tag[:row] == band[:row] && tag[:col].between?(band[:first_col], band[:last_col])
+          col_ifs << tag
+        else
+          row_ifs << tag
+        end
+      end
+      [col_ifs, row_ifs]
+    end
+
+    def parse_column_ifs(rows, tags, band)
+      return [] if tags.empty?
+
+      stack = []
+      result = []
+      tags.each do |item|
+        if item[:raw].start_with?("#if")
+          node = open_column_if(rows, item, band, stack)
+          stack.push(node)
+        else
+          close_column_if(rows, item, band, stack, result)
+        end
+      end
+      unless stack.empty?
+        node = stack.last
+        raise TemplateSyntaxError,
+              "表格第 #{band[:row] + 1} 行:列条件 {{#if #{node[:path]}}} 缺少 {{/if}}"
+      end
+
+      result.sort_by { |node| node[:open_col] }.each_cons(2) do |left, right|
+        next if right[:open_col] > left[:close_col]
+
+        raise TemplateSyntaxError,
+              "表格第 #{band[:row] + 1} 行:列条件范围重叠" \
+              "(第 #{left[:open_col] + 1}–#{left[:close_col] + 1} 列与 " \
+              "#{right[:open_col] + 1}–#{right[:close_col] + 1} 列)"
+      end
+      result
+    end
+
+    def open_column_if(rows, item, band, stack)
+      validate_column_if_marker!(rows, item, band)
+      path = item[:tag][IF_OPEN_RE, 1]
+      unless path
+        raise TemplateSyntaxError,
+              "表格第 #{band[:row] + 1} 行:#{item[:tag]} 列条件标记不合法,应为 {{#if 路径}}"
+      end
+      if path.include?("[]") && !path.start_with?("#{band[:path]}[]")
+        raise TemplateSyntaxError,
+              "表格第 #{band[:row] + 1} 行:{{#if #{path}}} 只能引用当前列数组 " \
+              "#{band[:path]}[] 或整页字段"
+      end
+      if stack.any?
+        raise TemplateSyntaxError, "表格第 #{band[:row] + 1} 行:列条件不能嵌套"
+      end
+
+      { path: path, open_col: item[:col], close_col: nil }
+    end
+
+    def close_column_if(rows, item, band, stack, result)
+      validate_column_if_marker!(rows, item, band)
+      if stack.empty?
+        raise TemplateSyntaxError,
+              "表格第 #{band[:row] + 1} 行:{{/if}} 没有对应的列条件 {{#if}}"
+      end
+
+      node = stack.pop
+      if item[:col] < node[:open_col]
+        raise TemplateSyntaxError,
+              "表格第 #{band[:row] + 1} 行:{{/if}} 必须在列条件 {{#if}} 右侧"
+      end
+      node[:close_col] = item[:col]
+      result << node
+    end
+
+    def validate_column_if_marker!(rows, item, band)
+      line = "表格第 #{band[:row] + 1} 行"
+      unless item[:row] == band[:row] &&
+             item[:col].between?(band[:first_col], band[:last_col])
+        raise TemplateSyntaxError, "#{line}:列条件必须写在列带表头范围内"
+      end
+      return if rows[item[:row]][item[:col]].to_s.include?(item[:tag])
+
+      raise TemplateSyntaxError, "#{line}:#{item[:tag]} 列条件标记定位失败"
     end
 
     def parse_block_tree(rows, tags)

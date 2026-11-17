@@ -121,6 +121,7 @@ result = PowerTom.render("templates/report.pptx", data: {
 | `{{#rows groups}} ... {{/rows}}` | table rows | Paired row block: clones all rows between the markers per item (up to 3 levels) |
 | `{{#cols subjects}} ... {{/cols}}` | table row | Column band: one or more template columns; may be declared in the header or inside a row block |
 | `{{#if groups[].flag}} ... {{/if}}` | table rows | Conditional row block inside a `#rows` block |
+| `{{#if subjects[].show}} ... {{/if}}` | table header | Conditional columns inside a `#cols` band |
 | `{{price:currency}}` | body | Formatter: ¥1,234.56 |
 | `{{ratio:percent.1}}` | body | Formatter: 29.7% |
 | `{{day:date.year_month}}` | body | Formatter: 2026年11月 |
@@ -130,7 +131,7 @@ result = PowerTom.render("templates/report.pptx", data: {
 - **Split runs are handled**: if PowerPoint stores `{{title}}` as several runs, the engine merges the paragraph and replaces correctly; the result inherits the first run's style.
 - **Nested table rows**: `{{#rows groups}}` occupies a whole row (first cell only), and the next row is the parent content row; `{{#rows groups[].items}}` followed by its own content row adds one nesting level. Two levels maximum; parent and child tags use full paths (`{{groups[].name}}`, `{{groups[].items[].name}}`).
 - **Dynamic columns**: put `{{#grid rows: distribution cols: bands value: counts}}` in the header row's first cell. The header row's second cell is the column template (`{{col.label}}`), and the next row is the row template (`{{row.name}}` in the first cell, `{{cell}}` in the data columns). Exactly two columns; `value:` is optional (defaults to `row[col.key]`).
-- **Row blocks (v0.2.x)**: `{{#rows groups}} ... {{/rows}}` each occupy a whole row; everything between them is one record template and is cloned per item. Up to 3 nested levels; `{{row.name}}` refers to the current record. A `{{#cols ...}}` band may be declared in the header or directly inside a row block, and may span several template columns; `value: scores,rates` maps one field to each template column (a single field is shared by all). A `{{#if ...}} ... {{/if}}` block inside a row block removes all its rows for items where the condition is falsy.
+- **Row blocks (v0.2.x)**: `{{#rows groups}} ... {{/rows}}` each occupy a whole row; everything between them is one record template and is cloned per item. Up to 3 nested levels; `{{row.name}}` refers to the current record. A `{{#cols ...}}` band may be declared in the header or directly inside a row block, and may span several template columns; `value: scores,rates` maps one field to each template column (a single field is shared by all). A `{{#if ...}} ... {{/if}}` block inside a row block removes its rows when the condition is falsy; inside a `#cols` band it removes the wrapped columns per column item.
 - **Pictures**: name the shape or its alt text `powertom:image:cover` and pass a file path in the data. Replacement always fills the shape and crops from the centre.
 - One directive per notes page, maximum.
 - TOML dates are written unquoted (`report_date = 2026-01-20`), normalised to Ruby `Date`, and can be formatted with `{{report_date:date.cn}}`.

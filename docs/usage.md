@@ -131,6 +131,25 @@ Table loops are opt-in per table; header and total rows stay static.
 - An empty `cols` array keeps only the fixed columns.
 - A band at least needs one fixed column to the left.
 
+#### Column conditions
+
+`{{#if ...}} ... {{/if}}` inside a band header cell hides the wrapped template columns for
+column items where the condition is falsy:
+
+```text
+| 班级 | {{#cols subjects value: scores}}{{#if subjects[].show}}{{col.label}}{{/if}}{{/cols}} |
+| {{#rows classes}} | |
+| {{classes[].name}} | {{cell}} |
+| {{/rows}} | |
+```
+
+- The condition is evaluated **per column item**, and the whole wrapped template column is removed
+  from every row (and from `a:gridCol`) when it is false.
+- Paths may address the column item (`show`), the full column path (`subjects[].show`), or page data.
+  The column item is tried first, then the page data.
+- A column condition cannot reference row fields: the result must be uniform across all rows.
+- Conditions cannot nest, must stay inside the band, and their column ranges must not overlap.
+
 ### 4.5 Row conditions: `{{#if path}} ... {{/if}}`
 
 ```text

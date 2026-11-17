@@ -200,11 +200,11 @@ module PowerTom
         true
       end
 
-      # 列带标记({{#cols}} / {{/cols}})在列克隆前移除,避免被复制到每一列
+      # 列带标记({{#cols}} / {{/cols}} / 列条件)在列克隆前移除,避免被复制到每一列
       def strip_column_markers(table_element, row_index, first_col, last_col)
         cells = table_element.tr_list[row_index].tc_list
         (first_col..last_col).each do |c|
-          strip_tags_in_cell(cells[c], /\{\{\s*(?:#cols\b[^{}]*|\/cols)\s*\}\}/)
+          strip_tags_in_cell(cells[c], /\{\{\s*(?:#cols\b[^{}]*|\/cols|#if\b[^{}]*|\/if)\s*\}\}/)
         end
         true
       end
@@ -274,6 +274,23 @@ module PowerTom
           template_cells.each { |cell| tr.remove(cell) }
         end
         sync_table_height(table_element, frame_element)
+        sync_table_width(table_element, frame_element)
+        true
+      end
+
+      # 按原始列索引删除若干列(从右到左),用于列级条件
+      def remove_table_columns(table_element, frame_element, indices)
+        return true if indices.empty?
+
+        grid = table_element.xpath("./a:tblGrid").first
+        grid_cols = grid.gridCol_list
+        indices.uniq.sort.reverse_each do |index|
+          grid.remove(grid_cols[index])
+          table_element.tr_list.each do |tr|
+            tr.remove(tr.tc_list[index])
+          end
+        end
+        sync_table_width(table_element, frame_element)
         true
       end
 
@@ -382,6 +399,13 @@ module PowerTom
         total = table_element.tr_list.sum { |tr| tr.get("h").to_i }
         ext = frame_element.xpath("./p:xfrm/a:ext").first
         ext&.set("cy", total.to_s)
+      end
+
+      # 表格实际宽度 = 各 gridCol 的 w 之和;写回 graphicFrame 的 a:ext/@cx
+      def sync_table_width(table_element, frame_element)
+        total = table_element.xpath("./a:tblGrid/a:gridCol").sum { |col| col.get("w").to_i }
+        ext = frame_element.xpath("./p:xfrm/a:ext").first
+        ext&.set("cx", total.to_s)
       end
 
       def collect_container_texts(entries, container, kind)
