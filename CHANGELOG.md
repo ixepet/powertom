@@ -19,6 +19,12 @@ and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
 
 ### Fixed
 
+- The mini golden fixture was silently matched by the gitignore pattern
+  meant for the private golden sample (`spec/fixtures/*/template.pptx`),
+  so `mini_golden_spec` skipped its whole group on CI — the public
+  fidelity acceptance never actually ran outside local machines. The
+  fixture is now committed (whitelisted in `.gitignore`), and the mini
+  golden, page-surgery and chart-binding specs genuinely execute in CI.
 - `PageSurgery` no longer declares a `notesSlide` content-type override for
   output pages whose source page has no notes. The surgery output is now a
   valid OPC package on its own (final rendered decks were already clean —
