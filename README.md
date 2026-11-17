@@ -204,6 +204,8 @@ Output is **all or nothing**: every check runs before anything is written to dis
 
 ## Security
 
+To report a vulnerability, see [SECURITY.md](SECURITY.md) — please do not open public issues for security problems.
+
 - Template tags are pure data binding: the scanner matches `{{...}}` with regex and resolves paths against your data. No code from the template or the data is ever evaluated.
 - Picture fields are read as file paths from the server running the render. If your data comes from untrusted input, validate paths on your side (restrict to a controlled directory and an extension allowlist) before passing them to `render` — see [dogfooding plan §7](https://github.com/ixepet/powertom/blob/main/docs/dogfooding-plan.md) for the reference `AssetResolver` design.
 - Dependency advisories are checked in CI with `bundler-audit` (`bundle exec bundler-audit check --update` locally).
