@@ -135,14 +135,14 @@ Conventions:
 | --- | --- | --- |
 | Text / number / date formatting | ✅ | Four formatter families |
 | One page per class | ✅ | `#each classes` |
-| Charts | ⚠️ No data binding | The analysis service produces PNGs; the template places them with `powertom:image:` placeholders |
+| Charts | ✅ Data binding since v0.4.0 (`powertom:chart:<field>`) | Native charts are bound directly; the PNG workaround (`powertom:image:`) remains valid for highly customised visuals |
 | Tables | ✅ Rows/columns/blocks/conditions | Single-level `[]`, two-level `#rows`, dynamic columns `#grid`/`#cols`; multi-row records and three-level structures use paired blocks; conditional rows use `{{#if}}...{{/if}}` |
 | 5 recommendations in a fixed layout | ✅ | `tips[0..4]` |
 | Appendix page shown by a toggle | ✅ | `#if show_appendix` |
 | A row of cards generated from an array | ❌ | Not supported; keep the card count fixed and use indices |
 | Server fonts | ⚠️ | Install Source Han Sans in the image; otherwise PDF previews and PPT fonts diverge |
 
-Conclusion: the four tables the real deck needs are covered by **table row loops** (see `spec/powertom/table_row_loop_spec.rb` and the real-table regressions). The remaining gaps are "in-page cards generated from an array" and "chart data binding"; both can be worked around in phase 1 with fixed indices / picture placeholders.
+Conclusion: the four tables the real deck needs are covered by **table row loops** (see `spec/powertom/table_row_loop_spec.rb` and the real-table regressions). Chart data binding is closed since v0.4.0 (`powertom:chart:<field>`); the remaining gap is "in-page cards generated from an array", workable with fixed indices.
 
 ### 3.5 System structure
 

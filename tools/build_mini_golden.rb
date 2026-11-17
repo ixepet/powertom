@@ -1,8 +1,8 @@
 # frozen_string_literal: true
 
 # 公开金样本生成器:生成提交在库内的微型模板 spec/fixtures/mini/template.pptx,
-# 覆盖 split-run 合并(§5.1)、一段多标签、#each 页克隆、#if 条件页、图片占位(§5.3)
-# 与 LibreOffice 保真(§5.5)的端到端路径。与私有 hai_mate 金样本互不影响。
+# 覆盖 split-run 合并(§5.1)、一段多标签、#each 页克隆、#if 条件页、图片占位(§5.3)、
+# 图表数据绑定(§5.4)与 LibreOffice 保真(§5.5)的端到端路径。与私有 hai_mate 金样本互不影响。
 #
 #   bundle exec ruby tools/build_mini_golden.rb [输出路径]
 require "fileutils"
@@ -10,7 +10,7 @@ require "powertom"
 require_relative File.expand_path("../spec/support/image_factory", __dir__)
 
 module PowerTomDev
-  # 微型金样本:4 类页面,结构在 spec/powertom/mini_golden_spec.rb 中逐条断言
+  # 微型金样本:5 类页面,结构在 spec/powertom/mini_golden_spec.rb 中逐条断言
   module MiniGolden
     PLACEHOLDER_PNG = [120, 80].freeze # 1.5 比例,与 3x2 in 形状一致,不触发比例告警
 
@@ -57,7 +57,19 @@ module PowerTomDev
       if_slide.notes = "{{#if show_extra}}"
       textbox(if_slide, "mini-extra", 0.5, 0.5, 8, 1) { |frame| frame.text = "{{extra_note}}" }
 
-      # P5 静态尾页:克隆/删除后仍应保留
+      # P5 图表:占位数据 2系列×3分类,绑定数据 2系列×2分类(走分类缩减路径,§5.4)
+      chart_slide = prs.slides.add(layout)
+      chart_data = Pptx::ChartData.new
+      chart_data.categories = %w[Q1 Q2 Q3]
+      chart_data.add_series("2025", [12, 20, 15])
+      chart_data.add_series("2026", [14, 24, 18])
+      chart_frame = chart_slide.shapes.add_chart(Pptx::Enum::XL_CHART_TYPE::COLUMN_CLUSTERED,
+                                                 chart_data,
+                                                 at: [Pptx.inches(1), Pptx.inches(1)],
+                                                 size: [Pptx.inches(10), Pptx.inches(5)])
+      chart_frame.name = "powertom:chart:sales"
+
+      # P6 静态尾页:克隆/删除后仍应保留
       closing = prs.slides.add(layout)
       textbox(closing, "mini-end", 0.5, 3.0, 8, 1) { |frame| frame.text = "THE END" }
 
@@ -86,6 +98,9 @@ module PowerTomDev
 
       pictures = adapter.picture_contexts(prs)
       raise "缺少 powertom:image:cover 占位" unless pictures.any? { |c| c[:field] == "cover" }
+
+      charts = adapter.chart_contexts(prs)
+      raise "缺少 powertom:chart:sales 占位" unless charts.any? { |c| c[:field] == "sales" }
     end
   end
 end

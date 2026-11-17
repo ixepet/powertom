@@ -5,8 +5,8 @@ require "fileutils"
 require "zip"
 
 # 公开金样本(§5.5):提交在库内的微型模板,让 split-run 合并(§5.1)、一段多标签、
-# {{#each}} 页克隆、{{#if}} 删页、图片替换(§5.3)与 LibreOffice 保真的端到端
-# 验收进入公开 CI,不再依赖私有 hai_mate 金样本。
+# {{#each}} 页克隆、{{#if}} 删页、图片替换(§5.3)、图表数据绑定(§5.4)与 LibreOffice
+# 保真的端到端验收进入公开 CI,不再依赖私有 hai_mate 金样本。
 # 模板由 tools/build_mini_golden.rb 生成,结构与下面的断言一一对应。
 RSpec.describe PowerTom, ".render mini golden" do
   template_path = File.expand_path("../fixtures/mini/template.pptx", __dir__)
@@ -24,7 +24,11 @@ RSpec.describe PowerTom, ".render mini golden" do
       { headline: "Item Three", detail: "Detail Three" }
     ],
     show_extra: true,
-    extra_note: "extra visible"
+    extra_note: "extra visible",
+    sales: {
+      categories: %w[Jan Feb],
+      series: [{ name: "2025", values: [10, 20] }, { name: "2026", values: [30, 40] }]
+    }
   }.freeze
 
   @tmp_root = nil
@@ -71,6 +75,14 @@ RSpec.describe PowerTom, ".render mini golden" do
     end
   end
 
+  # 输出文件里指定页指定图表的数据(与 chart_binding_spec 同一取法)
+  def read_chart(pptx, slide_no, shape_name)
+    adapter = PowerTom::Adapter::RubyPptxAdapter.new
+    chart = adapter.find_shape(adapter.open(pptx), slide_no, shape_name).chart
+    { categories: chart.categories.map { |c| c.respond_to?(:label) ? c.label : c },
+      series: chart.series.map { |s| [s.name, s.values.map(&:to_f)] } }
+  end
+
   it "单 run 标签被替换" do
     title = paragraph_texts(@out, 1).find { |shape, _| shape == "mini-title" }
     expect(title).to eq(["mini-title", ["Mini Golden"]])
@@ -87,7 +99,7 @@ RSpec.describe PowerTom, ".render mini golden" do
   end
 
   it "{{#each}} 克隆 3 页,克隆页内的跨 run 标签同样合并(§5.2)" do
-    expect(slide_count(@out)).to eq(7) # 封面 + 图片 + 3×循环 + 条件 + 尾页
+    expect(slide_count(@out)).to eq(8) # 封面 + 图片 + 3×循环 + 条件 + 图表 + 尾页
     aggregate_failures do
       expect(paragraph_texts(@out, 3)).to include(["mini-headline", ["Item One"]])
       expect(paragraph_texts(@out, 3)).to include(["mini-detail", ["Detail One", ""]])
@@ -96,10 +108,10 @@ RSpec.describe PowerTom, ".render mini golden" do
     end
   end
 
-  it "{{#if}} 为真保留条件页,静态尾页顺延保留(§5.2)" do
+  it "{{#if}} 为真保留条件页,图表页与静态尾页顺延保留(§5.2)" do
     aggregate_failures do
       expect(paragraph_texts(@out, 6)).to include(["mini-extra", ["extra visible"]])
-      expect(paragraph_texts(@out, 7)).to include(["mini-end", ["THE END"]])
+      expect(paragraph_texts(@out, 8)).to include(["mini-end", ["THE END"]])
     end
   end
 
@@ -121,12 +133,19 @@ RSpec.describe PowerTom, ".render mini golden" do
     expect(@warnings.join).not_to include("centre-cropped")
   end
 
+  it "图表占位被数据替换:分类 3→2 缩减,双系列保留(§5.4)" do
+    expect(read_chart(@out, 7, "powertom:chart:sales")).to eq(
+      categories: %w[Jan Feb],
+      series: [["2025", [10.0, 20.0]], ["2026", [30.0, 40.0]]]
+    )
+  end
+
   it "空数组与假条件:整组删除(all or nothing)" do
     Dir.mktmpdir("powertom_mini_empty") do |dir|
       out = File.join(dir, "out_empty.pptx")
       PowerTom.render(template_path,
                       data: MINI_DATA.merge(cover: @cover_image, items: [], show_extra: false)).save(out)
-      expect(slide_count(out)).to eq(3) # 封面 + 图片 + 尾页
+      expect(slide_count(out)).to eq(4) # 封面 + 图片 + 图表 + 尾页
     end
   end
 
@@ -142,7 +161,7 @@ RSpec.describe PowerTom, ".render mini golden" do
 
       pdf = File.join(pdf_dir, "out.pdf")
       expect(File.exist?(pdf)).to be(true)
-      expect(File.binread(pdf).scan(%r{/Type\s*/Page[^s]}).size).to eq(7)
+      expect(File.binread(pdf).scan(%r{/Type\s*/Page[^s]}).size).to eq(8)
     end
   end
 end

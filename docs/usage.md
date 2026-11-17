@@ -186,7 +186,39 @@ column items where the condition is falsy:
 - Replacement always fills the shape and crops from the centre; use a placeholder with the target aspect ratio.
 - A missing field keeps the placeholder (`strict: false`); a path that does not exist is an error.
 
-## 6. Data files (TOML)
+## 6. Charts
+
+- Name a chart shape (or its alt text) `powertom:chart:sales`.
+- Put the whole data set in the data under the matching field:
+
+```toml
+[sales]
+categories = ["Q1", "Q2", "Q3", "Q4"]
+number_format = "0.0"        # optional, default "General"
+
+[[sales.series]]
+name = "2026"
+values = [14.5, 24.0, 18.5, 22.0]
+
+[[sales.series]]
+name = "2027"
+values = [16.0, 21.0, 20.0, 25.5]
+```
+
+- The whole data set is replaced: categories and series are rewritten, extra
+  series inherit the last template series' formatting, surplus series are
+  removed. Chart type, layout and series formatting come from the template.
+- `categories` and every series' `values` must have the same length; `values`
+  must be numbers; zero-series data is rejected.
+- Supported chart types: bar / column / line / area / pie / doughnut.
+  Scatter, bubble and combo charts are not bound yet; text tags inside charts
+  are left as-is and reported as warnings.
+- `#each` cloned pages are supported: each clone binds its own item's data in
+  its own chart part.
+- A missing field keeps the placeholder chart (`strict: false`); a wrong data
+  shape is an error located at slide / shape / field.
+
+## 7. Data files (TOML)
 
 ```toml
 report_title = "2026 final exams"   # top-level scalars before any [[array]]
@@ -202,7 +234,7 @@ avg = 82.4
 - Dates are normalised to Ruby `Date` / `Time` and can use the `date` formatter.
 - Keys may be Strings or Symbols in a Hash; TOML keys arrive as Strings.
 
-## 7. Validation
+## 8. Validation
 
 ```ruby
 result = PowerTom.check("template.pptx", data: data)
@@ -216,7 +248,7 @@ puts result.report
 `PowerTom.check` reports instead of raising, so it can gate template publication. A missing `DATA`
 argument still performs syntax and structure checks, but skips field reconciliation.
 
-## 8. Errors
+## 9. Errors
 
 | Class | When |
 | --- | --- |
@@ -227,11 +259,11 @@ argument still performs syntax and structure checks, but skips field reconciliat
 Messages include the slide number, shape name (or table cell) and tag, so both engineers and
 designers can locate the problem without reading the code.
 
-## 9. Limitations and warnings
+## 10. Limitations and warnings
 
 | Limitation | Behaviour |
 | --- | --- |
-| Charts are not data-bound | Tags inside a chart are left untouched and reported as warnings by `PowerTom.render` and `PowerTom.check`. |
+| Charts: bar/column/line/area/pie/doughnut only | Charts named `powertom:chart:<field>` are data-bound; scatter / bubble / combo charts and text tags inside charts are left untouched (text tags are reported as warnings). |
 | Notes are not rendered | Notes are only read for page directives; ordinary tags in notes produce a warning. |
 | Image replacement always fills and centre-crops | When the image aspect differs from the placeholder by more than 20%, a render warning explains that the image will be cropped. Use a placeholder with the target aspect ratio. |
 | Tags on masters/layouts are ignored | Only shapes on slides are processed. |

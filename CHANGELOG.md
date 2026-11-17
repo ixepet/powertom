@@ -8,13 +8,20 @@ and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
 
 ### Added
 
-- Chart binding pre-research: `docs/chart-binding-design.md` and the
-  `tools/chart_binding_spike.rb` feasibility spike. Finding: ruby_pptx 0.2.0
-  already provides `Chart#replace_data` (series add/remove, `c:idx`/`c:order`
-  maintenance, embedded workbook regeneration), so binding charts via a
-  `powertom:chart:<field>` naming convention is feasible in core. Key
-  constraint: cloned slides share the chart part, so binding must deep-copy
-  the chart part per output page.
+- Chart data binding (§5.4): name a chart shape or its alt text
+  `powertom:chart:<field>` and pass `{ categories, series, number_format }`;
+  the whole data set is replaced through ruby_pptx `Chart#replace_data`
+  (series add/remove, formatting inheritance, embedded workbook
+  regeneration). Supported for bar / column / line / area / pie / doughnut.
+- Cloned (`#each`) chart pages each get their own chart part: parts shared
+  across slides are deep-copied per bound page, so clones never overwrite
+  each other's data.
+- `PowerTom.check` reconciles chart fields (including per-`#each`-item
+  checks) and validates the chart data shape.
+- The mini golden sample now includes a chart page (categories 3→2
+  reduction, two series) exercised in the public CI fidelity job.
+- Design notes: `docs/chart-binding-design.md` and the
+  `tools/chart_binding_spike.rb` feasibility spike.
 
 ## [0.3.1] - 2026-11-17
 

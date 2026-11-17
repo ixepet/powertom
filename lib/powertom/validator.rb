@@ -79,7 +79,7 @@ module PowerTom
     # pictures: [{slide_no:, shape:, field:}](powertom:image 占位)
     # data:     Hash 或 nil(nil → 跳过字段对账,只做语法与结构检查)
     def check(contexts:, notes:, data:, pictures: [], charts: [], tables: [], table_structures: [],
-              template_name: "template.pptx")
+              chart_placeholders: [], template_name: "template.pptx")
       entries = []
       used_roots = Set.new
 
@@ -185,6 +185,9 @@ module PowerTom
         pictures.each do |pctx|
           reconcile_picture(pctx, directives[pctx[:slide_no]], data, entries)
         end
+        chart_placeholders.each do |cctx|
+          reconcile_chart_placeholder(cctx, directives[cctx[:slide_no]], data, entries)
+        end
         labels_by_page.each_value do |labels|
           labels.each do |l|
             next if l[:path].include?("[]")
@@ -197,8 +200,9 @@ module PowerTom
           end
         end
         # 未使用字段:#each 页的标签根是数据项字段,不计;指令路径根计入;
-        # 图片字段同样计入(image 字段通常是顶层键)
+        # 图片与图表字段同样计入(通常为顶层键)
         pictures.each { |pctx| used_roots << root_of(pctx[:field]) }
+        chart_placeholders.each { |cctx| used_roots << root_of(cctx[:field]) }
         labels_by_page.each_value do |labels|
           labels.each do |l|
             directive = directives[l[:context][:slide_no]]
@@ -253,7 +257,8 @@ module PowerTom
       charts.each do |chart|
         entries << CheckEntry.new(
           level: :warning, slide_no: chart[:slide_no], shape: chart[:shape], label: nil,
-          message: "chart contains tags #{chart[:tags].join(', ')}: v0 does not bind chart data; tags are left as-is"
+          message: "chart contains tags #{chart[:tags].join(', ')}: " \
+                   "text tags inside charts are not supported; tags are left as-is"
         )
       end
 
@@ -402,6 +407,86 @@ module PowerTom
 
       entries << error_entry(ctx[:slide_no], ctx[:shape], path,
                              "#{where}picture file does not exist: #{value}")
+    end
+
+    # 图表占位对账(powertom:chart:*):与图片同一套 #each/普通语义,
+    # 额外校验 {categories:, series: [{name:, values:}]} 的数据形状
+    def reconcile_chart_placeholder(cctx, directive, data, entries)
+      path = cctx[:field]
+      ctx = { slide_no: cctx[:slide_no], shape: cctx[:shape] }
+      if directive && directive[:kind] == :each
+        items = begin
+          PathResolver.resolve(data, directive[:path])
+        rescue MissingDataError
+          return # 指令级 error 已单独报告
+        end
+        return unless items.is_a?(Array)
+
+        items.each_with_index do |item, k|
+          value = begin
+            PathResolver.resolve(item, path)
+          rescue MissingDataError => e
+            entries << error_entry(
+              ctx[:slide_no], ctx[:shape], path,
+              "array '#{directive[:path]}' item #{k + 1}: #{e.message} " \
+              "(expected: #{directive[:path]}[#{k}].#{path})"
+            )
+            next
+          end
+          check_chart_value(value, ctx, path, entries, k)
+        end
+      else
+        value = begin
+          PathResolver.resolve(data, path)
+        rescue MissingDataError => e
+          entries << error_entry(ctx[:slide_no], ctx[:shape], path, e.message)
+          return
+        end
+        check_chart_value(value, ctx, path, entries)
+      end
+    end
+
+    def check_chart_value(value, ctx, path, entries, item_index = nil)
+      return if value.nil? # 渲染(non-strict)时保留占位图表,与图片一致
+
+      where = item_index ? "item #{item_index + 1}: " : ""
+      unless value.is_a?(Hash)
+        entries << error_entry(ctx[:slide_no], ctx[:shape], path,
+                               "#{where}chart field requires an object with 'categories' and " \
+                               "'series', got #{value.class}")
+        return
+      end
+
+      categories = value.key?(:categories) ? value[:categories] : value["categories"]
+      unless categories.is_a?(Array) && !categories.empty? &&
+             categories.all? { |c| c.is_a?(String) || c.is_a?(Numeric) }
+        entries << error_entry(ctx[:slide_no], ctx[:shape], path,
+                               "#{where}chart 'categories' must be a non-empty array of strings or numbers")
+        return
+      end
+
+      series = value.key?(:series) ? value[:series] : value["series"]
+      unless series.is_a?(Array) && !series.empty?
+        entries << error_entry(ctx[:slide_no], ctx[:shape], path,
+                               "#{where}chart 'series' must be a non-empty array of {name, values}")
+        return
+      end
+
+      series.each_with_index do |item, i|
+        unless item.is_a?(Hash)
+          entries << error_entry(ctx[:slide_no], ctx[:shape], path,
+                                 "#{where}series item #{i + 1} must be an object with 'name' and " \
+                                 "'values', got #{item.class}")
+          next
+        end
+        values = item.key?(:values) ? item[:values] : item["values"]
+        next if values.is_a?(Array) && values.size == categories.size && values.all?(Numeric)
+
+        name = item.key?(:name) ? item[:name] : item["name"]
+        entries << error_entry(ctx[:slide_no], ctx[:shape], path,
+                               "#{where}series '#{name || "##{i + 1}"}' 'values' must be an array " \
+                               "of #{categories.size} numbers")
+      end
     end
 
     # #grid 变量对账:col.* 对每个列项,row.* 对每个行项,cell 对行列交叉

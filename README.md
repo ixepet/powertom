@@ -132,6 +132,7 @@ result = PowerTom.render("templates/report.pptx", data: {
 - **Dynamic columns**: put `{{#grid rows: distribution cols: bands value: counts}}` in the header row's first cell. The header row's second cell is the column template (`{{col.label}}`), and the next row is the row template (`{{row.name}}` in the first cell, `{{cell}}` in the data columns). Exactly two columns; `value:` is optional (defaults to `row[col.key]`).
 - **Row blocks (v0.2.x)**: `{{#rows groups}} ... {{/rows}}` each occupy a whole row; everything between them is one record template and is cloned per item. Up to 3 nested levels; `{{row.name}}` refers to the current record. A `{{#cols ...}}` band may be declared in the header or directly inside a row block, and may span several template columns; `value: scores,rates` maps one field to each template column (a single field is shared by all). A `{{#if ...}} ... {{/if}}` block inside a row block removes its rows when the condition is falsy; inside a `#cols` band it removes the wrapped columns per column item.
 - **Pictures**: name the shape or its alt text `powertom:image:cover` and pass a file path in the data. Replacement always fills the shape and crops from the centre.
+- **Charts**: name the chart shape or its alt text `powertom:chart:sales` and pass `{ categories, series, number_format }` in the data; the whole data set is replaced and series formatting is inherited from the template. Bar/column/line/area/pie/doughnut are supported.
 - One directive per notes page, maximum.
 - TOML dates are written unquoted (`report_date = 2026-01-20`), normalised to Ruby `Date`, and can be formatted with `{{report_date:date.cn}}`.
 - Full guide for designers: [docs/template-guide.md](https://github.com/ixepet/powertom/blob/main/docs/template-guide.md).
@@ -177,7 +178,7 @@ result.report       # the human-readable report shown above
 result.exit_code    # 0 or 1 — usable in CI
 ```
 
-Checks: missing fields (including each item of an `#each` array), unregistered formatters, directive syntax, more than one directive per page, picture fields and missing files, placeholder overflow warnings, unused data fields, leftover tags in notes.
+Checks: missing fields (including each item of an `#each` array), unregistered formatters, directive syntax, more than one directive per page, picture fields and missing files, chart data shape, placeholder overflow warnings, unused data fields, leftover tags in notes.
 
 ## Error model
 
@@ -194,7 +195,8 @@ Output is **all or nothing**: every check runs before anything is written to dis
 
 | Limitation | Notes |
 | --- | --- |
-| Tables support row loops, paired row blocks, nesting and dynamic columns; charts are not bound | `{{classes[].name}}` clones one row; `{{#rows ...}} ... {{/rows}}` clones multi-row records (3 levels); `{{#grid ...}}` / `{{#cols ...}}` clone columns; merged cells inside loops are rejected. Tags found inside charts are preserved and reported as warnings |
+| Tables support row loops, paired row blocks, nesting and dynamic columns | `{{classes[].name}}` clones one row; `{{#rows ...}} ... {{/rows}}` clones multi-row records (3 levels); `{{#grid ...}}` / `{{#cols ...}}` clone columns; merged cells inside loops are rejected |
+| Charts: bar/column/line/area/pie/doughnut are data-bound | Name the chart shape `powertom:chart:<field>`; scatter, bubble and combo charts are not bound, and text tags inside charts are left as-is and reported as warnings |
 | Notes are not rendered | Notes are only read for page directives; ordinary tags in notes produce a warning |
 | Tags on masters/layouts are ignored | Only shapes on slides are processed |
 | No PPT → PDF | Use LibreOffice headless |
@@ -225,8 +227,9 @@ bundle exec bundler-audit check --update   # dependency advisories
 Two fixture tiers cover the end-to-end paths:
 
 - **Committed mini golden sample** (`spec/fixtures/mini/template.pptx`): split-run
-  merging, multi-tag paragraphs, page cloning/removal, picture replacement and
-  LibreOffice fidelity run in every CI build (`spec/powertom/mini_golden_spec.rb`).
+  merging, multi-tag paragraphs, page cloning/removal, picture replacement,
+  chart data binding and LibreOffice fidelity run in every CI build
+  (`spec/powertom/mini_golden_spec.rb`).
   Regenerate it with `bundle exec ruby tools/build_mini_golden.rb` if the template
   needs new coverage.
 - **Private golden sample**: the larger real-world deck used by the HaiMate

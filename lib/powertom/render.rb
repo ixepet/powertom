@@ -121,6 +121,7 @@ module PowerTom
       end
 
       replace_images(adapter, work_prs, page_scopes, binder, warnings)
+      bind_charts(adapter, work_prs, page_scopes, binder, warnings)
       report_chart_tags(adapter, work_prs, warnings)
 
       report_unused_fields(binder, warnings)
@@ -218,11 +219,73 @@ module PowerTom
                   "#{format('%.2f', mismatch[:shape_ratio])}; it will be centre-cropped"
     end
 
-    # 图表不绑定数据:发现图表里残留标签时温和告警,不修改文件
+    # §5.4 图表数据绑定:powertom:chart:字段名 占位 → ChartData 整体替换。
+    # 克隆页共享 chart part,adapter 在绑定前为该形状深拷贝独立 part
+    # (docs/chart-binding-design.md)。与图片一样作用域感知:#each 克隆页
+    # 各自绑定本项的数据;缺字段(strict: false)时保留占位图表。
+    def bind_charts(adapter, prs, page_scopes, binder, _warnings)
+      adapter.chart_contexts(prs).each do |cctx|
+        page = page_scopes[cctx[:slide_no] - 1]
+        ctx = { slide_no: cctx[:slide_no], shape: cctx[:shape],
+                scope: page[:scope], scope_root: page[:scope_root] }
+        value = binder.value_at(cctx[:field], ctx, purpose: "chart placeholder; keeping the placeholder")
+        next if value.nil? # 缺失(non-strict):保留占位图表
+
+        validate_chart_data!(value, cctx)
+        adapter.replace_chart_data(prs, cctx[:chart_shape], cctx[:slide], value)
+      end
+    end
+
+    # 数据形状:{categories: [String|Numeric, ...](非空),
+    #          series: [{name:, values: [Numeric, ...]}](非空,长度与 categories 一致),
+    #          number_format: String(可选)}
+    def validate_chart_data!(value, cctx)
+      where = "slide #{cctx[:slide_no]} chart '#{cctx[:shape]}' field '#{cctx[:field]}'"
+      unless value.is_a?(Hash)
+        raise PowerTom::Error,
+              "#{where} requires an object with 'categories' and 'series', got #{value.class}"
+      end
+
+      categories = chart_field_value(value, "categories")
+      unless categories.is_a?(Array) && !categories.empty? &&
+             categories.all? { |c| c.is_a?(String) || c.is_a?(Numeric) }
+        raise PowerTom::Error, "#{where} 'categories' must be a non-empty array of strings or numbers"
+      end
+
+      series = chart_field_value(value, "series")
+      unless series.is_a?(Array) && !series.empty?
+        raise PowerTom::Error, "#{where} 'series' must be a non-empty array of {name, values}"
+      end
+
+      series.each_with_index do |item, i|
+        unless item.is_a?(Hash)
+          raise PowerTom::Error,
+                "#{where} series item #{i + 1} must be an object with 'name' and 'values', got #{item.class}"
+        end
+        values = chart_field_value(item, "values")
+        next if values.is_a?(Array) && values.size == categories.size && values.all?(Numeric)
+
+        name = chart_field_value(item, "name") || "##{i + 1}"
+        raise PowerTom::Error,
+              "#{where} series '#{name}' 'values' must be an array of #{categories.size} numbers"
+      end
+
+      number_format = chart_field_value(value, "number_format")
+      return if number_format.nil? || number_format.is_a?(String)
+
+      raise PowerTom::Error, "#{where} 'number_format' must be a String, got #{number_format.class}"
+    end
+
+    def chart_field_value(hash, key)
+      hash.key?(key.to_sym) ? hash[key.to_sym] : hash[key.to_s]
+    end
+
+    # 图表数据可绑定(powertom:chart:*),但图表内的文本标签不支持:
+    # 发现残留标签时温和告警,不修改文件
     def report_chart_tags(adapter, prs, warnings)
       adapter.chart_tags(prs).each do |chart|
         warnings << "slide #{chart[:slide_no]} chart '#{chart[:shape]}' contains tags " \
-                    "#{chart[:tags].join(', ')}: v0 does not bind chart data; tags were left as-is"
+                    "#{chart[:tags].join(', ')}: text tags inside charts are not supported; tags were left as-is"
       end
     end
 

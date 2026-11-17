@@ -83,7 +83,7 @@ Two practical rules:
 
 Table cells can contain tags; if a whole row should expand per array item, see §2.4 Table row loops.
 
-Chart data is **not bound in v0** — `{{x}}` inside a chart stays as-is. When you need a chart, have the engineering side produce an image and place it with a picture placeholder (see §4).
+Chart data **is bound** (v0.4.0 and later): draw a real chart with placeholder series, and name the chart frame — or its alt text — `powertom:chart:sales`. The renderer replaces the whole data set, keeping your chart type and formatting. See §5 Chart placeholders.
 
 ### 1.5 What happens when the data has no such field
 
@@ -277,7 +277,40 @@ For example, name the cover key visual `powertom:image:cover` and a team page `p
 
 ---
 
-## 5. Masters, layouts and covers
+## 5. Chart placeholders
+
+Charts are data-bound like pictures, with the same naming convention:
+
+```text
+shape name = powertom:chart:field_name
+```
+
+Draw a **real chart** in PowerPoint (column, bar, line, area, pie or doughnut) with placeholder series, and name the chart frame `powertom:chart:sales` — or set that text as its alt text. The value of the matching data field is the whole data set:
+
+```toml
+[sales]
+categories = ["Q1", "Q2", "Q3", "Q4"]
+number_format = "0.0"        # optional, default "General"
+
+[[sales.series]]
+name = "2026"
+values = [14.5, 24.0, 18.5, 22.0]
+
+[[sales.series]]
+name = "2027"
+values = [16.0, 21.0, 20.0, 25.5]
+```
+
+- The renderer replaces the **whole data set**: categories and series are rewritten, while your chart type, layout and series formatting stay. Extra series inherit the last template series' formatting; surplus template series are removed.
+- `categories` and every series' `values` must have the same length, and `values` must be numbers. Zero-series data is rejected (it would delete the plot).
+- `#each` cloned pages are supported: every cloned page binds its own item's data, and each gets an independent chart part.
+- Scatter, bubble and combo charts are not bound yet; text tags like `{{x}}` inside a chart are left as-is and reported as warnings.
+- When a chart field is missing (non-strict mode), the placeholder chart is kept unchanged and a warning is recorded.
+- `powertom:check` reconciles chart fields per page and per `#each` item, and validates the data shape — run it before delivery.
+
+---
+
+## 6. Masters, layouts and covers
 
 - **Do not put tags on masters or layouts.** The engine only processes shapes on slides; `{{x}}` on a master is not replaced and does not raise — it simply appears on every page as-is.
 - Keep the number of layouts small: 3–5 layouts per template is plenty (the HaiMate template had 62 layouts and used only 4). Fewer layouts make cloned pages more predictable.
@@ -286,7 +319,7 @@ For example, name the cover key visual `powertom:image:cover` and a team page `p
 
 ---
 
-## 6. Pre-delivery self-check
+## 7. Pre-delivery self-check
 
 ```bash
 # With sample data: field reconciliation + overflow warnings + syntax and structure checks
@@ -313,13 +346,13 @@ detail = "Every Sunday at 8 pm"
 
 ---
 
-## 7. Common pitfalls
+## 8. Common pitfalls
 
 | Symptom | Cause | Fix |
 | --- | --- | --- |
 | A paragraph's style changed in the output | Mixed styles in a paragraph with a tag; text merged into the first run | Do not mix styles in a paragraph containing a tag |
 | Text spills off the slide | Data longer than the tag, autofit off | See §3: reserve 2× the space or enable shrink |
-| A tag appears as-is in the output | Tag written on a master/layout, or inside a table/chart | Move it to a slide text box |
+| A tag appears as-is in the output | Tag written on a master/layout, or inside a chart | Move it to a slide text box; tags inside charts are reported as warnings |
 | `powertom:check` says "only one directive allowed" | Two `{{#...}}` directives in the notes | One per page; put the other on another page |
 | Loop page render error "cannot determine the loop count" | The array named by `#each` is missing from the data | Agree on the field name with the engineer |
 | A shape name in an error ends with `#2` | Duplicate shape names on the page | Rename them to make errors easy to locate |

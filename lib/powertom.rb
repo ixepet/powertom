@@ -77,6 +77,7 @@ module PowerTom
         notes: adapter.notes_texts(prs),
         pictures: adapter.picture_contexts(prs),
         charts: adapter.chart_tags(prs),
+        chart_placeholders: adapter.chart_contexts(prs),
         data: data,
         template_name: File.basename(template_path)
       )

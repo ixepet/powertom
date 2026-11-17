@@ -116,6 +116,114 @@ module PowerTom
         []
       end
 
+      # §5.4 图表数据绑定:形状 name 或 alt text = powertom:chart:字段名 的图表
+      # 即为占位(docs/chart-binding-design.md)。返回 [{slide_no:, shape:, field:,
+      # slide:, chart_shape:}]
+      def chart_contexts(prs)
+        contexts = []
+        prs.slides.each_with_index do |slide, i|
+          walk_shapes(slide.shapes) do |shape|
+            next unless shape.respond_to?(:chart?) && shape.chart?
+
+            field = chart_field(shape)
+            next unless field
+
+            contexts << { slide_no: i + 1, shape: shape.name, field: field,
+                          slide: slide, chart_shape: shape }
+          end
+        end
+        contexts
+      end
+
+      CHART_FIELD_PREFIX = "powertom:chart:"
+
+      def chart_field(shape)
+        name = shape.name.to_s
+        return name.delete_prefix(CHART_FIELD_PREFIX) if name.start_with?(CHART_FIELD_PREFIX)
+
+        descr = chart_alt_text(shape)
+        return descr.delete_prefix(CHART_FIELD_PREFIX) if descr&.start_with?(CHART_FIELD_PREFIX)
+
+        nil
+      end
+
+      def chart_alt_text(shape)
+        cnv_pr = shape.element.xpath("./p:nvGraphicFramePr/p:cNvPr").first
+        cnv_pr&.get("descr")
+      rescue StandardError
+        nil
+      end
+
+      # 把整个数据集写入该图表占位。克隆页共享同一 chart part(spike 实测
+      # shared=true),绑定前为该形状深拷贝独立 part,再 replace_data;
+      # value: {categories:, series: [{name:, values:}], number_format:}
+      def replace_chart_data(prs, shape, slide, value)
+        data = Pptx::ChartData.new(number_format: part_value(value, "number_format") || "General")
+        data.categories = part_value(value, "categories")
+        part_value(value, "series").each do |s|
+          data.add_series(part_value(s, "name").to_s, part_value(s, "values"))
+        end
+
+        chart = shape.chart
+        if chart_part_shared?(prs, chart.part)
+          new_part = clone_chart_part(chart.part)
+          rewire_chart_rel(slide, shape, new_part)
+          chart = new_part.chart
+        end
+        chart.replace_data(data)
+      rescue StandardError => e
+        raise PowerTom::Error,
+              "chart data binding failed (#{shape.name}): #{e.class} #{e.message}"
+      end
+
+      def part_value(hash, key)
+        hash.key?(key.to_sym) ? hash[key.to_sym] : hash[key.to_s]
+      end
+
+      # 该 chart part 被多个 slide 关系引用时视为共享
+      def chart_part_shared?(prs, chart_part)
+        refs = 0
+        prs.slides.each do |slide|
+          slide.part.rels.each_value do |rel|
+            next if rel.external?
+
+            refs += 1 if rel.target_part.equal?(chart_part)
+          end
+        end
+        refs > 1
+      end
+
+      # 深拷贝 chart part:复制 chartSpace XML 并剥离 c:externalData
+      # (replace_data 会为副本重建内嵌 xlsx 与外部数据链接),
+      # style/colors 等其余关系按类型重接到同一目标部件。
+      def clone_chart_part(part)
+        blob = part.element.to_xml.to_s.sub(EXTERNAL_DATA_RE, "")
+        new_part = Pptx::Parts::ChartPart.load(
+          part.package.next_partname(Pptx::Parts::ChartPart::PARTNAME_TEMPLATE),
+          Pptx::Opc::CONTENT_TYPE::DML_CHART, part.package, blob
+        )
+        part.rels.each_value do |rel|
+          next if rel.external? || rel.reltype == Pptx::Opc::RELATIONSHIP_TYPE::PACKAGE
+
+          new_part.relate_to(rel.target_part, rel.reltype)
+        end
+        new_part
+      end
+
+      EXTERNAL_DATA_RE = %r{<c:externalData\b[^>]*(?:/>|>.*?</c:externalData>)}m
+
+      # 把 slide 上该形状的 c:chart 关系重接到新 chart part。
+      # relate_to 只会新增关系,所以旧关系必须在改写 r:id 后 drop 掉
+      # (XmlPart#drop_rel 按引用计数保护),否则 rels 里会残留指向原
+      # chart part 的 stale 引用,共享判定与 save 的关系图遍历都会被带偏。
+      def rewire_chart_rel(slide, shape, new_part)
+        chart_el = shape.element.xpath(".//c:chart").first
+        old_rid = chart_el&.get("r:id")
+        new_rid = slide.part.relate_to(new_part, Pptx::Opc::RELATIONSHIP_TYPE::CHART)
+        chart_el&.set("r:id", new_rid)
+        slide.part.drop_rel(old_rid) if old_rid && old_rid != new_rid
+      end
+
       # §5.3 图片替换:get_or_add 新 image part(按内容 sha1 去重,扩展名/content type
       # 由 ruby_pptx 按真实图片类型维护),repoint blip 引用,再按"填满形状、居中裁切"
       # 设置 srcRect。SVG 等矢量图不做裁切。

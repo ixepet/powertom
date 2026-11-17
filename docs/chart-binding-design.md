@@ -1,6 +1,6 @@
 # Chart data binding design (§5.4 pre-research)
 
-> Status: **spike verified, not yet implemented** · 2026-11-17
+> Status: **implemented (v0.4.0)** · 2026-11-17
 > Spike: `tools/chart_binding_spike.rb` · Supersedes the assumptions in
 > project design document §5.4.
 
@@ -35,25 +35,38 @@ named `powertom:chart:sales`, then rebinds and re-reads the chart XML:
 | Rebind, categories 4→3, series renamed/re-valued | caches correct |
 | Rebind with **more** series (2→3) | 3rd series cloned, inherits formatting |
 | Rebind with **fewer** series (2→1) | surplus removed, plot kept |
-| Rebind with **zero** series | plot removed → binding layer must treat "no series" as an error |
-| LibreOffice PDF conversion of all three outputs | succeeds |
+| Rebind with **zero** series | `plot_type: nil`, no series — upstream `SeriesRewriter#trim_series` removes the emptied plot, so the binding layer must treat "no series" as an error |
+| LibreOffice PDF conversion of all four outputs | succeeds; prints `SKIP` instead of `FAILED` when `soffice` is not on `PATH` |
 
 ## 3. Key constraint: cloned slides share the chart part
 
 `PageSurgery.execute` on a chart slide (clone 1 page → 2) yields
 `slide1 → chart1.xml`, `slide2 → chart1.xml` — **the chart part is shared**.
+`clone_sharing_check` asserts this and raises if a future `PageSurgery` change
+starts copying parts, so this conclusion cannot rot silently.
 
 Consequence: on `#each`-cloned pages, one `replace_data` call would overwrite
 every clone. The binding phase must therefore **deep-copy the chart part per
-output page** before binding:
+output page** before binding. `deep_copy_clone_check` verifies the full plan:
+clone → deep-copy → bind different categories/series to each page → read back
+and assert both pages kept their own data, and that chart parts and embedded
+workbooks are distinct.
 
-1. Copy `ppt/charts/chartN.xml` to a fresh partname and add it to
-   `[Content_Types].xml` (already declared by extension).
-2. Copy the slide's chart relationship into the cloned slide's rels, pointing
-   at the new part.
-3. Do **not** copy the old `ppt/embeddings/*.xlsx` link; `replace_data` calls
-   `ChartWorkbook#replace_with`, which creates a fresh embedded workbook and
-   `c:externalData` link per part — each clone gets its own editable workbook.
+1. Copy `ppt/charts/chartN.xml` to a fresh partname and add an `<Override>` to
+   `[Content_Types].xml` — chart parts are **not** covered by the `xml`
+   `<Default>`, so the override is required.
+2. Rewrite the chart relationship in the bound slide's rels to point at the
+   new part, then drop the stale relationship (ruby_pptx's reference-counted
+   `XmlPart#drop_rel`). Implemented behaviour: the **first** bound page takes
+   a fresh copy, the **last** bound page keeps the original part, and no
+   slide rels keep a stale reference. Orphaned parts never reach the output —
+   `save` writes only the parts reachable from the relationship graph.
+3. Do **not** copy `ppt/charts/_rels/chartN.xml.rels`, and strip the
+   `<c:externalData>` element from the copied chart XML. Leaving either in
+   place makes `ChartWorkbook#replace_with` resolve the old shared workbook (or
+   a dangling `r:id`) instead of creating a fresh one; with both removed,
+   `replace_data` creates one embedded workbook and `c:externalData` link per
+   output part.
 
 This mirrors picture replacement, which already writes one media part per
 output page. Implementation detail lives in the adapter; `PageSurgery` itself
