@@ -12,3 +12,6 @@ pkg/
 # 金样本模板文件不进仓库(体积与归属问题),manifest.yml 进仓库。
 # 本地放好模板后用 rake fixtures:generate 重新生成。
 spec/fixtures/*/template.pptx
+# 例外:mini golden 是公开金样本(体积小、tools/build_mini_golden.rb 可再生),
+# 必须入库,否则 CI 上 mini_golden_spec 整组静默 skip,公开保真验收名存实亡。
+!spec/fixtures/mini/template.pptx
