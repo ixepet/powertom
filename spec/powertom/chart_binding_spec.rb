@@ -60,6 +60,25 @@ RSpec.describe PowerTom, ".render 图表绑定" do
     end
   end
 
+  def build_xy_chart_template
+    prs = Pptx::Presentation.new_default
+    prs.slide_width = Pptx.inches(13.333)
+    prs.slide_height = Pptx.inches(7.5)
+    slide = prs.slides.add(prs.slide_layouts["Blank"])
+    xy = Pptx::XyChartData.new
+    series = xy.add_series("s1")
+    series.add_point(1, 10)
+    series.add_point(2, 20)
+    frame = slide.shapes.add_chart(Pptx::Enum::XL_CHART_TYPE::XY_SCATTER, xy,
+                                   at: [Pptx.inches(1), Pptx.inches(1)],
+                                   size: [Pptx.inches(10), Pptx.inches(5)])
+    frame.name = "powertom:chart:sales"
+
+    path = File.join(@dir, "xy_template_#{SecureRandom.hex(4)}.pptx")
+    prs.save(path)
+    path
+  end
+
   SALES = {
     categories: %w[Jan Feb Mar],
     series: [{ name: "2026", values: [10, 20, 30] }]
@@ -156,6 +175,22 @@ RSpec.describe PowerTom, ".render 图表绑定" do
         PowerTom.render(template,
                         data: { sales: { categories: %w[A], series: [{ name: "s", values: ["x"] }] } })
       end.to raise_error(PowerTom::Error, /series 's' 'values' must be an array of 1 numbers/)
+    end
+  end
+
+  it "不支持的图表类型(scatter)→ render 明确报错而非绑错形状的数据" do
+    template = build_xy_chart_template
+    expect { PowerTom.render(template, data: { sales: SALES }) }
+      .to raise_error(PowerTom::Error,
+                      /slide 1 chart 'powertom:chart:sales' field 'sales': scatter charts are not supported/)
+  end
+
+  it "不支持的图表类型 → check 无需样例数据即报 error" do
+    template = build_xy_chart_template
+    aggregate_failures do
+      result = PowerTom.check(template, data: nil)
+      expect(result.errors.first.message).to include("scatter charts are not supported")
+      expect(result.errors.first.slide_no).to eq(1)
     end
   end
 

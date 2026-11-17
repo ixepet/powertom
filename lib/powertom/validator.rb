@@ -155,6 +155,19 @@ module PowerTom
         end
       end
 
+      # 2.6 图表类型守卫:命名占位本身即声明绑定意图,不支持类型直接报 error。
+      # 这是模板属性,不依赖样例数据,与字段对账分开检查
+      chart_placeholders.each do |cctx|
+        kind = cctx[:kind]
+        next unless unsupported_kind?(kind)
+
+        entries << error_entry(
+          cctx[:slide_no], cctx[:shape], cctx[:field],
+          "#{kind_label(kind)} charts are not supported for data binding " \
+          "(supported: column/bar, line, area, pie, doughnut)"
+        )
+      end
+
       # 3. 字段对账与溢出预警(需要样例数据)
       if data.nil?
         entries << CheckEntry.new(level: :warning, slide_no: nil, shape: nil, label: nil,
@@ -266,6 +279,15 @@ module PowerTom
     end
 
     # ---- 内部 ----
+
+    # 与 adapter 的 SUPPORTED_PLOT_TYPES 判定保持一致(引用同一常量)
+    def unsupported_kind?(kind)
+      Adapter::RubyPptxAdapter.unsupported_chart_kind?(kind)
+    end
+
+    def kind_label(kind)
+      Adapter::RubyPptxAdapter.unsupported_chart_kind_label(kind)
+    end
 
     # 指令结构对账:#each 要数组(空数组 → 删组预警);#if 假值 → 删页预警
     def reconcile_directive(directive, slide_no, data, entries)

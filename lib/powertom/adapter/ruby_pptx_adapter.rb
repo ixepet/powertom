@@ -118,7 +118,8 @@ module PowerTom
 
       # §5.4 图表数据绑定:形状 name 或 alt text = powertom:chart:字段名 的图表
       # 即为占位(docs/chart-binding-design.md)。返回 [{slide_no:, shape:, field:,
-      # slide:, chart_shape:}]
+      # slide:, chart_shape:, kind:}] ;kind 为绘图类型(combo 图返回 :combo),
+      # 供渲染层与 check 做类型守卫
       def chart_contexts(prs)
         contexts = []
         prs.slides.each_with_index do |slide, i|
@@ -129,10 +130,35 @@ module PowerTom
             next unless field
 
             contexts << { slide_no: i + 1, shape: shape.name, field: field,
-                          slide: slide, chart_shape: shape }
+                          slide: slide, chart_shape: shape,
+                          kind: chart_kind(shape.chart) }
           end
         end
         contexts
+      end
+
+      # 支持整体替换数据的绘图类型(:BAR 同时覆盖柱形与条形)。scatter/bubble
+      # 的数据形状不同(XyChartData),combo 是多 plot,radar 超出首期范围;
+      # 绑定这些类型会产出错误形状的数据,必须显式拒绝
+      SUPPORTED_PLOT_TYPES = %i[BAR LINE AREA PIE DOUGHNUT].freeze
+
+      # plot_type 只描述第一个 plot,combo 图会被误判成它的首个类型,
+      # 所以先数 plot 数量(访问链与上游 Chart#plot_area 一致)
+      def chart_kind(chart)
+        plots = chart.element.chart.plotArea.plot_elements
+        return :combo if plots.size > 1
+
+        chart.plot_type || :unknown
+      end
+
+      # 判定与文案是模板层规则,check(validator)以类方法复用,不持有实例
+      def self.unsupported_chart_kind?(kind)
+        !SUPPORTED_PLOT_TYPES.include?(kind)
+      end
+
+      def self.unsupported_chart_kind_label(kind)
+        { XY: "scatter", BUBBLE: "bubble", RADAR: "radar",
+          combo: "combo (multi-plot)", unknown: "unknown" }.fetch(kind, kind.to_s.downcase)
       end
 
       CHART_FIELD_PREFIX = "powertom:chart:"

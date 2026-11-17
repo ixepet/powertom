@@ -196,7 +196,7 @@ Output is **all or nothing**: every check runs before anything is written to dis
 | Limitation | Notes |
 | --- | --- |
 | Tables support row loops, paired row blocks, nesting and dynamic columns | `{{classes[].name}}` clones one row; `{{#rows ...}} ... {{/rows}}` clones multi-row records (3 levels); `{{#grid ...}}` / `{{#cols ...}}` clone columns; merged cells inside loops are rejected |
-| Charts: bar/column/line/area/pie/doughnut are data-bound | Name the chart shape `powertom:chart:<field>`; scatter, bubble and combo charts are not bound, and text tags inside charts are left as-is and reported as warnings |
+| Charts: bar/column/line/area/pie/doughnut are data-bound | Name the chart shape `powertom:chart:<field>`; scatter, bubble, radar and combo charts are rejected with an error, and text tags inside charts are left as-is and reported as warnings |
 | Notes are not rendered | Notes are only read for page directives; ordinary tags in notes produce a warning |
 | Tags on masters/layouts are ignored | Only shapes on slides are processed |
 | No PPT → PDF | Use LibreOffice headless |

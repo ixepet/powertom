@@ -304,7 +304,7 @@ values = [16.0, 21.0, 20.0, 25.5]
 - The renderer replaces the **whole data set**: categories and series are rewritten, while your chart type, layout and series formatting stay. Extra series inherit the last template series' formatting; surplus template series are removed.
 - `categories` and every series' `values` must have the same length, and `values` must be numbers. Zero-series data is rejected (it would delete the plot).
 - `#each` cloned pages are supported: every cloned page binds its own item's data, and each gets an independent chart part.
-- Scatter, bubble and combo charts are not bound yet; text tags like `{{x}}` inside a chart are left as-is and reported as warnings.
+- Scatter, bubble, radar and combo charts are rejected with an error when a field is bound to them; text tags like `{{x}}` inside a chart are left as-is and reported as warnings.
 - When a chart field is missing (non-strict mode), the placeholder chart is kept unchanged and a warning is recorded.
 - `powertom:check` reconciles chart fields per page and per `#each` item, and validates the data shape — run it before delivery.
 

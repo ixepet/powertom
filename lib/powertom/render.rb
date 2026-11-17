@@ -231,6 +231,14 @@ module PowerTom
         value = binder.value_at(cctx[:field], ctx, purpose: "chart placeholder; keeping the placeholder")
         next if value.nil? # 缺失(non-strict):保留占位图表
 
+        kind = cctx[:kind]
+        if Adapter::RubyPptxAdapter.unsupported_chart_kind?(kind)
+          raise PowerTom::Error,
+                "slide #{cctx[:slide_no]} chart '#{cctx[:shape]}' field '#{cctx[:field]}': " \
+                "#{Adapter::RubyPptxAdapter.unsupported_chart_kind_label(kind)} charts are not supported for " \
+                "data binding (supported: column/bar, line, area, pie, doughnut)"
+        end
+
         validate_chart_data!(value, cctx)
         adapter.replace_chart_data(prs, cctx[:chart_shape], cctx[:slide], value)
       end
