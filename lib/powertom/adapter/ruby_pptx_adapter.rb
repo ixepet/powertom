@@ -144,10 +144,11 @@ module PowerTom
         contexts
       end
 
-      # 支持绑定数据的图表 kind:普通绘图类型(bar 覆盖柱形/条形)、:combo 与
-      # XY 家族(:XY 散点 / :BUBBLE 气泡,适配层自行重写 xVal/yVal/bubbleSize,
-      # 上游 replace_data 不能绑它们——spike2 取证)。radar 超出首期范围,拒绝。
-      SUPPORTED_CHART_KINDS = %i[BAR LINE AREA PIE DOUGHNUT combo XY BUBBLE].freeze
+      # 支持绑定数据的图表 kind:普通绘图类型(bar 覆盖柱形/条形;radar 同走
+      # cat/val 模型,spike2 R1-R4 实测直接可用)、:combo 与 XY 家族(:XY 散点 /
+      # :BUBBLE 气泡,适配层自行重写 xVal/yVal/bubbleSize,上游 replace_data
+      # 不能绑它们——spike2 取证)。
+      SUPPORTED_CHART_KINDS = %i[BAR LINE AREA PIE DOUGHNUT RADAR combo XY BUBBLE].freeze
 
       # plot_type 只描述第一个 plot,combo 图会被误判成它的首个类型,
       # 所以先数 plot 数量(访问链与上游 Chart#plot_area 一致)
@@ -164,11 +165,12 @@ module PowerTom
       end
 
       def self.unsupported_chart_kind_label(kind)
-        { RADAR: "radar", unknown: "unknown" }.fetch(kind, kind.to_s.downcase)
+        { unknown: "unknown" }.fetch(kind, kind.to_s.downcase)
       end
 
       PLOT_FAMILY_LABELS = { "c:barChart" => "column", "c:lineChart" => "line",
                              "c:areaChart" => "area", "c:area3DChart" => "area",
+                             "c:radarChart" => "radar",
                              "c:scatterChart" => "scatter", "c:bubbleChart" => "bubble" }.freeze
 
       # 各 plot 的系列分布,如 "column×1 + line×1" / "scatter×1"

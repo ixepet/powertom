@@ -8,6 +8,11 @@ and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
 
 ### Added
 
+- Radar chart binding (§9): radar uses the same `categories`/`series` shape
+  as bar/line, and spike scenarios R1–R4 verified that `replace_data`
+  preserves `c:radarStyle` (filled/markers), keeps the radial value axis'
+  scaling (max=100 survives rebinding data capped at 20), and treats nil
+  values as standard gaps — so radar simply joins the supported kinds.
 - Scatter and bubble chart binding (§9): each series carries its own
   `points` (`{x, y}` pairs; bubble adds `size`) instead of shared
   categories. Upstream `replace_data` cannot rebind XY series

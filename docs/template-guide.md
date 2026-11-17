@@ -306,7 +306,8 @@ values = [16.0, 21.0, 20.0, 25.5]
 - `#each` cloned pages are supported: every cloned page binds its own item's data, and each gets an independent chart part.
 - Combo charts (a column chart with a line over it is the classic case) are bound too: the data provides **exactly the template's total series count**, in document order — the first series fills the first plot, and so on. A count mismatch is an error that names the template's distribution (e.g. `column×1 + line×1`).
 - Scatter and bubble charts take per-series `points` — `{x, y}` pairs (bubble adds `size`) — instead of shared categories. A series-count mismatch is an error.
-- Radar charts are rejected with an error when a field is bound to them; text tags like `{{x}}` inside a chart are left as-is and reported as warnings.
+- Radar charts bind like line charts (same `categories`/`series` shape); your `radarStyle` (filled/markers) and radial-axis scaling are preserved untouched.
+- Text tags like `{{x}}` inside a chart are left as-is and reported as warnings.
 - When a chart field is missing (non-strict mode), the placeholder chart is kept unchanged and a warning is recorded.
 - `powertom:check` reconciles chart fields per page and per `#each` item, and validates the data shape — run it before delivery.
 

@@ -139,6 +139,25 @@ RSpec.describe PowerTom, ".render 图表绑定" do
       .scan(%r{<c:pt idx="\d+"[^>]*><c:v>([^<]*)</c:v>}).flatten
   end
 
+  def build_radar_template(chart_type)
+    prs = Pptx::Presentation.new_default
+    prs.slide_width = Pptx.inches(13.333)
+    prs.slide_height = Pptx.inches(7.5)
+    slide = prs.slides.add(prs.slide_layouts["Blank"])
+    data = Pptx::ChartData.new
+    data.categories = %w[Q1 Q2 Q3]
+    data.add_series("Team A", [80, 90, 85])
+    data.add_series("Team B", [70, 85, 88])
+    frame = slide.shapes.add_chart(chart_type, data,
+                                   at: [Pptx.inches(1), Pptx.inches(1)],
+                                   size: [Pptx.inches(8), Pptx.inches(5)])
+    frame.name = "powertom:chart:radar"
+
+    path = File.join(@dir, "radar_template_#{SecureRandom.hex(4)}.pptx")
+    prs.save(path)
+    path
+  end
+
   SALES = {
     categories: %w[Jan Feb Mar],
     series: [{ name: "2026", values: [10, 20, 30] }]
@@ -392,6 +411,50 @@ RSpec.describe PowerTom, ".render 图表绑定" do
       bad = PowerTom.check(template, data: { sales: { series: [{ name: "G1" }] } })
       expect(bad.errors.first.message).to include("'points' must be a non-empty array")
     end
+  end
+
+  it "雷达图绑定:cat/val 模型直接可用,radarStyle 与数据更新并存" do
+    template = build_radar_template(Pptx::Enum::XL_CHART_TYPE::RADAR_FILLED)
+    out = File.join(@dir, "out_radar.pptx")
+    PowerTom.render(template,
+                    data: { radar: { categories: %w[Jan Feb Mar],
+                                     series: [{ name: "Team C", values: [60, 70, 80] }] } })
+            .save(out)
+
+    adapter = PowerTom::Adapter::RubyPptxAdapter.new
+    chart = adapter.find_shape(adapter.open(out), 1, "powertom:chart:radar").chart
+    aggregate_failures do
+      expect(chart.plot_type).to eq(:RADAR)
+      expect(chart.series.map { |s| [s.name, s.values.map(&:to_f)] })
+        .to eq([["Team C", [60.0, 70.0, 80.0]]])
+      expect(chart.element.chart.plotArea.xpath(".//c:radarStyle").first.get("val")).to eq("filled")
+      expect(PowerTomDev::OoxmlLint.lint(out)).to be_empty
+    end
+  end
+
+  it "雷达图系列增减:与柱/折线同语义(克隆/裁剪,plot 保留)" do
+    template = build_radar_template(Pptx::Enum::XL_CHART_TYPE::RADAR_MARKERS)
+    out = File.join(@dir, "out_radar_count.pptx")
+    data = { radar: { categories: %w[Jan Feb Mar],
+                      series: %w[A B C].each_with_index.map do |n, i|
+                        { name: n, values: [10 + i, 20 + i, 30 + i] }
+                      end } }
+    PowerTom.render(template, data: data).save(out)
+
+    adapter = PowerTom::Adapter::RubyPptxAdapter.new
+    chart = adapter.find_shape(adapter.open(out), 1, "powertom:chart:radar").chart
+    aggregate_failures do
+      expect(chart.series.map(&:name)).to eq(%w[A B C])
+      expect(chart.plots.map { |p| [p.element.nsptag, p.series.size] }).to eq([["c:radarChart", 3]])
+      expect(PowerTomDev::OoxmlLint.lint(out)).to be_empty
+    end
+  end
+
+  it "check:雷达图数据齐全 → 无 error" do
+    template = build_radar_template(Pptx::Enum::XL_CHART_TYPE::RADAR_MARKERS)
+    result = PowerTom.check(template, data: { radar: { categories: %w[Jan Feb Mar],
+                                                       series: [{ name: "Team C", values: [60, 70, 80] }] } })
+    expect(result.ok?).to be(true)
   end
 
   describe "PowerTom.check" do
