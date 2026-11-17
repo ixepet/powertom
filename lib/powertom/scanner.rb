@@ -69,35 +69,37 @@ module PowerTom
 
       if directives_in_notes.size > 1
         raise TemplateSyntaxError,
-              "第 #{slide_no} 页备注含 #{directives_in_notes.size} 条页级指令 " \
-              "(#{directives_in_notes.join(', ')}),一页只允许一条(§3.3)"
+              "slide #{slide_no} notes: #{directives_in_notes.size} page directives " \
+              "(#{directives_in_notes.join(', ')}); only one is allowed per page (§3.3)"
       end
 
       raw = directives_in_notes.first[/\{\{\s*#\s*([^{}]*?)\s*\}\}/, 1].to_s
       m = raw.match(/\A(each|if)\s+([A-Za-z0-9_\[\].]+)\z/)
       unless m
         raise TemplateSyntaxError,
-              "第 #{slide_no} 页备注指令 {{##{raw}}} 不合法,只支持 {{#each 路径}} 与 {{#if 路径}}"
+              "slide #{slide_no} notes: invalid page directive {{##{raw}}}; " \
+              "only {{#each path}} and {{#if path}} are supported"
       end
       { kind: m[1].to_sym, path: m[2] }
     end
 
     def validate!(raw, tag, ctx)
-      where = "第 #{ctx[:slide_no]} 页 形状'#{ctx[:shape]}'"
+      where = "slide #{ctx[:slide_no]} shape '#{ctx[:shape]}'"
       if raw.start_with?("#") || raw.start_with?("/")
         if ctx[:in_table] && raw.match?(%r{\A#(rows|grid|cols|if)\b|\A/(rows|cols|if)\z})
           validate_table_directive!(raw, tag, where)
           return
         end
         raise TemplateSyntaxError,
-              "#{where}:#{tag} 是页级指令,必须写在幻灯片备注里,v0 正文不支持指令"
+              "#{where}: #{tag} is a page directive and must be written in the slide notes; " \
+              "v0 does not support directives in the body"
       end
       path, spec = raw.split(":", 2)
       validate_path!(path, tag, where, ctx)
       return unless spec && !spec.match?(FORMAT_SPEC_RE)
 
       raise TemplateSyntaxError,
-            "#{where}:#{tag} 的 formatter 写法不合法,应为 {{路径:名字}} 或 {{路径:名字.参数}}"
+            "#{where}: #{tag} has an invalid formatter form; use {{path:name}} or {{path:name.arg}}"
     end
 
     # 表格指令:{{#rows 路径}} / {{#grid ...}} / {{#cols ...}} / {{/rows}} / {{/cols}}。
@@ -115,8 +117,8 @@ module PowerTom
         nil
       else
         raise TemplateSyntaxError,
-              "#{where}:#{tag} 表格指令不合法,只支持 {{#rows 路径}} / {{#grid ...}} / " \
-              "{{#cols ...}} / {{#if 路径}} / {{/rows}} / {{/cols}} / {{/if}}"
+              "#{where}: #{tag} is an invalid table directive; only {{#rows path}} / {{#grid ...}} / " \
+              "{{#cols ...}} / {{#if path}} / {{/rows}} / {{/cols}} / {{/if}} are supported"
       end
     end
 
@@ -124,11 +126,11 @@ module PowerTom
     def validate_row_marker!(raw, tag, where)
       unless raw.match?(/\A#rows\s+[A-Za-z0-9_\[\].]+\z/)
         raise TemplateSyntaxError,
-              "#{where}:#{tag} 行标记不合法,应为 {{#rows 路径}}(路径只支持点路径与 [])"
+              "#{where}: #{tag} is an invalid row marker; use {{#rows path}} (paths only support dot paths and [])"
       end
       return unless raw.match?(/\[\d+\]/)
 
-      raise TemplateSyntaxError, "#{where}:#{tag} 行标记路径不支持下标,请用数组名 + []"
+      raise TemplateSyntaxError, "#{where}: #{tag} row marker paths do not support indices; use the array name + []"
     end
 
     # 路径逐段校验:字段、字段[下标]、字段[](仅表格行循环)
@@ -139,11 +141,12 @@ module PowerTom
         if segment.match?(/\A[A-Za-z0-9_]+\[\]\z/)
           unless ctx[:in_table]
             raise TemplateSyntaxError,
-                  "#{where}:#{tag} 的 [] 只能在表格行里使用(表格行循环),正文/备注请用具体下标"
+                  "#{where}: #{tag} uses [] outside a table row; [] is only allowed in table row loops. " \
+                  "Use explicit indices in the body and notes"
           end
         else
           raise TemplateSyntaxError,
-                "#{where}:#{tag} 不是合法标签,路径只支持点路径与下标(如 {{kpis[0].name}})"
+                "#{where}: #{tag} is not a valid tag; paths only support dot paths and indices (e.g. {{kpis[0].name}})"
         end
       end
     end

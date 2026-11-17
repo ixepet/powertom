@@ -88,15 +88,15 @@ RSpec.describe PowerTom, ".render 页级指令" do
     it "循环路径缺失时任何模式都报错(不允许静默丢页)" do
       labeled = inject(CLONE_PAGE_LABELS, 9 => "{{#each scenarios}}")
       expect { PowerTom.render(labeled, data: {}) }
-        .to raise_error(PowerTom::MissingDataError, /第 9 页.*scenarios/)
+        .to raise_error(PowerTom::MissingDataError, /slide 9.*scenarios/)
       expect { PowerTom.render(labeled, data: {}, strict: false) }
-        .to raise_error(PowerTom::MissingDataError, /无法确定循环次数/)
+        .to raise_error(PowerTom::MissingDataError, /cannot determine the loop count/)
     end
 
     it "循环路径不是数组时报错" do
       labeled = inject(CLONE_PAGE_LABELS, 9 => "{{#each scenarios}}")
       expect { PowerTom.render(labeled, data: { scenarios: "老师" }) }
-        .to raise_error(PowerTom::Error, /必须为数组/)
+        .to raise_error(PowerTom::Error, /expected an array/)
     end
 
     it "迭代作用域内缺失字段报错,定位到克隆后的页码" do
@@ -104,14 +104,14 @@ RSpec.describe PowerTom, ".render 页级指令" do
       broken = SCENARIOS.dup
       broken[1] = { headline: "缺 detail 的项" }
       expect { PowerTom.render(labeled, data: { scenarios: broken }) }
-        .to raise_error(PowerTom::MissingDataError, /第 10 页.*detail/)
+        .to raise_error(PowerTom::MissingDataError, /slide 10.*detail/)
     end
 
     it "作用域内字段不进未使用字段统计" do
       labeled = inject(CLONE_PAGE_LABELS, 9 => "{{#each scenarios}}")
       items = SCENARIOS.map { |s| s.merge(only_for_others: "x") }
       result = PowerTom.render(labeled, data: { scenarios: items })
-      expect(result.warnings.grep(/未被模板使用/)).to be_empty
+      expect(result.warnings.grep(/not used by the template/)).to be_empty
     end
   end
 
@@ -146,10 +146,10 @@ RSpec.describe PowerTom, ".render 页级指令" do
 
     it "strict 下条件路径缺失报错;strict: false 删页并记 warning" do
       expect { PowerTom.render(inject_if, data: {}) }
-        .to raise_error(PowerTom::MissingDataError, /第 17 页.*show_compare/)
+        .to raise_error(PowerTom::MissingDataError, /slide 17.*show_compare/)
 
       result = PowerTom.render(inject_if, data: {}, strict: false)
-      expect(result.warnings.join).to include("第 17 页", "show_compare")
+      expect(result.warnings.join).to include("slide 17", "show_compare")
       saved = File.join(@tmp_root, "if_missing.pptx")
       result.save(saved)
       expect(slide_count(saved)).to eq(17)
@@ -160,13 +160,13 @@ RSpec.describe PowerTom, ".render 页级指令" do
     it "一页备注多条指令报语法错误(§3.3)" do
       labeled = inject([], 2 => "{{#each a}}\n{{#if b}}")
       expect { PowerTom.render(labeled, data: {}) }
-        .to raise_error(PowerTom::TemplateSyntaxError, /只允许一条/)
+        .to raise_error(PowerTom::TemplateSyntaxError, /only one is allowed/)
     end
 
     it "指令缺路径报语法错误" do
       labeled = inject([], 2 => "{{#each}}")
       expect { PowerTom.render(labeled, data: {}) }
-        .to raise_error(PowerTom::TemplateSyntaxError, /只支持 \{\{#each 路径\}\}/)
+        .to raise_error(PowerTom::TemplateSyntaxError, /only \{\{#each path\}\}/)
     end
   end
 
@@ -208,7 +208,7 @@ RSpec.describe PowerTom, ".render 页级指令" do
 
     it "数据文件不存在时报错" do
       expect { PowerTom.render(template_path, data: File.join(@tmp_root, "nope.toml")) }
-        .to raise_error(PowerTom::InvalidTemplateError, /数据文件不存在/)
+        .to raise_error(PowerTom::InvalidTemplateError, /data file not found/)
     end
   end
 

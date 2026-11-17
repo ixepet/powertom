@@ -27,8 +27,9 @@ Gem::Specification.new do |spec|
   spec.extra_rdoc_files = %w[README.md LICENSE CHANGELOG.md]
   spec.require_paths = ["lib"]
 
-  # 设计文档 §4:上游依赖锁版本(0.x API 不稳定,锁到 0.2.x)
-  spec.add_dependency "ruby_pptx", "~> 0.2.0"
+  # 适配层隔离上游变动:约束放宽到 < 1.0,下游可直接获得 0.x 的修复;
+  # 破坏性变更由 CI(锁 0.2.x)+ 适配层吸收
+  spec.add_dependency "ruby_pptx", ">= 0.2.0", "< 1.0"
   # 数据文件默认格式 TOML(解析);tomlrb 只负责读,写出侧由 fixture 工具自带微型序列化器
   spec.add_dependency "tomlrb", "~> 3.0"
 end

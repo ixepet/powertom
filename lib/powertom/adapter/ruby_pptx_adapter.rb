@@ -10,7 +10,7 @@ module PowerTom
       def open(path)
         Pptx::Presentation.open(path)
       rescue StandardError => e
-        raise InvalidTemplateError, "模板无法打开(#{e.class}: #{e.message})"
+        raise InvalidTemplateError, "cannot open template (#{e.class}: #{e.message})"
       end
 
       # 遍历全部幻灯片的文本段落(组合形状递归展开)。
@@ -40,7 +40,10 @@ module PowerTom
       # run 节点本身不动(保留 rPr 样式引用)。
       def write_paragraph_runs(paragraph, texts)
         runs = paragraph.runs
-        raise Error, "写回失败:run 数量不匹配(现有 #{runs.size},传入 #{texts.size})" if texts.size != runs.size
+        if texts.size != runs.size
+          raise Error,
+                "write-back failed: run count mismatch (existing #{runs.size}, passed #{texts.size})"
+        end
 
         runs.each_with_index { |run, i| run.text = texts[i] }
       end
@@ -133,7 +136,7 @@ module PowerTom
         true
       rescue StandardError => e
         raise PowerTom::Error,
-              "图片替换失败(#{File.basename(image_path.to_s)}):#{e.class} #{e.message}"
+              "picture replacement failed (#{File.basename(image_path.to_s)}): #{e.class} #{e.message}"
       end
 
       # 逐页形状名(含组合内、含无文本形状),用于模板结构自检。
@@ -151,9 +154,9 @@ module PowerTom
       def container_texts(prs)
         entries = []
         prs.slide_masters.each do |master|
-          collect_container_texts(entries, master, "母版")
+          collect_container_texts(entries, master, "master")
           master.slide_layouts.each do |layout|
-            collect_container_texts(entries, layout, "版式")
+            collect_container_texts(entries, layout, "layout")
           end
         end
         entries
@@ -260,7 +263,10 @@ module PowerTom
         trs = table_element.tr_list
         open_index = trs.index { |tr| tr.node == open_element.node }
         close_index = trs.index { |tr| tr.node == close_element.node }
-        raise PowerTom::Error, "行区块标记定位失败(区块可能已被展开)" unless open_index && close_index && close_index > open_index
+        unless open_index && close_index && close_index > open_index
+          raise PowerTom::Error,
+                "row block marker not found (the block may already have been expanded)"
+        end
 
         templates = ((open_index + 1)...close_index).map { |i| trs[i] }
         groups = Array.new(count) do
@@ -275,7 +281,10 @@ module PowerTom
         trs = table_element.tr_list
         open_index = trs.index { |tr| tr.node == open_element.node }
         close_index = trs.index { |tr| tr.node == close_element.node }
-        raise PowerTom::Error, "条件区块标记定位失败(区块可能已被展开)" unless open_index && close_index && close_index > open_index
+        unless open_index && close_index && close_index > open_index
+          raise PowerTom::Error,
+                "conditional block marker not found (the block may already have been expanded)"
+        end
 
         content = ((open_index + 1)...close_index).map { |i| trs[i] }
         content.each { |tr| table_element.remove(tr) } unless keep_content

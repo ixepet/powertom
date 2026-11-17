@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
 module PowerTom
-  # 设计文档 §6:v0.2.7 文档语言统一
-  VERSION = "0.2.7"
+  # 设计文档 §6:v0.3.0 运行时消息英文化
+  VERSION = "0.3.0"
 end

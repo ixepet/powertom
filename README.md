@@ -154,16 +154,16 @@ Most tools treat validation as a side effect of logging. PowerTom makes it a fir
 bundle exec rake powertom:check TEMPLATE=templates/report.pptx DATA=data/sample.toml
 ```
 
-Example report (messages are currently emitted in Chinese):
+Example report:
 
 ```text
-PowerTom 模板校验 — report.pptx
-[warning] 第 9 页 形状'(备注)' {{scenarios}} 数组 'scenarios' 为空(0 项):渲染时该组页面将被整组删除
-[error  ] 第 2 页 形状'圆角矩形 4' {{workload}} 数据里没有字段 'workload'
-[error  ] 第 5 页 形状'powertom:image:banner' {{banner}} 图片文件不存在:/tmp/a.png
-[warning] 数据字段 'unused_field' 未被模板使用
+PowerTom template check — report.pptx
+[warning] slide 9 shape '(notes)' {{scenarios}} array 'scenarios' is empty (0 items): the whole page group will be removed at render time
+[error  ] slide 2 shape 'Rounded Rectangle 4' {{workload}} data has no field 'workload'
+[error  ] slide 5 shape 'powertom:image:banner' {{banner}} picture file does not exist: /tmp/a.png
+[warning] data field 'unused_field' is not used by the template
 ------------------------------------------------
-2 个 error,2 个 warning(error 阻断渲染,修正后再调用 PowerTom.render)
+2 error(s), 2 warning(s) (errors block rendering; fix them before calling PowerTom.render)
 ```
 
 Programmatic API:
@@ -190,7 +190,7 @@ Checks: missing fields (including each item of an `#each` array), unregistered f
 
 Output is **all or nothing**: every check runs before anything is written to disk.
 
-## Limitations (v0.1)
+## Limitations
 
 | Limitation | Notes |
 | --- | --- |
@@ -201,15 +201,23 @@ Output is **all or nothing**: every check runs before anything is written to dis
 | `.pptx` only | No legacy 97-2003 binary format |
 | TOML or Hash only | No YAML / JSON loader |
 | Fixed picture cropping | Always fill the shape and crop from the centre; a warning is emitted when the image aspect differs by more than 20% |
-| Messages are Chinese-only | Localisation is planned; the report format is language-neutral |
+
+## Security
+
+- Template tags are pure data binding: the scanner matches `{{...}}` with regex and resolves paths against your data. No code from the template or the data is ever evaluated.
+- Picture fields are read as file paths from the server running the render. If your data comes from untrusted input, validate paths on your side (restrict to a controlled directory and an extension allowlist) before passing them to `render` — see [dogfooding plan §7](https://github.com/ixepet/powertom/blob/main/docs/dogfooding-plan.md) for the reference `AssetResolver` design.
+- Dependency advisories are checked in CI with `bundler-audit` (`bundle exec bundler-audit check --update` locally).
 
 ## Development
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the full guide; in short:
 
 ```bash
 bundle install
 bundle exec rspec          # full suite (private-fixture examples skip if absent)
 bundle exec rubocop       # style
 bundle exec yard doc --no-output   # API docs check
+bundle exec bundler-audit check --update   # dependency advisories
 ```
 
 The golden-sample template used by the end-to-end tests (split runs, cloning, picture replacement, fidelity) is not committed, because of size and ownership; only its structural snapshot `spec/fixtures/hai_mate/manifest.toml` is. With the original template at hand:
@@ -220,6 +228,20 @@ bundle exec rake fixtures:check OUT=spec/fixtures/hai_mate
 ```
 
 Without `template.pptx`, fixture-dependent examples are skipped and the unit suite still runs. The committed scaffolds (`examples/score_report/*.pptx`) and the public fidelity job cover the full render/PDF pipeline without private assets. Fidelity tests need LibreOffice (`soffice`).
+
+## Releasing
+
+Releases are published by pushing a version tag:
+
+```bash
+git tag -a v0.3.0 -m "v0.3.0"
+git push origin v0.3.0
+```
+
+`.github/workflows/release.yml` builds the gem and exchanges the GitHub OIDC token
+for RubyGems credentials (trusted publishing), so no manual `gem push` or OTP is
+needed. Configure the trusted publisher on RubyGems with workflow `release.yml`
+and no environment.
 
 ## License
 

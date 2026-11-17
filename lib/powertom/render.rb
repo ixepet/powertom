@@ -1,6 +1,5 @@
 # frozen_string_literal: true
 
-require "fileutils"
 require "tempfile"
 require_relative "scanner"
 require_relative "binder"
@@ -29,11 +28,11 @@ module PowerTom
     # @return [Array<String>] non-fatal warnings (unused fields, fallbacks, limitations).
     attr_reader :warnings
 
-    def initialize(adapter, prs, warnings, temp_path: nil)
+    def initialize(adapter, prs, warnings, tempfile: nil)
       @adapter = adapter
       @prs = prs
       @warnings = warnings
-      @temp_path = temp_path
+      @tempfile = tempfile
     end
 
     # Save the rendered deck.
@@ -42,8 +41,20 @@ module PowerTom
     # @return [String] the destination path.
     def save(path)
       @adapter.save(@prs, path)
-      FileUtils.remove_entry(@temp_path, true) if @temp_path
+      close
       path
+    end
+
+    # Remove the intermediate surgery file.
+    #
+    # Results that are never saved release it via the Tempfile finalizer when
+    # garbage collected; calling this explicitly frees it right away.
+    #
+    # @return [nil]
+    def close
+      @tempfile&.close!
+      @tempfile = nil
+      nil
     end
 
     # Number of slides in the rendered deck (after cloning/removal).
@@ -84,11 +95,10 @@ module PowerTom
         run_surgery(adapter, pages)
         work_prs = adapter.open(@work_path) # 手术产物重新打开,按新页序绑定
         # pages 与输出页一一对应(手术按计划顺序展开,不重排)
-        page_scopes = {}
+        page_scopes = Hash.new { |_h, _k| { scope: nil, scope_root: nil } }
         pages.each_with_index do |p, i|
           page_scopes[i] = { scope: p[:scope], scope_root: p[:scope_root] }
         end
-        page_scopes.default = { scope: nil, scope_root: nil }
       end
 
       # 表格行循环:按数组长度展开模板行,再采集单元格段落做绑定
@@ -116,11 +126,18 @@ module PowerTom
       report_unused_fields(binder, warnings)
       report_notes_labels(notes, warnings)
 
-      RenderResult.new(adapter, work_prs, warnings,
-                       temp_path: directives.empty? ? nil : @work_path)
+      RenderResult.new(adapter, work_prs, warnings, tempfile: @work_temp)
+    rescue StandardError
+      cleanup_work_temp
+      raise
     end
 
     private
+
+    def cleanup_work_temp
+      @work_temp&.close!
+      @work_temp = nil
+    end
 
     # §3.3:#each 按数组克隆(K=数组长度,空数组整组删除);#if 为假删页。
     # 返回 [{source:, iteration:, scope:, scope_root:}] 按输出顺序。
@@ -128,7 +145,7 @@ module PowerTom
       pages = []
       (1..slide_count).each do |no|
         directive = directives[no]
-        ctx = { slide_no: no, shape: "(备注指令)" }
+        ctx = { slide_no: no, shape: "(notes directive)" }
         if directive.nil?
           pages << { source: no, iteration: nil, scope: nil, scope_root: nil }
         elsif directive[:kind] == :if
@@ -138,11 +155,12 @@ module PowerTom
           value = binder.value_at(directive[:path], ctx)
           if value.nil?
             raise MissingDataError,
-                  "第 #{no} 页备注 {{#each #{directive[:path]}}}:数据缺少 #{directive[:path]},无法确定循环次数"
+                  "slide #{no} notes {{#each #{directive[:path]}}}: " \
+                  "data is missing '#{directive[:path]}', cannot determine the loop count"
           end
           unless value.is_a?(Array)
             raise PowerTom::Error,
-                  "第 #{no} 页备注 {{#each #{directive[:path]}}}:取到 #{value.class},必须为数组"
+                  "slide #{no} notes {{#each #{directive[:path]}}}: expected an array, got #{value.class}"
           end
           root = directive[:path].split(".").first[/\A[A-Za-z0-9_]+/]
           value.each_with_index do |item, k|
@@ -159,9 +177,9 @@ module PowerTom
 
     # 结构手术走字节级包操作:模板原文件 → 手术后的临时文件 → 重新打开绑定
     def run_surgery(_adapter, pages)
-      tmp = Tempfile.create(["powertom_surgery", ".pptx"])
-      tmp.close
-      @work_path = tmp.path
+      @work_temp = Tempfile.new(["powertom_surgery", ".pptx"])
+      @work_path = @work_temp.path
+      @work_temp.close
       Adapter::PageSurgery.execute(@template_path, @work_path, pages)
     end
 
@@ -173,16 +191,16 @@ module PowerTom
         page = page_scopes[pctx[:slide_no] - 1]
         ctx = { slide_no: pctx[:slide_no], shape: pctx[:shape],
                 scope: page[:scope], scope_root: page[:scope_root] }
-        value = binder.value_at(pctx[:field], ctx, purpose: "图片占位,保留占位图")
-        next if value.nil? # 缺失(non-strict):保留占位图
+        value = binder.value_at(pctx[:field], ctx, purpose: "picture placeholder; keeping the placeholder")
+        next if value.nil? # missing (non-strict): keep the placeholder picture
         unless value.is_a?(String) && !value.empty?
           raise PowerTom::Error,
-                "第 #{pctx[:slide_no]} 页 图片字段 '#{pctx[:field]}' 需要 String 文件路径," \
-                "得到 #{value.class}"
+                "slide #{pctx[:slide_no]} picture field '#{pctx[:field]}' requires a String file path, " \
+                "got #{value.class}"
         end
         unless File.file?(value)
           raise PowerTom::Error,
-                "第 #{pctx[:slide_no]} 页 图片字段 '#{pctx[:field]}' 的文件不存在:#{value}"
+                "slide #{pctx[:slide_no]} picture field '#{pctx[:field]}' file does not exist: #{value}"
         end
         warn_image_aspect(adapter, pctx, value, warnings)
         adapter.replace_image(pctx[:slide], pctx[:picture], value)
@@ -194,16 +212,17 @@ module PowerTom
       mismatch = adapter.image_aspect_mismatch(pctx[:picture], image_path)
       return unless mismatch
 
-      warnings << "第 #{pctx[:slide_no]} 页 图片 '#{pctx[:field]}':" \
-                  "图片比例 #{format('%.2f', mismatch[:image_ratio])} 与占位形状 " \
-                  "#{format('%.2f', mismatch[:shape_ratio])} 差异较大,将居中裁切"
+      warnings << "slide #{pctx[:slide_no]} picture '#{pctx[:field]}': " \
+                  "image ratio #{format('%.2f',
+                                        mismatch[:image_ratio])} differs significantly from placeholder shape " \
+                  "#{format('%.2f', mismatch[:shape_ratio])}; it will be centre-cropped"
     end
 
     # 图表不绑定数据:发现图表里残留标签时温和告警,不修改文件
     def report_chart_tags(adapter, prs, warnings)
       adapter.chart_tags(prs).each do |chart|
-        warnings << "第 #{chart[:slide_no]} 页 图表'#{chart[:shape]}'含标签 " \
-                    "#{chart[:tags].join('、')}:v0 不绑定图表数据,已原样保留"
+        warnings << "slide #{chart[:slide_no]} chart '#{chart[:shape]}' contains tags " \
+                    "#{chart[:tags].join(', ')}: v0 does not bind chart data; tags were left as-is"
       end
     end
 
@@ -217,8 +236,8 @@ module PowerTom
         page = page_scopes[table[:slide_no] - 1]
         if page[:scope]
           raise PowerTom::Error,
-                "第 #{table[:slide_no]} 页 表格'#{table[:shape]}':" \
-                "页级 #each 与表格行循环暂不支持叠加(只支持一层循环)"
+                "slide #{table[:slide_no]} table '#{table[:shape]}': " \
+                "a page-level #each cannot be combined with table row loops (only one loop level is supported)"
         end
 
         scopes[[table[:slide_no], table[:shape]]] = case plan[:kind]
@@ -240,7 +259,7 @@ module PowerTom
       TableLoop.plan(table[:rows], merged_rows: table[:merged_rows],
                                    columns: table[:columns])
     rescue TemplateSyntaxError => e
-      raise TemplateSyntaxError, "第 #{table[:slide_no]} 页 表格'#{table[:shape]}':#{e.message}"
+      raise TemplateSyntaxError, "slide #{table[:slide_no]} table '#{table[:shape]}': #{e.message}"
     end
 
     def expand_simple_rows(adapter, table, plan, binder)
@@ -293,8 +312,8 @@ module PowerTom
         GridValue.column_key(col)
       rescue MissingDataError => e
         raise MissingDataError,
-              "第 #{ctx[:slide_no]} 页 表格'#{table[:shape]}':" \
-              "列数据第 #{index + 1} 项#{e.message}"
+              "slide #{ctx[:slide_no]} table '#{table[:shape]}': " \
+              "column item #{index + 1}: #{e.message}"
       end
     end
 
@@ -362,9 +381,9 @@ module PowerTom
 
     def column_condition_truthy?(path, col, band)
       value = GridValue.column_condition_value(path, col, band[:path], @data)
-      !(value.nil? || value == false)
+      truthy?(value)
     rescue MissingDataError => e
-      raise MissingDataError, "{{#if #{path}}} 无法求值:#{e.message}"
+      raise MissingDataError, "{{#if #{path}}} could not be evaluated: #{e.message}"
     end
 
     # 展开后的列计划:每个输出列对应哪个列项、哪个模板列
@@ -422,7 +441,7 @@ module PowerTom
       value = if path.include?("[]")
                 prefix = scope.keys.select { |key| path == key || path.start_with?("#{key}.") }
                               .max_by(&:length)
-                raise PowerTom::Error, "{{#if #{path}}} 不在当前行区块作用域内" unless prefix
+                raise PowerTom::Error, "{{#if #{path}}} is not inside the current row block scope" unless prefix
 
                 remainder = path.delete_prefix(prefix).delete_prefix(".")
                 remainder.empty? ? scope[prefix] : PathResolver.resolve(scope[prefix], remainder)
@@ -433,9 +452,9 @@ module PowerTom
                   PathResolver.resolve(@data, path)
                 end
               end
-      !(value.nil? || value == false)
+      truthy?(value)
     rescue MissingDataError => e
-      raise MissingDataError, "{{#if #{path}}} 无法求值:#{e.message}"
+      raise MissingDataError, "{{#if #{path}}} could not be evaluated: #{e.message}"
     end
 
     # 展开后的行作用域计划:下标与最终行号一一对应;静态行为 nil
@@ -516,8 +535,8 @@ module PowerTom
       return items if items.is_a?(Array)
 
       raise PowerTom::Error,
-            "第 #{table[:slide_no]} 页 表格'#{table[:shape]}':" \
-            "{{#{path}}} 需要数组,得到 #{items.nil? ? '空值' : items.class}"
+            "slide #{table[:slide_no]} table '#{table[:shape]}': " \
+            "{{#{path}}} requires an array, got #{items.nil? ? 'nil' : items.class}"
     end
 
     def fetch_child_array(parent, relative, table, ctx, index)
@@ -525,12 +544,12 @@ module PowerTom
       return value if value.is_a?(Array)
 
       raise PowerTom::Error,
-            "第 #{ctx[:slide_no]} 页 表格'#{table[:shape]}':父级第 #{index + 1} 项的" \
-            "'#{relative}' 需要数组,得到 #{value.class}"
+            "slide #{ctx[:slide_no]} table '#{table[:shape]}': parent item #{index + 1} field " \
+            "'#{relative}' requires an array, got #{value.class}"
     rescue MissingDataError => e
       raise MissingDataError,
-            "第 #{ctx[:slide_no]} 页 表格'#{table[:shape]}':父级第 #{index + 1} 项" \
-            "缺少子数组 '#{relative}'(#{e.message})"
+            "slide #{ctx[:slide_no]} table '#{table[:shape]}': parent item #{index + 1} " \
+            "is missing child array '#{relative}' (#{e.message})"
     end
 
     # 该段落属于哪一行作用域:返回 {"groups[]" => 父项, "groups[].items[]" => 子项}
@@ -625,7 +644,7 @@ module PowerTom
       return unless @data.is_a?(Hash)
 
       unused = @data.keys.map(&:to_s) - binder.used_root_keys.to_a
-      unused.each { |key| warnings << "数据字段 '#{key}' 未被模板使用" }
+      unused.each { |key| warnings << "data field '#{key}' is not used by the template" }
     end
 
     # §3.3 备注里的普通文本标签 v0 不渲染,记 warning(页级指令除外)
@@ -634,7 +653,7 @@ module PowerTom
         Scanner.scan_notes(note[:text], note[:slide_no]).each do |found|
           next if found[:tag] =~ /\{\{\s*#/
 
-          warnings << "第 #{found[:slide_no]} 页备注含标签 #{found[:tag]},v0 不渲染备注,已忽略"
+          warnings << "slide #{found[:slide_no]} notes contain tag #{found[:tag]}; v0 does not render notes, ignored"
         end
       end
     end

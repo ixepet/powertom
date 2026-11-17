@@ -43,7 +43,7 @@ RSpec.describe "图片比例告警" do
     template = build_template(4, 4) # 1:1
     result = PowerTom.render(template, data: { cover: image(600, 200) }) # 3:1
 
-    expect(result.warnings.join).to include("图片 'cover'", "差异较大", "居中裁切")
+    expect(result.warnings.join).to include("picture 'cover'", "differs significantly", "centre-cropped")
   end
 
   it "图片比例接近占位形状 → 不告警" do

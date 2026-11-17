@@ -87,6 +87,9 @@ jobs:
       - name: YARD 文档构建
         run: bundle exec yard doc --no-output
 
+      - name: 依赖漏洞审计
+        run: bundle exec bundler-audit check --update
+
   public_fidelity:
     # 公开保真验收:只用仓库内的脚手架/测试内生成的 deck,不依赖私有金样本。
     name: 公开保真验收(LibreOffice)

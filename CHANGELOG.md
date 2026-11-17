@@ -4,6 +4,36 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0] - 2026-11-17
+
+### Changed
+
+- **Breaking:** all user-facing runtime messages are now English. This covers
+  `PowerTom::Error` hierarchy messages, render warnings, `PowerTom.check` reports,
+  and the `powertom:lint` structure report. Code comments remain unchanged.
+- The `.cn` date formatter still emits Chinese dates (`2026年11月16日`) by design.
+- The `ruby_pptx` dependency constraint is relaxed from `~> 0.2.0` to
+  `>= 0.2.0, < 1.0`, so applications pick up upstream 0.x fixes directly.
+  Compatibility with new 0.x releases is guarded by the adapter layer and CI.
+
+### Fixed
+
+- `RenderResult` now owns its intermediate surgery file through a `Tempfile`, so
+  abandoned results are cleaned up by the finalizer; `#close` releases it
+  explicitly. Failed renders also clean up before re-raising.
+- `page_scopes` now uses a default block instead of a shared Hash instance,
+  preventing accidental cross-page mutation of the default scope.
+- `condition_truthy?` and `column_condition_truthy?` reuse `truthy?`.
+
+### Added
+
+- Trusted publishing workflow (`.github/workflows/release.yml`): pushing a `v*`
+  tag publishes the gem through RubyGems OIDC, without manual `gem push` or OTP.
+- `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`, GitHub issue templates and a pull
+  request template.
+- Dependency vulnerability auditing via `bundler-audit`, run in the CI lint job
+  (`bundle exec bundler-audit check --update` locally).
+
 ## [0.2.7] - 2026-11-17
 
 ### Changed

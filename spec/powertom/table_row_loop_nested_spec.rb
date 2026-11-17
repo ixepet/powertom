@@ -120,27 +120,27 @@ RSpec.describe "表格嵌套行(#rows)" do
       rows = [["班级", "{{#rows groups}}"],
               ["{{groups[].name}}", ""]]
       expect { render(build_template(rows), full_data) }
-        .to raise_error(PowerTom::TemplateSyntaxError, /行标记必须独占首列单元格/)
+        .to raise_error(PowerTom::TemplateSyntaxError, /row marker must occupy the first cell alone/)
     end
 
     it "标记与正文同格 → 语法错误" do
       rows = [["标题 {{#rows groups}}", ""],
               ["{{groups[].name}}", ""]]
       expect { render(build_template(rows), full_data) }
-        .to raise_error(PowerTom::TemplateSyntaxError, /行标记必须独占首列单元格/)
+        .to raise_error(PowerTom::TemplateSyntaxError, /row marker must occupy the first cell alone/)
     end
 
     it "标记行其他单元格有内容 → 语法错误" do
       rows = [["{{#rows groups}}", "备注"],
               ["{{groups[].name}}", ""]]
       expect { render(build_template(rows), full_data) }
-        .to raise_error(PowerTom::TemplateSyntaxError, /行标记必须独占一行/)
+        .to raise_error(PowerTom::TemplateSyntaxError, /row marker must occupy the whole row/)
     end
 
     it "标记行后没有内容行 → 语法错误" do
       rows = [%w[班级 学生], ["{{#rows groups}}", ""]]
       expect { render(build_template(rows), full_data) }
-        .to raise_error(PowerTom::TemplateSyntaxError, /标记后缺少内容行/)
+        .to raise_error(PowerTom::TemplateSyntaxError, /is missing its content row/)
     end
 
     it "只有父标记没有子标记 → 提示改用单级 []" do
@@ -148,7 +148,7 @@ RSpec.describe "表格嵌套行(#rows)" do
               ["{{#rows groups}}", ""],
               ["{{groups[].name}}", "{{groups[].avg}}"]]
       expect { render(build_template(rows), full_data) }
-        .to raise_error(PowerTom::TemplateSyntaxError, /缺少子行标记.*\[\] 行循环|单级循环/)
+        .to raise_error(PowerTom::TemplateSyntaxError, /child marker is missing.*single-level loop/m)
     end
 
     it "子标记不挂在父级路径下 → 语法错误" do
@@ -158,7 +158,7 @@ RSpec.describe "表格嵌套行(#rows)" do
               ["{{#rows other.items}}", ""],
               ["{{groups[].items[].name}}", ""]]
       expect { render(build_template(rows), full_data) }
-        .to raise_error(PowerTom::TemplateSyntaxError, /必须以 groups\[\] 开头/)
+        .to raise_error(PowerTom::TemplateSyntaxError, /must start with groups\[\]/)
     end
 
     it "三级标记 → 堆叠层级超过 2 级" do
@@ -170,31 +170,31 @@ RSpec.describe "表格嵌套行(#rows)" do
               ["{{#rows groups[].items[].scores}}", ""],
               ["{{groups[].items[].name}}", ""]]
       expect { render(build_template(rows), full_data) }
-        .to raise_error(PowerTom::TemplateSyntaxError, /堆叠层级超过 2 级/)
+        .to raise_error(PowerTom::TemplateSyntaxError, /nesting exceeds two levels/)
     end
 
     it "同一张表混用 #rows 与 [] → 语法错误" do
       rows = nested_rows + [["{{classes[].name}}", ""]]
       expect { render(build_template(rows), full_data.merge(classes: [])) }
-        .to raise_error(PowerTom::TemplateSyntaxError, /不能混用/)
+        .to raise_error(PowerTom::TemplateSyntaxError, /cannot mix/)
     end
 
     it "父行内容引用子级数组 → 与循环数组不匹配" do
       rows = nested_rows
       rows[2][2] = "{{groups[].items[].total}}"
       expect { render(build_template(rows), full_data) }
-        .to raise_error(PowerTom::TemplateSyntaxError, /与循环数组不匹配/)
+        .to raise_error(PowerTom::TemplateSyntaxError, /does not match the loop array/)
     end
 
     it "合并单元格参与循环 → 拒绝并提示先拆分" do
       expect { render(build_template(nested_rows, merge: [[4, 0, 1]]), full_data) }
-        .to raise_error(PowerTom::TemplateSyntaxError, /合并单元格.*先拆分/)
+        .to raise_error(PowerTom::TemplateSyntaxError, /merged cells.*split them first/)
     end
 
     it "子数组缺失 → 报错定位到父级第几项" do
       data = { groups: [{ name: "一班", avg: "90" }], student_count: "0" }
       expect { render(build_template(nested_rows), data) }
-        .to raise_error(PowerTom::MissingDataError, /父级第 1 项.*缺少子数组 'items'/)
+        .to raise_error(PowerTom::MissingDataError, /parent item 1.*is missing child array 'items'/)
     end
   end
 
@@ -212,14 +212,14 @@ RSpec.describe "表格嵌套行(#rows)" do
       error = result.errors.first
       aggregate_failures do
         expect(error.label).to eq("groups[].items[].name")
-        expect(error.message).to include("第 2 项", "第 1 项", "期望:groups[1].items[0].name")
+        expect(error.message).to include("item 2", "item 1", "expected: groups[1].items[0].name")
       end
     end
 
     it "子数组为空 → warning 提示子行会被移除" do
       data = { groups: [{ name: "一班", avg: "90", items: [] }], student_count: "0" }
       result = PowerTom.check(build_template(nested_rows), data: data)
-      expect(result.warnings.map(&:message).join).to include("数组 'items' 为空")
+      expect(result.warnings.map(&:message).join).to include("array 'items' is empty")
     end
 
     it "标记位置错误 → error 带页码与形状(name 或单元格定位)" do
@@ -228,7 +228,7 @@ RSpec.describe "表格嵌套行(#rows)" do
       error = result.errors.first
       aggregate_failures do
         expect(error.slide_no).to eq(1)
-        expect(error.message).to include("行标记必须独占首列单元格")
+        expect(error.message).to include("row marker must occupy the first cell alone")
       end
     end
   end

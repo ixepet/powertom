@@ -105,7 +105,7 @@ RSpec.describe "表格行循环" do
       [["班级"], ["{{classes[].name}}"], ["{{other[].name}}"]]
     )
     expect { render(template, { classes: [{ name: "x" }], other: [{ name: "y" }] }) }
-      .to raise_error(PowerTom::TemplateSyntaxError, /只支持一个行循环/)
+      .to raise_error(PowerTom::TemplateSyntaxError, /supports only one row loop/)
   end
 
   it "同一行出现两个不同数组 → 语法错误" do
@@ -113,19 +113,19 @@ RSpec.describe "表格行循环" do
       [["{{classes[].name}}", "{{teachers[].name}}"]]
     )
     expect { render(template, { classes: [], teachers: [] }) }
-      .to raise_error(PowerTom::TemplateSyntaxError, /多个循环数组/)
+      .to raise_error(PowerTom::TemplateSyntaxError, /multiple loop arrays/)
   end
 
   it "正文（非表格）里写 [] → 语法错误" do
     template = build_template([%w[占位 占位]], extra_text: "{{classes[].name}}")
     expect { render(template, { classes: [] }) }
-      .to raise_error(PowerTom::TemplateSyntaxError, /只能在表格行里使用/)
+      .to raise_error(PowerTom::TemplateSyntaxError, /only allowed in table row loops/)
   end
 
   it "页级 #each 与表格行循环叠加 → 明确拒绝" do
     template = basic_template(notes: "{{#each classes}}")
     expect { render(template, { classes: [{ name: "x", avg: 1 }], total: "0" }) }
-      .to raise_error(PowerTom::Error, /暂不支持叠加/)
+      .to raise_error(PowerTom::Error, /cannot be combined with table row loops/)
   end
 
   describe "PowerTom.check" do
@@ -142,18 +142,18 @@ RSpec.describe "表格行循环" do
       error = result.errors.first
       aggregate_failures do
         expect(error.label).to eq("classes[].avg")
-        expect(error.message).to include("第 1 项", "期望:classes[0].avg")
+        expect(error.message).to include("item 1", "expected: classes[0].avg")
       end
     end
 
     it "空数组 → warning 提示循环行会被移除" do
       result = PowerTom.check(basic_template, data: { classes: [], total: "0" })
-      expect(result.warnings.map(&:message).join).to include("循环行会被移除")
+      expect(result.warnings.map(&:message).join).to include("table loop row will be removed")
     end
 
     it "循环数组不是数组 → error" do
       result = PowerTom.check(basic_template, data: { classes: "x", total: "0" })
-      expect(result.errors.map(&:message).join).to include("行循环需要数组")
+      expect(result.errors.map(&:message).join).to include("expected an array for the row loop")
     end
   end
 

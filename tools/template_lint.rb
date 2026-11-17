@@ -34,11 +34,11 @@ module PowerTomDev
       def exit_code = ok? ? 0 : 1
 
       def report
-        lines = ["PowerTom 模板自检 — #{template_name}", "契约:#{contract_name}"]
+        lines = ["PowerTom template lint — #{template_name}", "Contract: #{contract_name}"]
         entries.each { |e| lines << line(e.level, e.page, e.message) }
         unless check.nil?
           lines << ""
-          lines << "—— 数据对账(powertom:check)——"
+          lines << "—— data reconciliation (powertom:check) ——"
           check.entries.each { |e| lines << line(e.level, e.slide_no, e.message, shape: e.shape) }
         end
         lines << ("-" * 48)
@@ -51,15 +51,15 @@ module PowerTomDev
       def line(level, page, message, shape: nil)
         head = []
         head << "P#{page}" if page
-        head << "形状'#{shape}'" if shape
+        head << "shape '#{shape}'" if shape
         format("[%-7s] %s%s", level, head.empty? ? "" : "#{head.join(' ')} ", message)
       end
 
       def summary
-        base = "结构检查:#{errors.size} 个 error,#{warnings.size} 个 warning"
+        base = "structure: #{errors.size} error(s), #{warnings.size} warning(s)"
         return base unless check
 
-        "#{base};数据对账:#{check.errors.size} 个 error,#{check.warnings.size} 个 warning"
+        "#{base}; data reconciliation: #{check.errors.size} error(s), #{check.warnings.size} warning(s)"
       end
     end
 
@@ -69,7 +69,8 @@ module PowerTomDev
       spec = Tomlrb.load_file(contract)
       pages = spec["pages"]
       unless pages.is_a?(Array) && !pages.empty?
-        raise ArgumentError, "契约缺少 [[pages]](每页一项:index / shapes / labels / images / directive)"
+        raise ArgumentError,
+              "contract is missing [[pages]] (one entry per page: index / shapes / labels / images / directive)"
       end
 
       adapter = PowerTom::Adapter::RubyPptxAdapter.new
@@ -79,7 +80,7 @@ module PowerTomDev
 
       expected = spec["slide_count"]
       if expected && expected.to_i != slide_count
-        entries << Entry.new(level: :error, message: "页数不符:契约 #{expected} 页,实际 #{slide_count} 页")
+        entries << Entry.new(level: :error, message: "page count mismatch: contract #{expected}, actual #{slide_count}")
       end
 
       notes_by_slide, directives = collect_directives(adapter, prs, entries)
@@ -94,7 +95,7 @@ module PowerTomDev
         no = page["index"]
         unless no.is_a?(Integer) && no.between?(1, slide_count)
           entries << Entry.new(level: :error,
-                               message: "契约里的页码 #{no.inspect} 不合法(现有 #{slide_count} 页)")
+                               message: "contract page index #{no.inspect} is invalid (there are #{slide_count} pages)")
           next
         end
         check_shapes(page, no, names_by_slide[no], entries)
@@ -126,7 +127,8 @@ module PowerTomDev
           directive = PowerTom::Scanner.directive_for(note)
           directives[no] = directive ? "#{directive[:kind]} #{directive[:path]}" : nil
         rescue PowerTom::TemplateSyntaxError => e
-          entries << Entry.new(level: :error, page: no, message: "备注指令语法错误:#{strip_location(e.message)}")
+          entries << Entry.new(level: :error, page: no,
+                               message: "invalid notes directive: #{strip_location(e.message)}")
         end
       end
       [notes, directives]
@@ -148,7 +150,7 @@ module PowerTomDev
         end
       rescue PowerTom::TemplateSyntaxError => e
         entries << Entry.new(level: :error, page: ctx[:slide_no],
-                             message: "标签语法错误(形状'#{ctx[:shape]}'):#{strip_location(e.message)}")
+                             message: "tag syntax error (shape '#{ctx[:shape]}'): #{strip_location(e.message)}")
       end
       labels.transform_values(&:uniq)
     end
@@ -165,7 +167,7 @@ module PowerTomDev
       Array(page["shapes"]).each do |name|
         next if actual_names.include?(name)
 
-        entries << Entry.new(level: :error, page: no, message: "缺少形状:'#{name}'")
+        entries << Entry.new(level: :error, page: no, message: "missing shape: '#{name}'")
       end
     end
 
@@ -175,11 +177,12 @@ module PowerTomDev
       declared.each do |label|
         next if actual.include?(label)
 
-        entries << Entry.new(level: :error, page: no, message: "缺少标签:{{#{label}}}")
+        entries << Entry.new(level: :error, page: no, message: "missing tag: {{#{label}}}")
       end
       (actual - declared).each do |extra|
         entries << Entry.new(level: :warning, page: no,
-                             message: "契约外标签:{{#{extra}}}(若为有意新增,请同步契约)")
+                             message: "tag outside the contract: {{#{extra}}} " \
+                                      "(update the contract if this was intentional)")
       end
     end
 
@@ -192,14 +195,16 @@ module PowerTomDev
 
         entries << if actual_names.include?(name)
                      Entry.new(level: :error, page: no,
-                               message: "形状'#{name}'存在但不是图片:图片占位必须挂在图片形状上")
+                               message: "shape '#{name}' exists but is not a picture: " \
+                                        "picture placeholders must be attached to picture shapes")
                    else
-                     Entry.new(level: :error, page: no, message: "缺少图片占位:'#{name}'")
+                     Entry.new(level: :error, page: no, message: "missing picture placeholder: '#{name}'")
                    end
       end
       (actual_images - declared).each do |extra|
         entries << Entry.new(level: :warning, page: no,
-                             message: "契约外图片占位:'#{extra}'(不会被使用,命名可能拼错)")
+                             message: "picture placeholder outside the contract: '#{extra}' " \
+                                      "(it will not be used; the name may be misspelled)")
       end
     end
 
@@ -207,10 +212,11 @@ module PowerTomDev
       expected = page["directive"]
       return if expected.to_s == actual.to_s
 
-      format_directive = ->(value) { value ? "{{##{value}}}" : "无" }
+      format_directive = ->(value) { value ? "{{##{value}}}" : "none" }
       entries << Entry.new(
         level: :error, page: no,
-        message: "备注指令不符:契约 #{format_directive.call(expected)},实际 #{format_directive.call(actual)}"
+        message: "notes directive mismatch: contract #{format_directive.call(expected)}, " \
+                 "actual #{format_directive.call(actual)}"
       )
     end
 
@@ -221,8 +227,8 @@ module PowerTomDev
 
         entries << Entry.new(
           level: :error,
-          message: "#{entry[:container]} 形状'#{entry[:shape]}'含标签 #{tags.join('、')}:" \
-                   "母版/版式上的标签不会生效"
+          message: "#{entry[:container]} shape '#{entry[:shape]}' contains tags #{tags.join(', ')}: " \
+                   "tags on masters/layouts never take effect"
         )
       end
     end
@@ -234,13 +240,14 @@ module PowerTomDev
         tags = text.scan(PowerTom::Scanner::TAG_RE).grep_v(/\{\{\s*#/).uniq
         tags.each do |tag|
           entries << Entry.new(level: :warning, page: no,
-                               message: "备注含标签 #{tag},不会渲染(备注只用于页级指令)")
+                               message: "notes contain tag #{tag}; " \
+                                        "notes are not rendered (they are only read for page directives)")
         end
       end
     end
 
     def strip_location(message)
-      message.sub(/\A第 \d+ 页 形状'[^']*':/, "").sub(/\A第 \d+ 页:?/, "")
+      message.sub(/\Aslide \d+ shape '[^']*': /, "").sub(/\Aslide \d+: /, "")
     end
   end
 end

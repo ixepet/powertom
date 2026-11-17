@@ -38,24 +38,24 @@ module PowerTom
     rescue MissingDataError => e
       raise if @strict
 
-      @warnings << "#{e.message},已填空字符串"
+      @warnings << "#{e.message}, filled with an empty string"
       ""
     end
 
     # 取原始值(不转文本),供 #each(要数组)/ #if(要真假)/ 图片字段(要路径)使用。
     # 遵循 strict 配置:strict 且缺失 → MissingDataError;非 strict → nil + warning。
     # 作用域语义与 render_label 一致(#each 页取迭代项);purpose 仅用于 warning 语境
-    def value_at(path, context, purpose: "页级指令")
+    def value_at(path, context, purpose: "page directive")
       record_root(path, context)
       begin
         PathResolver.resolve(context[:scope] || @data, path)
       rescue MissingDataError => e
-        raise MissingDataError, "第 #{context[:slide_no]} 页:{{#{path}}} #{e.message}"
+        raise MissingDataError, "slide #{context[:slide_no]}: {{#{path}}} #{e.message}"
       end
     rescue MissingDataError => e
       raise if @strict
 
-      @warnings << "#{e.message}(#{purpose})"
+      @warnings << "#{e.message} (#{purpose})"
       nil
     end
 
@@ -128,8 +128,8 @@ module PowerTom
       resolver = scope[:cell]
       unless resolver
         raise PowerTom::Error,
-              "{{cell}} 只能在 grid 内容行的数据列里使用" \
-              "(需要同时有行数据与列数据)"
+              "{{cell}} can only be used in data columns of a #grid content row " \
+              "(both row and column data are required)"
       end
       begin
         resolver.call
@@ -142,8 +142,8 @@ module PowerTom
       value = scope[key]
       return value unless value.nil?
 
-      where = key == :row ? "grid 内容行" : "grid 数据列(首列之外)"
-      raise PowerTom::Error, "{{#{path}}} 只能在 #{where} 里使用"
+      where = key == :row ? "a #grid content row" : "a #grid data column (outside the first column)"
+      raise PowerTom::Error, "{{#{path}}} can only be used in #{where}"
     end
 
     def resolve_grid_item(item, remainder, path, context)
@@ -156,22 +156,23 @@ module PowerTom
       scopes = context[:row_scopes]
       if scopes.nil? || scopes.empty?
         raise PowerTom::Error,
-              "表格行标签 {{#{path}}} 不在已展开的循环行里:请把标签放进标记了 [] 的模板行"
+              "table row tag {{#{path}}} is not inside an expanded loop row: " \
+              "put the tag in a template row marked with []"
       end
 
       prefix = scopes.keys.select { |item| path == item || path.start_with?("#{item}.") }
                      .max_by(&:length)
       unless prefix
-        expected = scopes.keys.map { |item| "{{#{item}.字段}}" }.join("、")
+        expected = scopes.keys.map { |item| "{{#{item}.field}}" }.join(", ")
         raise PowerTom::Error,
-              "表格行标签 {{#{path}}} 与循环数组不匹配(当前行作用域:#{expected})"
+              "table row tag {{#{path}}} does not match the loop array (current row scopes: #{expected})"
       end
 
       remainder = path.delete_prefix(prefix).delete_prefix(".")
       if remainder.include?("[]")
         raise PowerTom::Error,
-              "表格行标签 {{#{path}}} 引用了未展开的下一级数组" \
-              "(当前行只展开到 #{prefix},只支持两级)"
+              "table row tag {{#{path}}} references a child array that was not expanded " \
+              "(this row expands only to #{prefix}; two levels maximum)"
       end
       item = scopes[prefix]
       return item if remainder.empty?
@@ -184,7 +185,7 @@ module PowerTom
     end
 
     def describe(context)
-      "第 #{context[:slide_no]} 页 形状'#{context[:shape]}'"
+      "slide #{context[:slide_no]} shape '#{context[:shape]}'"
     end
 
     def to_text(value, path)
@@ -193,7 +194,8 @@ module PowerTom
       when String, Numeric, Symbol, Date, Time, DateTime, true, false then value.to_s
       else
         raise PowerTom::Error,
-              "{{#{path}}} 取到 #{value.class},v0 只支持把标量渲染为文本;数组请配合页面克隆使用"
+              "{{#{path}}} resolved to #{value.class}; v0 only renders scalars as text. " \
+              "Use page cloning for arrays"
       end
     end
   end

@@ -17,7 +17,7 @@ module PowerTom
         m = segment.match(SEGMENT_RE)
         unless m
           raise MissingDataError,
-                "路径段 '#{segment}' 不合法,只支持 字段 与 字段[下标]"
+                "invalid path segment '#{segment}'; only field and field[index] are supported"
         end
         current = fetch_field(current, m[1], path)
         current = fetch_index(current, m[2]&.to_i, path) if m[2]
@@ -33,17 +33,20 @@ module PowerTom
         elsif current.key?(name.to_sym)
           current[name.to_sym]
         else
-          raise MissingDataError, "数据里没有字段 '#{name}'"
+          raise MissingDataError, "data has no field '#{name}'"
         end
       when Array
-        raise MissingDataError, "路径 '#{path}' 在数组上取字段 '#{name}',数组只能用 [下标]"
+        raise MissingDataError, "path '#{path}' takes field '#{name}' on an array; arrays only support [index]"
       else
-        raise MissingDataError, "路径 '#{path}' 在标量 #{current.class} 上继续取字段 '#{name}'"
+        raise MissingDataError, "path '#{path}' takes field '#{name}' on the scalar #{current.class}"
       end
     end
 
     def fetch_index(current, index, _path)
-      raise MissingDataError, "下标 [#{index}] 越界或不在数组上" unless current.is_a?(Array) && index < current.size
+      unless current.is_a?(Array) && index < current.size
+        raise MissingDataError,
+              "index [#{index}] is out of bounds or the value is not an array"
+      end
 
       current[index]
     end

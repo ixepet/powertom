@@ -43,7 +43,7 @@ RSpec.describe PowerTom::Binder do
     it "Hash/Array 取到后渲染为文本是错误" do
       binder, = binder_for({ kpis: [{ name: "x" }] })
       expect { binder.render_label("kpis", ctx) }
-        .to raise_error(PowerTom::Error, /只支持把标量渲染为文本/)
+        .to raise_error(PowerTom::Error, /only renders scalars as text/)
     end
   end
 
@@ -51,25 +51,25 @@ RSpec.describe PowerTom::Binder do
     it "strict 下缺失字段抛 MissingDataError,信息含页码、形状、标签" do
       binder, = binder_for({})
       expect { binder.render_label("workload", ctx) }
-        .to raise_error(PowerTom::MissingDataError, /第 2 页 形状'文本框 5'.*workload/)
+        .to raise_error(PowerTom::MissingDataError, /slide 2 shape '文本框 5'.*workload/)
     end
 
     it "strict 下数组下标越界报错" do
       binder, = binder_for({ kpis: [] })
       expect { binder.render_label("kpis[0].name", ctx) }
-        .to raise_error(PowerTom::MissingDataError, /下标 \[0\] 越界/)
+        .to raise_error(PowerTom::MissingDataError, /index \[0\] is out of bounds/)
     end
 
     it "strict 下在数组上取字段报错" do
       binder, = binder_for({ items: %w[a b] })
       expect { binder.render_label("items.name", ctx) }
-        .to raise_error(PowerTom::MissingDataError, /数组只能用 \[下标\]/)
+        .to raise_error(PowerTom::MissingDataError, /arrays only support \[index\]/)
     end
 
     it "strict: false 降级为空字符串并记 warning" do
       binder, warnings = binder_for({}, strict: false)
       expect(binder.render_label("workload", ctx)).to eq("")
-      expect(warnings.join).to include("第 2 页", "已填空字符串")
+      expect(warnings.join).to include("slide 2", "filled with an empty string")
     end
 
     it "nil 值不是缺失:不报错也不记 warning" do

@@ -383,7 +383,7 @@ RSpec.describe "表格区块语法(#rows / #cols)" do
       it "条件写在行区块外 → 报错" do
         rows = [["{{#if show}}", ""], ["内容", ""], ["{{/if}}", ""]]
         expect { render(build_template(rows), { show: true }) }
-          .to raise_error(PowerTom::TemplateSyntaxError, /条件区块必须写在行区块内/)
+          .to raise_error(PowerTom::TemplateSyntaxError, /conditional blocks must be written inside a row block/)
       end
 
       it "缺少 {{/if}} → 报错" do
@@ -393,13 +393,13 @@ RSpec.describe "表格区块语法(#rows / #cols)" do
           ["{{classes[].name}}", ""]
         ]
         expect { render(build_template(rows), conditional_data) }
-          .to raise_error(PowerTom::TemplateSyntaxError, %r{缺少 \{\{/if\}\}})
+          .to raise_error(PowerTom::TemplateSyntaxError, %r{missing \{\{/if\}\}})
       end
 
       it "多余的 {{/if}} → 报错" do
         rows = [["{{#rows classes}}", ""], ["{{/if}}", ""], ["{{/rows}}", ""]]
         expect { render(build_template(rows), conditional_data) }
-          .to raise_error(PowerTom::TemplateSyntaxError, /没有对应的 \{\{#if\}\}/)
+          .to raise_error(PowerTom::TemplateSyntaxError, /has no matching \{\{#if\}\}/)
       end
 
       it "条件区块嵌套 → 报错" do
@@ -413,7 +413,7 @@ RSpec.describe "表格区块语法(#rows / #cols)" do
           ["{{/rows}}", ""]
         ]
         expect { render(build_template(rows), conditional_data) }
-          .to raise_error(PowerTom::TemplateSyntaxError, /条件区块不能嵌套/)
+          .to raise_error(PowerTom::TemplateSyntaxError, /conditional blocks cannot nest/)
       end
 
       it "条件区块内没有内容 → 报错" do
@@ -424,7 +424,7 @@ RSpec.describe "表格区块语法(#rows / #cols)" do
           ["{{/rows}}", ""]
         ]
         expect { render(build_template(rows), conditional_data) }
-          .to raise_error(PowerTom::TemplateSyntaxError, /至少需要一行内容/)
+          .to raise_error(PowerTom::TemplateSyntaxError, /needs at least one content row/)
       end
 
       it "条件区块内放行区块 → 报错" do
@@ -438,7 +438,7 @@ RSpec.describe "表格区块语法(#rows / #cols)" do
           ["{{/rows}}", ""]
         ]
         expect { render(build_template(rows), conditional_data) }
-          .to raise_error(PowerTom::TemplateSyntaxError, /条件区块内不能放行区块/)
+          .to raise_error(PowerTom::TemplateSyntaxError, /conditional block cannot contain a row block/)
       end
 
       it "条件区块内放列带 → 报错" do
@@ -451,13 +451,13 @@ RSpec.describe "表格区块语法(#rows / #cols)" do
           ["{{/rows}}", ""]
         ]
         expect { render(build_template(rows), conditional_data.merge(subjects: [])) }
-          .to raise_error(PowerTom::TemplateSyntaxError, /列带不能写在条件区块内/)
+          .to raise_error(PowerTom::TemplateSyntaxError, /column band cannot be written inside a conditional block/)
       end
 
       it "条件路径不在作用域内 → 报错" do
         rows = conditional_rows("other[].flag")
         expect { render(build_template(rows), conditional_data) }
-          .to raise_error(PowerTom::TemplateSyntaxError, /不在当前行区块作用域内/)
+          .to raise_error(PowerTom::TemplateSyntaxError, /is not inside the current row block scope/)
       end
 
       it "条件字段缺失 → 渲染报错" do
@@ -480,7 +480,7 @@ RSpec.describe "表格区块语法(#rows / #cols)" do
         result = PowerTom.check(build_template(conditional_rows), data: data)
 
         error = result.errors.find { |e| e.label == "classes[].has_data" }
-        expect(error.message).to include("区块 classes 第 2 项", "has_data")
+        expect(error.message).to include("block classes item 2", "has_data")
       end
 
       it "条件为假的内容行不再对账" do
@@ -581,7 +581,7 @@ RSpec.describe "表格区块语法(#rows / #cols)" do
           ["{{/rows}}", ""]
         ]
         expect { render(build_template(rows), column_conditional_data) }
-          .to raise_error(PowerTom::TemplateSyntaxError, %r{缺少 \{\{/if\}\}})
+          .to raise_error(PowerTom::TemplateSyntaxError, %r{missing \{\{/if\}\}})
       end
 
       it "列条件嵌套 → 报错" do
@@ -592,7 +592,7 @@ RSpec.describe "表格区块语法(#rows / #cols)" do
           ["{{/rows}}", ""]
         ]
         expect { render(build_template(rows), column_conditional_data) }
-          .to raise_error(PowerTom::TemplateSyntaxError, /列条件不能嵌套/)
+          .to raise_error(PowerTom::TemplateSyntaxError, /column conditions cannot nest/)
       end
 
       it "引用其他数组 → 报错" do
@@ -603,7 +603,7 @@ RSpec.describe "表格区块语法(#rows / #cols)" do
           ["{{/rows}}", ""]
         ]
         expect { render(build_template(rows), column_conditional_data) }
-          .to raise_error(PowerTom::TemplateSyntaxError, /只能引用当前列数组/)
+          .to raise_error(PowerTom::TemplateSyntaxError, /can only reference the current column array/)
       end
 
       it "条件字段缺失 → 渲染报错" do
@@ -625,7 +625,7 @@ RSpec.describe "表格区块语法(#rows / #cols)" do
         data[:subjects][1].delete(:show)
         result = PowerTom.check(build_template(column_conditional_rows), data: data)
         error = result.errors.find { |e| e.label == "subjects[].show" }
-        expect(error.message).to include("列条件第 2 项", "show")
+        expect(error.message).to include("column condition item 2", "show")
       end
     end
   end
@@ -637,19 +637,19 @@ RSpec.describe "表格区块语法(#rows / #cols)" do
         ["{{classes[].name}}", "{{#cols subjects}}{{col.label}}{{/cols}}"]
       ]
       expect { render(build_template(rows), { classes: [], subjects: [] }) }
-        .to raise_error(PowerTom::TemplateSyntaxError, %r{缺少 \{\{/rows\}\}})
+        .to raise_error(PowerTom::TemplateSyntaxError, %r{missing \{\{/rows\}\}})
     end
 
     it "多余的 {{/rows}} → 报错" do
       rows = [["{{/rows}}", ""]]
       expect { render(build_template(rows), {}) }
-        .to raise_error(PowerTom::TemplateSyntaxError, /没有对应的 \{\{#rows\}\}/)
+        .to raise_error(PowerTom::TemplateSyntaxError, /has no matching \{\{#rows\}\}/)
     end
 
     it "区块内没有内容行 → 报错" do
       rows = [["{{#rows classes}}", ""], ["{{/rows}}", ""]]
       expect { render(build_template(rows), { classes: [] }) }
-        .to raise_error(PowerTom::TemplateSyntaxError, /至少需要一行内容/)
+        .to raise_error(PowerTom::TemplateSyntaxError, /needs at least one content row/)
     end
 
     it "超过 3 级 → 报错" do
@@ -661,7 +661,7 @@ RSpec.describe "表格区块语法(#rows / #cols)" do
         ["{{/rows}}", ""], ["{{/rows}}", ""], ["{{/rows}}", ""], ["{{/rows}}", ""]
       ]
       expect { render(build_template(rows), { a: [] }) }
-        .to raise_error(PowerTom::TemplateSyntaxError, /嵌套超过 3 级/)
+        .to raise_error(PowerTom::TemplateSyntaxError, /nesting exceeds 3 levels/)
     end
 
     it "子区块路径不挂在父区块下 → 报错" do
@@ -673,13 +673,13 @@ RSpec.describe "表格区块语法(#rows / #cols)" do
         ["{{/rows}}", ""]
       ]
       expect { render(build_template(rows), nested_data) }
-        .to raise_error(PowerTom::TemplateSyntaxError, /必须以 grades\[\] 开头/)
+        .to raise_error(PowerTom::TemplateSyntaxError, /must start with grades\[\]/)
     end
 
     it "标记不独占整行 → 报错" do
       rows = [["{{#rows classes}}", "备注"], ["{{classes[].name}}", ""], ["{{/rows}}", ""]]
       expect { render(build_template(rows), { classes: [] }) }
-        .to raise_error(PowerTom::TemplateSyntaxError, /必须独占整行/)
+        .to raise_error(PowerTom::TemplateSyntaxError, /must occupy the whole row/)
     end
 
     it "列带标记不在同一行 → 报错" do
@@ -690,13 +690,13 @@ RSpec.describe "表格区块语法(#rows / #cols)" do
         ["{{/rows}}", ""]
       ]
       expect { render(build_template(rows), { classes: [], subjects: [] }) }
-        .to raise_error(PowerTom::TemplateSyntaxError, /必须写在同一行/)
+        .to raise_error(PowerTom::TemplateSyntaxError, /must be written in the same row/)
     end
 
     it "列带写在首列 → 报错" do
       rows = [["{{#cols subjects}}{{col.label}}{{/cols}}", ""]]
       expect { render(build_template(rows), { subjects: [] }) }
-        .to raise_error(PowerTom::TemplateSyntaxError, /必须写在数据列/)
+        .to raise_error(PowerTom::TemplateSyntaxError, /must start in a data column/)
     end
 
     it "value: 数量与列带宽度不匹配 → 报错" do
@@ -709,7 +709,7 @@ RSpec.describe "表格区块语法(#rows / #cols)" do
       ]
       expect { render(build_template(rows), { classes: [], subjects: [] }) }
         .to raise_error(PowerTom::TemplateSyntaxError,
-                        /value: 的数量必须为 1 或与列带宽度\(2\)一致/)
+                        /value: must contain 1 field or match the column band width \(2\)/)
     end
 
     it "{{cell}} 写在列带外 → 报错" do
@@ -717,7 +717,7 @@ RSpec.describe "表格区块语法(#rows / #cols)" do
               ["{{classes[].name}}", "{{classes[].avg}}", "{{cell}}"],
               ["{{/rows}}", "", ""]]
       expect { render(build_template(rows), { classes: [] }) }
-        .to raise_error(PowerTom::TemplateSyntaxError, /cell.*只能写在行区块内的列带/)
+        .to raise_error(PowerTom::TemplateSyntaxError, /cell.*only be written in a column band cell inside a row block/)
     end
 
     it "{{col.字段}} 写在列带外 → 报错" do
@@ -725,13 +725,13 @@ RSpec.describe "表格区块语法(#rows / #cols)" do
               ["{{classes[].name}}", "{{col.label}}"],
               ["{{/rows}}", ""]]
       expect { render(build_template(rows), { classes: [] }) }
-        .to raise_error(PowerTom::TemplateSyntaxError, /col\.label.*只能写在列带/)
+        .to raise_error(PowerTom::TemplateSyntaxError, /col\.label.*can only be written in a column band cell/)
     end
 
     it "{{row.字段}} 写在区块外 → 报错" do
       rows = [["{{row.name}}", ""]]
       expect { render(build_template(rows), {}) }
-        .to raise_error(PowerTom::TemplateSyntaxError, /row\.name.*只能写在使用/)
+        .to raise_error(PowerTom::TemplateSyntaxError, /row\.name.*can only be used in tables with/)
     end
 
     it "[] 标签写在区块外 → 报错" do
@@ -741,13 +741,13 @@ RSpec.describe "表格区块语法(#rows / #cols)" do
         ["{{/rows}}", ""]
       ]
       expect { render(build_template(rows), { groups: [], classes: [] }) }
-        .to raise_error(PowerTom::TemplateSyntaxError, /不在当前行区块作用域内/)
+        .to raise_error(PowerTom::TemplateSyntaxError, /is not inside the current row block scope/)
     end
 
     it "区块内合并单元格 → 报错" do
       rows = [["{{#rows classes}}", ""], ["{{classes[].name}}", ""], ["{{/rows}}", ""]]
       expect { render(build_template(rows, merge: [[1, 0, 1]]), { classes: [] }) }
-        .to raise_error(PowerTom::TemplateSyntaxError, /行区块内不支持合并单元格/)
+        .to raise_error(PowerTom::TemplateSyntaxError, /row blocks do not support merged cells/)
     end
 
     it "区块模式混用 #grid → 报错" do
@@ -757,7 +757,7 @@ RSpec.describe "表格区块语法(#rows / #cols)" do
         ["{{/rows}}", ""]
       ]
       expect { render(build_template(rows), { distribution: [], bands: [] }) }
-        .to raise_error(PowerTom::TemplateSyntaxError, /区块模式不支持/)
+        .to raise_error(PowerTom::TemplateSyntaxError, /block mode does not support/)
     end
   end
 
@@ -776,14 +776,14 @@ RSpec.describe "表格区块语法(#rows / #cols)" do
       result = PowerTom.check(build_template(nested_rows), data: data)
 
       error = result.errors.find { |e| e.label == "grades[].classes[].avg" }
-      expect(error.message).to include("区块 grades[].classes 第 1 项", "avg")
+      expect(error.message).to include("block grades[].classes item 1", "avg")
     end
 
     it "缺子数组 → error 指出父项缺少字段" do
       data = { grades: [{ name: "初一" }] }
       result = PowerTom.check(build_template(nested_rows), data: data)
       error = result.errors.find { |e| e.label == "grades[].classes" }
-      expect(error.message).to include("父项缺少 'classes'")
+      expect(error.message).to include("parent item is missing 'classes'")
     end
 
     it "列带交叉值缺失 → error 指向第几列" do
@@ -799,7 +799,7 @@ RSpec.describe "表格区块语法(#rows / #cols)" do
       }
       result = PowerTom.check(build_template(rows), data: data)
       error = result.errors.find { |e| e.label == "cell" }
-      expect(error.message).to include("第 2 列", "physics")
+      expect(error.message).to include("column 2", "physics")
     end
 
     it "多列模板缺第二个取值字段 → error 指向列项与模板列" do
@@ -808,12 +808,12 @@ RSpec.describe "表格区块语法(#rows / #cols)" do
       result = PowerTom.check(build_template(multi_band_rows), data: data)
 
       error = result.errors.find { |e| e.label == "cell" }
-      expect(error.message).to include("第 2 个列项的第 2 个模板列", "physics")
+      expect(error.message).to include("column item 2, template column 2", "physics")
     end
 
     it "空区块数组 → warning" do
       result = PowerTom.check(build_template(nested_rows), data: nested_data.merge(grades: []))
-      expect(result.warnings.map(&:message).join).to include("数组 'grades' 为空")
+      expect(result.warnings.map(&:message).join).to include("array 'grades' is empty")
     end
   end
 

@@ -72,12 +72,12 @@ RSpec.describe PowerTom::DataLoading do
 
   it "数据文件不存在时报错" do
     expect { described_class.coerce(File.join(@dir, "nope.toml")) }
-      .to raise_error(PowerTom::InvalidTemplateError, /数据文件不存在/)
+      .to raise_error(PowerTom::InvalidTemplateError, /data file not found/)
   end
 
   it "TOML 语法错误包装为 InvalidTemplateError" do
     path = write_toml("bad.toml", "title = [unclosed\n")
     expect { described_class.coerce(path) }
-      .to raise_error(PowerTom::InvalidTemplateError, /解析失败/)
+      .to raise_error(PowerTom::InvalidTemplateError, /failed to parse/)
   end
 end

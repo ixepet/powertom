@@ -125,7 +125,7 @@ RSpec.describe PowerTom, ".render 图片替换" do
                         scenarios: [{ headline: "x", cover: @img_a }, { headline: "y", cover: @img_b },
                                     { headline: "z", cover: @img_c }]
                       })
-    end.to raise_error(PowerTom::MissingDataError, /第 5 页.*banner/)
+    end.to raise_error(PowerTom::MissingDataError, /slide 5.*banner/)
   end
 
   it "strict: false 缺图片字段 → 保留占位图并记 warning" do
@@ -135,7 +135,7 @@ RSpec.describe PowerTom, ".render 图片替换" do
                              }, strict: false)
     result.save(File.join(@tmp_root, "loose.pptx"))
     aggregate_failures do
-      expect(result.warnings.join).to include("banner", "保留占位图")
+      expect(result.warnings.join).to include("banner", "keeping the placeholder")
       # 占位图未被动过:blip rId 与注入模板一致
       before_rid = picture_info(@labeled, 5, "powertom:image:banner")[:r_id]
       after_rid = picture_info(File.join(@tmp_root, "loose.pptx"), 5, "powertom:image:banner")[:r_id]
@@ -159,7 +159,7 @@ RSpec.describe PowerTom, ".render 图片替换" do
                         { headline: "x", cover: @img_a }, { headline: "y", cover: @img_b },
                         { headline: "z", cover: @img_c }
                       ] })
-    end.to raise_error(PowerTom::Error, /文件不存在.*no_such\.png/)
+    end.to raise_error(PowerTom::Error, /file does not exist.*no_such\.png/)
   end
 
   it "alt text 定位也能命中(§5.3:name 或 alt text)" do

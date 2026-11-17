@@ -39,7 +39,7 @@ module PowerTom
 
       if !grid_markers.empty? && !row_markers.empty?
         raise TemplateSyntaxError,
-              "表格第 #{grid_markers.first[:row] + 1} 行:同一张表不能混用 {{#grid}} 与 {{#rows}}"
+              "table row #{grid_markers.first[:row] + 1}: a table cannot mix {{#grid}} and {{#rows}}"
       end
       plan = if !grid_markers.empty?
                grid_plan(rows, grid_markers, merged_rows, columns)
@@ -60,8 +60,8 @@ module PowerTom
             next unless scope_variable?(path)
 
             raise TemplateSyntaxError,
-                  "表格第 #{r + 1} 行第 #{c + 1} 列:{{#{path}}} 只能写在使用 " \
-                  "{{#rows}} 区块或 {{#grid}} 的表格里"
+                  "table row #{r + 1}, column #{c + 1}: {{#{path}}} can only be used in tables with " \
+                  "a {{#rows}} block or {{#grid}}"
           end
         end
       end
@@ -93,12 +93,14 @@ module PowerTom
 
         if roots.size > 1
           raise TemplateSyntaxError,
-                "表格第 #{index + 1} 行包含多个循环数组(#{roots.join('、')}),一行只允许一个"
+                "table row #{index + 1} contains multiple loop arrays (#{roots.join(', ')}); " \
+                "only one is allowed per row"
         end
         unless found.empty?
           first = found.keys.first + 1
           raise TemplateSyntaxError,
-                "一张表只支持一个行循环:第 #{first} 行已是循环行,第 #{index + 1} 行又出现"
+                "a table supports only one row loop: row #{first} is already a loop row, " \
+                "and row #{index + 1} adds another"
         end
 
         found[index] = roots.first
@@ -108,7 +110,7 @@ module PowerTom
       row, root = found.first
       if merged_rows[row]
         raise TemplateSyntaxError,
-              "表格第 #{row + 1} 行:循环区域包含合并单元格,请先拆分(设计文档 §7)"
+              "table row #{row + 1}: the loop area contains merged cells; split them first (design document §7)"
       end
       { kind: :simple, row: row, root: root }
     end
@@ -130,21 +132,24 @@ module PowerTom
     end
 
     def validate_marker_row!(cells, index, tags)
-      line = "表格第 #{index + 1} 行"
+      line = "table row #{index + 1}"
       if tags.size > 1
         raise TemplateSyntaxError,
-              "#{line}包含 #{tags.size} 条行指令,一行只允许一条 {{#rows 路径}}"
+              "#{line} contains #{tags.size} row directives; only one {{#rows path}} is allowed per row"
       end
 
       col = tags.first[:col]
       tag = tags.first[:tag]
-      raise TemplateSyntaxError, "#{line}:#{tag} 行标记必须独占首列单元格" unless col.zero? && cells[col].to_s.strip == tag
+      unless col.zero? && cells[col].to_s.strip == tag
+        raise TemplateSyntaxError,
+              "#{line}: #{tag} row marker must occupy the first cell alone"
+      end
       if cells.each_with_index.any? { |text, c| c != col && !text.to_s.strip.empty? }
-        raise TemplateSyntaxError, "#{line}:#{tag} 行标记必须独占一行,其余单元格请留空"
+        raise TemplateSyntaxError, "#{line}: #{tag} row marker must occupy the whole row; leave the other cells empty"
       end
 
       path = tag[MARKER_RE, 1]
-      raise TemplateSyntaxError, "#{line}:#{tag} 行标记不合法,应为 {{#rows 路径}}" unless path
+      raise TemplateSyntaxError, "#{line}: #{tag} is an invalid row marker; use {{#rows path}}" unless path
 
       check_marker_path!(path, line, tag)
     end
@@ -152,39 +157,41 @@ module PowerTom
     def check_marker_path!(path, line, tag)
       if path.scan("[]").size > 1
         raise TemplateSyntaxError,
-              "#{line}:#{tag} 堆叠层级超过 2 级,只支持「父级 → 子级」两层"
+              "#{line}: #{tag} nesting exceeds two levels; only parent → child is supported"
       end
       return unless path.match?(/\[\d+\]/)
 
-      raise TemplateSyntaxError, "#{line}:#{tag} 行标记路径不支持下标,请用数组名 + []"
+      raise TemplateSyntaxError, "#{line}: #{tag} row marker paths do not support indices; use the array name + []"
     end
 
     def nested_plan(rows, markers, merged_rows)
       if markers.size > 2
         raise TemplateSyntaxError,
-              "表格第 #{markers[2][:row] + 1} 行:堆叠层级超过 2 级(一张表最多父级 + 子级)"
+              "table row #{markers[2][:row] + 1}: nesting exceeds two levels (a table allows at most parent + child)"
       end
 
       parent = markers.first
       if parent[:path].include?("[]")
         raise TemplateSyntaxError,
-              "表格第 #{parent[:row] + 1} 行:{{#rows #{parent[:path]}}} 前缺少父行标记(父级路径不带 [])"
+              "table row #{parent[:row] + 1}: {{#rows #{parent[:path]}}} is missing a parent row marker " \
+              "(the parent path has no [])"
       end
 
-      parent_content = content_row_after(rows, markers, parent, "父")
+      parent_content = content_row_after(rows, markers, parent, "parent")
       if markers.size == 1
         raise TemplateSyntaxError,
-              "表格第 #{parent[:row] + 1} 行:只有父行标记 {{#rows #{parent[:path]}}},缺少子行标记;" \
-              "单级循环请直接用 {{#{parent[:path]}[].字段}}"
+              "table row #{parent[:row] + 1}: only the parent marker {{#rows #{parent[:path]}}} is present; " \
+              "the child marker is missing. For a single-level loop use {{#{parent[:path]}[].field}} directly"
       end
 
       child = markers[1]
       relative = child_relative_path!(parent, child)
       if child[:row] <= parent_content
         raise TemplateSyntaxError,
-              "表格第 #{child[:row] + 1} 行:子行标记必须写在父行内容行(第 #{parent_content + 1} 行)之后"
+              "table row #{child[:row] + 1}: the child marker must come after the parent content row " \
+              "(row #{parent_content + 1})"
       end
-      child_content = content_row_after(rows, markers, child, "子")
+      child_content = content_row_after(rows, markers, child, "child")
 
       check_merged!(merged_rows, [parent[:row], parent_content, child[:row], child_content])
       check_no_mixed_loops!(rows, markers, [parent_content, child_content])
@@ -208,11 +215,11 @@ module PowerTom
       content = marker[:row] + 1
       if content >= rows.size
         raise TemplateSyntaxError,
-              "表格第 #{marker[:row] + 1} 行:#{level}行标记后缺少内容行"
+              "table row #{marker[:row] + 1}: the #{level} marker is missing its content row"
       end
       if markers.any? { |m| m[:row] == content }
         raise TemplateSyntaxError,
-              "表格第 #{marker[:row] + 1} 行:#{level}行标记后必须紧跟内容行,不能紧跟另一条行标记"
+              "table row #{marker[:row] + 1}: the #{level} marker must be followed by a content row, not another marker"
       end
       content
     end
@@ -224,15 +231,16 @@ module PowerTom
       return relative if child[:path] != prefix && child[:path].start_with?("#{prefix}.") && !relative.empty?
 
       raise TemplateSyntaxError,
-            "表格第 #{child[:row] + 1} 行:子行标记 {{#rows #{child[:path]}}} 必须以 #{prefix} 开头" \
-            "(如 {{#rows #{prefix}.items}})"
+            "table row #{child[:row] + 1}: child marker {{#rows #{child[:path]}}} must start with #{prefix} " \
+            "(for example {{#rows #{prefix}.items}})"
     end
 
     def check_merged!(merged_rows, rows)
       row = rows.find { |index| merged_rows[index] }
       return unless row
 
-      raise TemplateSyntaxError, "表格第 #{row + 1} 行:循环区域包含合并单元格,请先拆分(设计文档 §7)"
+      raise TemplateSyntaxError,
+            "table row #{row + 1}: the loop area contains merged cells; split them first (design document §7)"
     end
 
     # 有 #rows 标记时,其余行不能再出现 [] 标签(两种语法不混用)
@@ -242,7 +250,7 @@ module PowerTom
         next if cells.none? { |text| loop_roots(text).any? }
 
         raise TemplateSyntaxError,
-              "表格第 #{index + 1} 行:同一张表不能混用 {{#rows}} 标记与 {{数组[].字段}} 行循环"
+              "table row #{index + 1}: a table cannot mix {{#rows}} markers with {{array[].field}} row loops"
       end
     end
 
@@ -256,9 +264,10 @@ module PowerTom
                           .max_by(&:length)
           next if match && path.scan("[]").size == match.scan("[]").size
 
-          expected = prefixes.map { |prefix| "{{#{prefix}.字段}}" }.join(" 或 ")
+          expected = prefixes.map { |prefix| "{{#{prefix}.field}}" }.join(" or ")
           raise TemplateSyntaxError,
-                "表格第 #{row_index + 1} 行:{{#{path}}} 与循环数组不匹配(当前行应为 #{expected})"
+                "table row #{row_index + 1}: {{#{path}}} does not match the loop array " \
+                "(this row should use #{expected})"
         end
       end
     end
@@ -280,16 +289,19 @@ module PowerTom
     end
 
     def validate_grid_row!(index, tags)
-      line = "表格第 #{index + 1} 行"
-      raise TemplateSyntaxError, "#{line}包含 #{tags.size} 条 grid 标记,一行只允许一条" if tags.size > 1
+      line = "table row #{index + 1}"
+      if tags.size > 1
+        raise TemplateSyntaxError,
+              "#{line} contains #{tags.size} grid markers; only one is allowed per row"
+      end
       return if tags.first[:col].zero?
 
-      raise TemplateSyntaxError, "#{line}:#{tags.first[:tag]} grid 标记必须放在表头行首列"
+      raise TemplateSyntaxError, "#{line}: #{tags.first[:tag]} grid marker must go in the first cell of the header row"
     end
 
     # {{#grid rows: 数组 cols: 数组 [value: 行内字段]}}
     def parse_grid_args(tag, row_index)
-      line = "表格第 #{row_index + 1} 行"
+      line = "table row #{row_index + 1}"
       raw = tag[/\{\{\s*([^{}]*?)\s*\}\}/, 1].to_s
       body = raw.sub(/\A#grid/, "")
       args = {}
@@ -298,11 +310,11 @@ module PowerTom
         m = body.match(/\G\s*(rows|cols|value)\s*:\s*([A-Za-z0-9_.]+)\s*/, pos)
         unless m
           raise TemplateSyntaxError,
-                "#{line}:#{tag} grid 标记写法不合法," \
-                "应为 {{#grid rows: 数组 cols: 数组 [value: 字段]}}"
+                "#{line}: #{tag} has an invalid grid marker; " \
+                "use {{#grid rows: array cols: array [value: field]}}"
         end
         key = m[1].to_sym
-        raise TemplateSyntaxError, "#{line}:#{tag} grid 参数重复:#{m[1]}" if args.key?(key)
+        raise TemplateSyntaxError, "#{line}: #{tag} repeats the grid argument #{m[1]}" if args.key?(key)
 
         args[key] = m[2]
         pos = m.end(0)
@@ -310,7 +322,7 @@ module PowerTom
       %i[rows cols].each do |key|
         next if args[key]
 
-        raise TemplateSyntaxError, "#{line}:#{tag} grid 标记缺少 #{key}: 参数"
+        raise TemplateSyntaxError, "#{line}: #{tag} grid marker is missing the #{key}: argument"
       end
       args
     end
@@ -318,22 +330,23 @@ module PowerTom
     def grid_plan(rows, markers, merged_rows, columns)
       if markers.size > 1
         raise TemplateSyntaxError,
-              "表格第 #{markers[1][:row] + 1} 行:一张表只允许一个 grid 标记" \
-              "(第 #{markers.first[:row] + 1} 行已声明)"
+              "table row #{markers[1][:row] + 1}: a table allows only one grid marker " \
+              "(already declared in row #{markers.first[:row] + 1})"
       end
 
       marker = markers.first
-      line = "表格第 #{marker[:row] + 1} 行"
+      line = "table row #{marker[:row] + 1}"
       if columns && columns != 2
         raise TemplateSyntaxError,
-              "#{line}:grid 表只支持两列模板(首列行标题 + 第二列数据模板),当前 #{columns} 列"
+              "#{line}: a grid table supports exactly two template columns " \
+              "(row titles + one data template); this table has #{columns}"
       end
-      raise TemplateSyntaxError, "#{line}:grid 标记后缺少内容行" if marker[:row] + 1 >= rows.size
+      raise TemplateSyntaxError, "#{line}: the grid marker is missing its content row" if marker[:row] + 1 >= rows.size
 
       content = marker[:row] + 1
       if merged_rows.any?
         row = merged_rows.index(true)
-        raise TemplateSyntaxError, "表格第 #{row + 1} 行:grid 循环不支持合并单元格,请先拆分"
+        raise TemplateSyntaxError, "table row #{row + 1}: grid loops do not support merged cells; split them first"
       end
 
       check_grid_no_loop_labels!(rows)
@@ -354,7 +367,7 @@ module PowerTom
         next if cells.none? { |text| loop_roots(text).any? }
 
         raise TemplateSyntaxError,
-              "表格第 #{index + 1} 行:同一张表不能混用 {{#grid}} 与 {{数组[].字段}} 行循环"
+              "table row #{index + 1}: a table cannot mix {{#grid}} with {{array[].field}} row loops"
       end
     end
 
@@ -367,8 +380,8 @@ module PowerTom
           next if path == "col" || path.start_with?("col.")
 
           raise TemplateSyntaxError,
-                "表格第 #{row_index + 1} 行第 #{col + 1} 列:{{#{path}}} 不属于 grid 表头作用域" \
-                "(应为 {{col.字段}})"
+                "table row #{row_index + 1}, column #{col + 1}: {{#{path}}} is not in the grid header scope " \
+                "(use {{col.field}})"
         end
       end
     end
@@ -385,9 +398,14 @@ module PowerTom
                     end
           next if allowed
 
-          scope = col.zero? ? "首列只能写 {{row.字段}} 或整页字段" : "数据列应为 {{row.字段}} / {{col.字段}} / {{cell}}"
+          scope = if col.zero?
+                    "the first column allows only {{row.field}} or page fields"
+                  else
+                    "data columns allow {{row.field}} / {{col.field}} / {{cell}}"
+                  end
           raise TemplateSyntaxError,
-                "表格第 #{row_index + 1} 行第 #{col + 1} 列:{{#{path}}} 不属于 grid 内容行作用域(#{scope})"
+                "table row #{row_index + 1}, column #{col + 1}: " \
+                "{{#{path}}} is not in the grid content row scope (#{scope})"
         end
       end
     end
@@ -412,7 +430,12 @@ module PowerTom
       col_ifs, row_ifs = split_ifs(if_tags, band)
       band[:ifs] = parse_column_ifs(rows, col_ifs, band) if band
       blocks = parse_block_tree(rows, (row_tags + row_ifs).sort_by { |t| t[:row] })
-      raise TemplateSyntaxError, "表格第 #{band[:row] + 1} 行:列带不能写在条件区块内" if band && band_in_if?(blocks, band[:row])
+      if band && band_in_if?(
+        blocks, band[:row]
+      )
+        raise TemplateSyntaxError,
+              "table row #{band[:row] + 1}: a column band cannot be written inside a conditional block"
+      end
 
       check_block_ifs!(blocks)
       check_block_merges!(merged_rows, blocks, band)
@@ -438,7 +461,7 @@ module PowerTom
               if_tags << item
             else
               raise TemplateSyntaxError,
-                    "表格第 #{r + 1} 行:区块模式不支持 #{tag}(只支持 #rows / #cols / #if 区块)"
+                    "table row #{r + 1}: block mode does not support #{tag} (only #rows / #cols / #if blocks)"
             end
           end
         end
@@ -478,16 +501,16 @@ module PowerTom
       unless stack.empty?
         node = stack.last
         raise TemplateSyntaxError,
-              "表格第 #{band[:row] + 1} 行:列条件 {{#if #{node[:path]}}} 缺少 {{/if}}"
+              "table row #{band[:row] + 1}: column condition {{#if #{node[:path]}}} is missing {{/if}}"
       end
 
       result.sort_by { |node| node[:open_col] }.each_cons(2) do |left, right|
         next if right[:open_col] > left[:close_col]
 
         raise TemplateSyntaxError,
-              "表格第 #{band[:row] + 1} 行:列条件范围重叠" \
-              "(第 #{left[:open_col] + 1}–#{left[:close_col] + 1} 列与 " \
-              "#{right[:open_col] + 1}–#{right[:close_col] + 1} 列)"
+              "table row #{band[:row] + 1}: column condition ranges overlap " \
+              "(columns #{left[:open_col] + 1}–#{left[:close_col] + 1} and " \
+              "#{right[:open_col] + 1}–#{right[:close_col] + 1})"
       end
       result
     end
@@ -497,14 +520,14 @@ module PowerTom
       path = item[:tag][IF_OPEN_RE, 1]
       unless path
         raise TemplateSyntaxError,
-              "表格第 #{band[:row] + 1} 行:#{item[:tag]} 列条件标记不合法,应为 {{#if 路径}}"
+              "table row #{band[:row] + 1}: #{item[:tag]} is an invalid column condition marker; use {{#if path}}"
       end
       if path.include?("[]") && !path.start_with?("#{band[:path]}[]")
         raise TemplateSyntaxError,
-              "表格第 #{band[:row] + 1} 行:{{#if #{path}}} 只能引用当前列数组 " \
-              "#{band[:path]}[] 或整页字段"
+              "table row #{band[:row] + 1}: {{#if #{path}}} can only reference the current column array " \
+              "#{band[:path]}[] or page fields"
       end
-      raise TemplateSyntaxError, "表格第 #{band[:row] + 1} 行:列条件不能嵌套" if stack.any?
+      raise TemplateSyntaxError, "table row #{band[:row] + 1}: column conditions cannot nest" if stack.any?
 
       { path: path, open_col: item[:col], close_col: nil }
     end
@@ -513,27 +536,27 @@ module PowerTom
       validate_column_if_marker!(rows, item, band)
       if stack.empty?
         raise TemplateSyntaxError,
-              "表格第 #{band[:row] + 1} 行:{{/if}} 没有对应的列条件 {{#if}}"
+              "table row #{band[:row] + 1}: {{/if}} has no matching column condition {{#if}}"
       end
 
       node = stack.pop
       if item[:col] < node[:open_col]
         raise TemplateSyntaxError,
-              "表格第 #{band[:row] + 1} 行:{{/if}} 必须在列条件 {{#if}} 右侧"
+              "table row #{band[:row] + 1}: {{/if}} must be to the right of its column condition {{#if}}"
       end
       node[:close_col] = item[:col]
       result << node
     end
 
     def validate_column_if_marker!(rows, item, band)
-      line = "表格第 #{band[:row] + 1} 行"
+      line = "table row #{band[:row] + 1}"
       unless item[:row] == band[:row] &&
              item[:col].between?(band[:first_col], band[:last_col])
-        raise TemplateSyntaxError, "#{line}:列条件必须写在列带表头范围内"
+        raise TemplateSyntaxError, "#{line}: a column condition must be written inside the column band header"
       end
       return if rows[item[:row]][item[:col]].to_s.include?(item[:tag])
 
-      raise TemplateSyntaxError, "#{line}:#{item[:tag]} 列条件标记定位失败"
+      raise TemplateSyntaxError, "#{line}: #{item[:tag]} column condition marker could not be located"
     end
 
     def parse_block_tree(rows, tags)
@@ -545,13 +568,14 @@ module PowerTom
         when /\A#rows/
           if if_stack.any?
             raise TemplateSyntaxError,
-                  "表格第 #{item[:row] + 1} 行:条件区块内不能放行区块(请把条件写在外层)"
+                  "table row #{item[:row] + 1}: a conditional block cannot contain a row block " \
+                  "(move the condition outward)"
           end
           stack.push(open_block(rows, item, stack))
         when %r{\A/rows}
           if if_stack.any?
             raise TemplateSyntaxError,
-                  "表格第 #{item[:row] + 1} 行:条件区块必须完整包含在行区块内"
+                  "table row #{item[:row] + 1}: a conditional block must be fully contained in a row block"
           end
           close_block(rows, item, stack, roots)
         when /\A#if/
@@ -563,12 +587,12 @@ module PowerTom
       unless if_stack.empty?
         node = if_stack.last
         raise TemplateSyntaxError,
-              "表格第 #{node[:open] + 1} 行:{{#if #{node[:path]}}} 缺少 {{/if}}"
+              "table row #{node[:open] + 1}: {{#if #{node[:path]}}} is missing {{/if}}"
       end
       unless stack.empty?
         block = stack.last
         raise TemplateSyntaxError,
-              "表格第 #{block[:open] + 1} 行:{{#rows #{block[:path]}}} 缺少 {{/rows}}"
+              "table row #{block[:open] + 1}: {{#rows #{block[:path]}}} is missing {{/rows}}"
       end
       roots
     end
@@ -578,10 +602,16 @@ module PowerTom
       path = item[:tag][IF_OPEN_RE, 1]
       unless path
         raise TemplateSyntaxError,
-              "表格第 #{item[:row] + 1} 行:#{item[:tag]} 条件标记不合法,应为 {{#if 路径}}"
+              "table row #{item[:row] + 1}: #{item[:tag]} is an invalid condition marker; use {{#if path}}"
       end
-      raise TemplateSyntaxError, "表格第 #{item[:row] + 1} 行:条件区块必须写在行区块内" if stack.empty?
-      raise TemplateSyntaxError, "表格第 #{item[:row] + 1} 行:条件区块不能嵌套(请合并条件)" if if_stack.any?
+      if stack.empty?
+        raise TemplateSyntaxError,
+              "table row #{item[:row] + 1}: conditional blocks must be written inside a row block"
+      end
+      if if_stack.any?
+        raise TemplateSyntaxError,
+              "table row #{item[:row] + 1}: conditional blocks cannot nest (combine the conditions)"
+      end
 
       if_stack.push({ path: path, open: item[:row], close: nil })
     end
@@ -590,13 +620,13 @@ module PowerTom
       validate_block_marker!(rows, item, "/if")
       if if_stack.empty?
         raise TemplateSyntaxError,
-              "表格第 #{item[:row] + 1} 行:{{/if}} 没有对应的 {{#if}}"
+              "table row #{item[:row] + 1}: {{/if}} has no matching {{#if}}"
       end
 
       node = if_stack.pop
       if item[:row] <= node[:open] + 1
         raise TemplateSyntaxError,
-              "表格第 #{node[:open] + 1} 行:{{#if #{node[:path]}}} 区块内至少需要一行内容"
+              "table row #{node[:open] + 1}: {{#if #{node[:path]}}} needs at least one content row"
       end
       node[:close] = item[:row]
       stack.last[:ifs] << node
@@ -607,12 +637,12 @@ module PowerTom
       path = item[:tag][MARKER_RE, 1]
       unless path
         raise TemplateSyntaxError,
-              "表格第 #{item[:row] + 1} 行:#{item[:tag]} 行区块标记不合法,应为 {{#rows 路径}}"
+              "table row #{item[:row] + 1}: #{item[:tag]} is an invalid row block marker; use {{#rows path}}"
       end
       depth = stack.size + 1
       if depth > MAX_BLOCK_DEPTH
         raise TemplateSyntaxError,
-              "表格第 #{item[:row] + 1} 行:行区块嵌套超过 #{MAX_BLOCK_DEPTH} 级"
+              "table row #{item[:row] + 1}: row block nesting exceeds #{MAX_BLOCK_DEPTH} levels"
       end
 
       block = { path: path, open: item[:row], close: nil, children: [], ifs: [], depth: depth }
@@ -621,13 +651,13 @@ module PowerTom
         prefix = "#{parent[:path]}[]"
         unless path.start_with?("#{prefix}.")
           raise TemplateSyntaxError,
-                "表格第 #{item[:row] + 1} 行:{{#rows #{path}}} 必须以 #{prefix} 开头" \
-                "(父区块 #{parent[:path]})"
+                "table row #{item[:row] + 1}: {{#rows #{path}}} must start with #{prefix} " \
+                "(parent block #{parent[:path]})"
         end
         block[:relative] = path.delete_prefix("#{prefix}.")
       elsif path.include?("[]")
         raise TemplateSyntaxError,
-              "表格第 #{item[:row] + 1} 行:顶层行区块路径不带 [](如 {{#rows classes}})"
+              "table row #{item[:row] + 1}: a top-level row block path has no [] (for example {{#rows classes}})"
       end
       block[:prefix] = "#{path}[]"
       block
@@ -637,13 +667,13 @@ module PowerTom
       validate_block_marker!(rows, item, "/rows")
       if stack.empty?
         raise TemplateSyntaxError,
-              "表格第 #{item[:row] + 1} 行:{{/rows}} 没有对应的 {{#rows}}"
+              "table row #{item[:row] + 1}: {{/rows}} has no matching {{#rows}}"
       end
 
       block = stack.pop
       if item[:row] <= block[:open] + 1
         raise TemplateSyntaxError,
-              "表格第 #{block[:open] + 1} 行:{{#rows #{block[:path]}}} 区块内至少需要一行内容"
+              "table row #{block[:open] + 1}: {{#rows #{block[:path]}}} needs at least one content row"
       end
       block[:close] = item[:row]
       (stack.last ? stack.last[:children] : roots) << block
@@ -652,12 +682,13 @@ module PowerTom
     # 区块标记必须独占整行首列
     def validate_block_marker!(rows, item, kind)
       cells = rows[item[:row]]
-      line = "表格第 #{item[:row] + 1} 行"
+      line = "table row #{item[:row] + 1}"
       unless item[:col].zero? && cells[item[:col]].to_s.strip == item[:tag]
-        raise TemplateSyntaxError, "#{line}:#{item[:tag]} 区块标记必须独占整行首列"
+        raise TemplateSyntaxError, "#{line}: #{item[:tag]} block marker must occupy the first cell of a whole row"
       end
       if cells.each_with_index.any? { |text, c| c != item[:col] && !text.to_s.strip.empty? }
-        raise TemplateSyntaxError, "#{line}:#{item[:tag]} 区块标记必须独占整行,其余单元格请留空"
+        raise TemplateSyntaxError,
+              "#{line}: #{item[:tag]} block marker must occupy the whole row; leave the other cells empty"
       end
 
       case kind
@@ -671,7 +702,7 @@ module PowerTom
         return if item[:raw] == "/if"
       end
 
-      raise TemplateSyntaxError, "#{line}:#{item[:tag]} 区块标记不合法"
+      raise TemplateSyntaxError, "#{line}: #{item[:tag]} is an invalid block marker"
     end
 
     def parse_column_band(_rows, row_tags, tags)
@@ -681,31 +712,42 @@ module PowerTom
       closes = tags.select { |t| t[:raw].start_with?("/cols") }
       if opens.size > 1 || closes.size > 1
         extra = (opens + closes).max_by { |t| t[:row] }
-        raise TemplateSyntaxError, "表格第 #{extra[:row] + 1} 行:一张表只允许一个列带"
+        raise TemplateSyntaxError, "table row #{extra[:row] + 1}: a table allows only one column band"
       end
       if opens.empty? || closes.empty?
         raise TemplateSyntaxError,
-              "表格第 #{tags.first[:row] + 1} 行:列带必须同时有 {{#cols}} 与 {{/cols}}"
+              "table row #{tags.first[:row] + 1}: a column band needs both {{#cols}} and {{/cols}}"
       end
 
       open = opens.first
       close = closes.first
-      line = "表格第 #{open[:row] + 1} 行"
-      raise TemplateSyntaxError, "#{line}:{{#cols}} 与 {{/cols}} 必须写在同一行" unless open[:row] == close[:row]
-      raise TemplateSyntaxError, "#{line}:列带不能写在行区块标记行上" if row_tags.any? { |t| t[:row] == open[:row] }
-      raise TemplateSyntaxError, "#{line}:列带必须写在数据列(首列之外)" if open[:col] < 1
-      raise TemplateSyntaxError, "#{line}:{{/cols}} 必须在 {{#cols}} 右侧" if close[:col] < open[:col]
+      line = "table row #{open[:row] + 1}"
+      unless open[:row] == close[:row]
+        raise TemplateSyntaxError,
+              "#{line}: {{#cols}} and {{/cols}} must be written in the same row"
+      end
+      if row_tags.any? do |t|
+        t[:row] == open[:row]
+      end
+        raise TemplateSyntaxError,
+              "#{line}: a column band cannot be written on a row block marker row"
+      end
+      if open[:col] < 1
+        raise TemplateSyntaxError,
+              "#{line}: a column band must start in a data column (outside the first column)"
+      end
+      raise TemplateSyntaxError, "#{line}: {{/cols}} must be to the right of {{#cols}}" if close[:col] < open[:col]
 
       m = open[:tag].match(COLS_OPEN_RE)
       unless m
         raise TemplateSyntaxError,
-              "#{line}:{{#cols}} 写法不合法,应为 {{#cols 数组 [value: 字段1,字段2]}}"
+              "#{line}: invalid {{#cols}} marker; use {{#cols array [value: field1,field2]}}"
       end
       width = close[:col] - open[:col] + 1
       value_paths = m[2]&.split(/\s*,\s*/)
       if value_paths && ![1, width].include?(value_paths.size)
         raise TemplateSyntaxError,
-              "#{line}:value: 的数量必须为 1 或与列带宽度(#{width})一致,当前 #{value_paths.size} 个"
+              "#{line}: value: must contain 1 field or match the column band width (#{width}); got #{value_paths.size}"
       end
       { path: m[1], value_paths: value_paths, row: open[:row],
         first_col: open[:col], last_col: close[:col], width: width }
@@ -714,7 +756,10 @@ module PowerTom
     def check_block_merges!(merged_rows, blocks, band)
       if band
         row = merged_rows.index(true)
-        raise TemplateSyntaxError, "表格第 #{row + 1} 行:列带循环不支持合并单元格,请先拆分" if row
+        if row
+          raise TemplateSyntaxError,
+                "table row #{row + 1}: column band loops do not support merged cells; split them first"
+        end
       end
 
       stacks = build_row_stacks(blocks)
@@ -722,7 +767,7 @@ module PowerTom
         next unless merged
         next if stacks[r].nil?
 
-        raise TemplateSyntaxError, "表格第 #{r + 1} 行:行区块内不支持合并单元格,请先拆分"
+        raise TemplateSyntaxError, "table row #{r + 1}: row blocks do not support merged cells; split them first"
       end
     end
 
@@ -746,11 +791,11 @@ module PowerTom
                        .max_by { |b| b[:prefix].length }
           if match.nil?
             raise TemplateSyntaxError,
-                  "表格第 #{node[:open] + 1} 行:{{#if #{path}}} 不在当前行区块作用域内"
+                  "table row #{node[:open] + 1}: {{#if #{path}}} is not inside the current row block scope"
           end
           if path.scan("[]").size > match[:prefix].scan("[]").size
             raise TemplateSyntaxError,
-                  "表格第 #{node[:open] + 1} 行:{{#if #{path}}} 引用了未展开的下一级数组"
+                  "table row #{node[:open] + 1}: {{#if #{path}}} references a child array that was not expanded"
           end
         end
         check_block_ifs!(block[:children], stack)
@@ -785,27 +830,27 @@ module PowerTom
     end
 
     def validate_block_label!(path, row, col, stack, in_band, band_decl_row)
-      line = "表格第 #{row + 1} 行第 #{col + 1} 列"
+      line = "table row #{row + 1}, column #{col + 1}"
       if path == "cell"
         unless in_band && !stack.empty?
           raise TemplateSyntaxError,
-                "#{line}:{{cell}} 只能写在行区块内的列带单元格里"
+                "#{line}: {{cell}} can only be written in a column band cell inside a row block"
         end
         return
       end
       if path == "col" || path.start_with?("col.")
-        raise TemplateSyntaxError, "#{line}:{{#{path}}} 只能写在列带单元格里" unless in_band
+        raise TemplateSyntaxError, "#{line}: {{#{path}}} can only be written in a column band cell" unless in_band
 
         return
       end
       if path == "row" || path.start_with?("row.")
-        raise TemplateSyntaxError, "#{line}:{{#{path}}} 只能写在行区块内容行里" if stack.empty?
+        raise TemplateSyntaxError, "#{line}: {{#{path}}} can only be written in a row block content row" if stack.empty?
 
         return
       end
       if band_decl_row && in_band
         raise TemplateSyntaxError,
-              "#{line}:列带声明行只能写 {{col.字段}},不能写 {{#{path}}}"
+              "#{line}: a column band declaration row allows only {{col.field}}, not {{#{path}}}"
       end
       return unless path.include?("[]")
 
@@ -813,12 +858,12 @@ module PowerTom
                    .max_by { |b| b[:prefix].length }
       if match.nil?
         raise TemplateSyntaxError,
-              "#{line}:{{#{path}}} 不在当前行区块作用域内"
+              "#{line}: {{#{path}}} is not inside the current row block scope"
       end
       return unless path.scan("[]").size > match[:prefix].scan("[]").size
 
       raise TemplateSyntaxError,
-            "#{line}:{{#{path}}} 引用了未展开的下一级数组(当前最内层 #{match[:prefix]})"
+            "#{line}: {{#{path}}} references a child array that was not expanded (innermost scope: #{match[:prefix]})"
     end
 
     # ---- 文本工具 ----

@@ -201,5 +201,5 @@ end
 
 if File.expand_path($PROGRAM_NAME) == File.expand_path(__FILE__)
   out = ARGV[0] || "examples/score_report/template_scaffold_v2.pptx"
-  puts "已生成 v2 脚手架:#{PowerTomDev::ScoreReportScaffoldV2.build(out)}"
+  puts "v2 scaffold generated: #{PowerTomDev::ScoreReportScaffoldV2.build(out)}"
 end

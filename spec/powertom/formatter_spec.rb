@@ -54,12 +54,12 @@ RSpec.describe PowerTom::Formatter do
 
     it "date 未知参数报错并列出可用值" do
       expect { described_class.apply(Date.today, "date.nothing") }
-        .to raise_error(PowerTom::Error, /date.*不支持/)
+        .to raise_error(PowerTom::Error, /date.*does not support/)
     end
 
     it "未注册的 formatter 报错并列出可用名" do
       expect { described_class.apply(1, "nope") }
-        .to raise_error(PowerTom::Error, /未注册的 formatter 'nope'/)
+        .to raise_error(PowerTom::Error, /unregistered formatter 'nope'/)
     end
   end
 
@@ -112,6 +112,6 @@ RSpec.describe PowerTom::Binder do
     warnings = []
     loose = described_class.new({}, strict: false, warnings: warnings)
     expect(loose.render_label("price", ctx, spec: "currency")).to eq("")
-    expect(warnings.join).to include("已填空字符串")
+    expect(warnings.join).to include("filled with an empty string")
   end
 end

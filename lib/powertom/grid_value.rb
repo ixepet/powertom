@@ -14,7 +14,7 @@ module PowerTom
       return col unless col.is_a?(Hash)
 
       key = col.key?(:key) ? col[:key] : col["key"]
-      raise MissingDataError, "缺少 'key' 字段" if key.nil?
+      raise MissingDataError, "missing 'key' field" if key.nil?
 
       key
     end
@@ -43,8 +43,8 @@ module PowerTom
       key = column_key(col)
       container = value_path ? PathResolver.resolve(row, value_path) : row
       unless container.is_a?(Hash)
-        label = value_path ? "行数据的 '#{value_path}'" : "行数据"
-        raise MissingDataError, "#{label} 需要 Hash,得到 #{container.class}"
+        label = value_path ? "row field '#{value_path}'" : "row data"
+        raise MissingDataError, "#{label} must be a Hash, got #{container.class}"
       end
 
       fetch(container, key)
@@ -57,7 +57,7 @@ module PowerTom
       return container[name] if container.key?(name)
       return container[name.to_sym] if container.key?(name.to_sym)
 
-      raise MissingDataError, "数据里没有字段 '#{name}'"
+      raise MissingDataError, "data has no field '#{name}'"
     end
   end
 end

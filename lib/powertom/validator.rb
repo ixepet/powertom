@@ -34,15 +34,15 @@ module PowerTom
 
     # @return [String] human-readable, one line per entry.
     def report
-      lines = ["PowerTom 模板校验 — #{@template_name}"]
+      lines = ["PowerTom template check — #{@template_name}"]
       entries.each do |e|
         head = head_of(e)
         body = head.empty? ? e.message : "#{head} #{e.message}"
         lines << format("[%-7s] %s", e.level, body)
       end
       lines << ("-" * 48)
-      summary = "#{errors.size} 个 error,#{warnings.size} 个 warning"
-      summary += "(error 阻断渲染,修正后再调用 PowerTom.render)" unless ok?
+      summary = "#{errors.size} error(s), #{warnings.size} warning(s)"
+      summary += " (errors block rendering; fix them before calling PowerTom.render)" unless ok?
       lines << summary
       lines.join("\n")
     end
@@ -53,8 +53,8 @@ module PowerTom
 
     def head_of(entry)
       head = []
-      head << "第 #{entry.slide_no} 页" if entry.slide_no
-      head << "形状'#{entry.shape}'" if entry.shape
+      head << "slide #{entry.slide_no}" if entry.slide_no
+      head << "shape '#{entry.shape}'" if entry.shape
       head << "{{#{entry.label}}}" if entry.label
       head.join(" ")
     end
@@ -89,7 +89,7 @@ module PowerTom
         directive = begin
           Scanner.directive_for(note)
         rescue TemplateSyntaxError => e
-          entries << error_entry(note[:slide_no], "(备注)", nil, strip_location(e.message))
+          entries << error_entry(note[:slide_no], "(notes)", nil, strip_location(e.message))
           nil
         end
         next unless directive
@@ -150,15 +150,16 @@ module PowerTom
           next if Formatter.registered?(name)
 
           entries << error_entry(l[:context][:slide_no], l[:context][:shape], l[:path],
-                                 "未注册的 formatter '#{name}'" \
-                                 "(可用:#{Formatter.registered_names.join(', ')})")
+                                 "unregistered formatter '#{name}' " \
+                                 "(available: #{Formatter.registered_names.join(', ')})")
         end
       end
 
       # 3. 字段对账与溢出预警(需要样例数据)
       if data.nil?
         entries << CheckEntry.new(level: :warning, slide_no: nil, shape: nil, label: nil,
-                                  message: "未提供样例数据(DATA),已跳过字段对账与溢出检查")
+                                  message: "no sample data (DATA) provided; " \
+                                           "field reconciliation and overflow checks were skipped")
       else
         directives.each do |slide_no, directive|
           reconcile_directive(directive, slide_no, data, entries)
@@ -233,7 +234,7 @@ module PowerTom
         unused = data.keys.map(&:to_s) - used_roots.to_a
         unused.each do |key|
           entries << CheckEntry.new(level: :warning, slide_no: nil, shape: nil, label: nil,
-                                    message: "数据字段 '#{key}' 未被模板使用")
+                                    message: "data field '#{key}' is not used by the template")
         end
       end
 
@@ -242,8 +243,9 @@ module PowerTom
         Scanner.scan_notes(note[:text], note[:slide_no]).each do |found|
           next if found[:tag] =~ /\{\{\s*#/
 
-          entries << CheckEntry.new(level: :warning, slide_no: note[:slide_no], shape: "(备注)",
-                                    label: nil, message: "备注含标签 #{found[:tag]},v0 不渲染备注,已忽略")
+          entries << CheckEntry.new(level: :warning, slide_no: note[:slide_no], shape: "(notes)",
+                                    label: nil,
+                                    message: "notes contain tag #{found[:tag]}; v0 does not render notes, ignored")
         end
       end
 
@@ -251,7 +253,7 @@ module PowerTom
       charts.each do |chart|
         entries << CheckEntry.new(
           level: :warning, slide_no: chart[:slide_no], shape: chart[:shape], label: nil,
-          message: "图表含标签 #{chart[:tags].join('、')}:v0 不绑定图表数据,会原样保留"
+          message: "chart contains tags #{chart[:tags].join(', ')}: v0 does not bind chart data; tags are left as-is"
         )
       end
 
@@ -266,21 +268,22 @@ module PowerTom
       value = begin
         PathResolver.resolve(data, path)
       rescue MissingDataError => e
-        entries << error_entry(slide_no, "(备注)", path, e.message)
+        entries << error_entry(slide_no, "(notes)", path, e.message)
         return
       end
       if directive[:kind] == :each
         unless value.is_a?(Array)
-          entries << error_entry(slide_no, "(备注)", path, "取到 #{value.class},必须为数组")
+          entries << error_entry(slide_no, "(notes)", path, "expected an array, got #{value.class}")
           return
         end
         if value.empty?
-          entries << CheckEntry.new(level: :warning, slide_no: slide_no, shape: "(备注)", label: path,
-                                    message: "数组 '#{path}' 为空(0 项):渲染时该组页面将被整组删除")
+          entries << CheckEntry.new(level: :warning, slide_no: slide_no, shape: "(notes)", label: path,
+                                    message: "array '#{path}' is empty (0 items): " \
+                                             "the whole page group will be removed at render time")
         end
       elsif value.nil? || value == false
-        entries << CheckEntry.new(level: :warning, slide_no: slide_no, shape: "(备注)", label: path,
-                                  message: "条件 #{path} 为假:渲染时该页将被删除")
+        entries << CheckEntry.new(level: :warning, slide_no: slide_no, shape: "(notes)", label: path,
+                                  message: "condition #{path} is falsy: this page will be removed at render time")
       end
     end
 
@@ -301,8 +304,8 @@ module PowerTom
         rescue MissingDataError => e
           entries << error_entry(
             ctx[:slide_no], ctx[:shape], path,
-            "数组 '#{directive[:path]}' 第 #{k + 1} 项:#{e.message}" \
-            "(期望:#{directive[:path]}[#{k}].#{path})"
+            "array '#{directive[:path]}' item #{k + 1}: #{e.message} " \
+            "(expected: #{directive[:path]}[#{k}].#{path})"
           )
         end
       else
@@ -342,9 +345,10 @@ module PowerTom
 
       entries << CheckEntry.new(
         level: :warning, slide_no: ctx[:slide_no], shape: ctx[:shape], label: label[:path],
-        message: "绑定后 #{rendered} 字,是占位标签(#{placeholder} 字)的 " \
-                 "#{(rendered.to_f / placeholder).round(1)} 倍,文字可能溢出" \
-                 "(autofit 关闭时不裁剪,建议精简文案或加长占位标签)"
+        message: "after binding, #{rendered} characters is " \
+                 "#{(rendered.to_f / placeholder).round(1)}x the placeholder tag (#{placeholder} characters); " \
+                 "text may overflow (autofit is off, so it will not be clipped; " \
+                 "shorten the copy or lengthen the placeholder tag)"
       )
     end
 
@@ -367,8 +371,8 @@ module PowerTom
           rescue MissingDataError => e
             entries << error_entry(
               ctx[:slide_no], ctx[:shape], path,
-              "数组 '#{directive[:path]}' 第 #{k + 1} 项:#{e.message}" \
-              "(期望:#{directive[:path]}[#{k}].#{path})"
+              "array '#{directive[:path]}' item #{k + 1}: #{e.message} " \
+              "(expected: #{directive[:path]}[#{k}].#{path})"
             )
             next
           end
@@ -388,16 +392,16 @@ module PowerTom
     def check_image_value(value, ctx, path, entries, item_index = nil)
       return if value.nil?
 
-      where = item_index ? "第 #{item_index + 1} 项:" : ""
+      where = item_index ? "item #{item_index + 1}: " : ""
       unless value.is_a?(String) && !value.empty?
         entries << error_entry(ctx[:slide_no], ctx[:shape], path,
-                               "#{where}图片字段需要 String 文件路径,得到 #{value.class}")
+                               "#{where}picture field requires a String file path, got #{value.class}")
         return
       end
       return if File.file?(value)
 
       entries << error_entry(ctx[:slide_no], ctx[:shape], path,
-                             "#{where}图片文件不存在:#{value}")
+                             "#{where}picture file does not exist: #{value}")
     end
 
     # #grid 变量对账:col.* 对每个列项,row.* 对每个行项,cell 对行列交叉
@@ -428,13 +432,14 @@ module PowerTom
 
       unless value.is_a?(Array)
         entries << error_entry(ctx[:slide_no], ctx[:shape], path,
-                               "取到 #{value.class},循环需要数组")
+                               "expected an array for the loop, got #{value.class}")
         return nil
       end
       if value.empty?
         entries << CheckEntry.new(level: :warning, slide_no: ctx[:slide_no], shape: ctx[:shape],
                                   label: path,
-                                  message: "数组 '#{path}' 为空:渲染时该方向的单元格会被移除")
+                                  message: "array '#{path}' is empty: " \
+                                           "cells in this direction will be removed at render time")
       end
       value
     end
@@ -446,8 +451,8 @@ module PowerTom
         PathResolver.resolve(item, remainder)
       rescue MissingDataError => e
         entries << error_entry(ctx[:slide_no], ctx[:shape], path,
-                               "数组 '#{array_path}' 第 #{k + 1} 项:#{e.message}" \
-                               "(期望:#{array_path}[#{k}].#{remainder})")
+                               "array '#{array_path}' item #{k + 1}: #{e.message} " \
+                               "(expected: #{array_path}[#{k}].#{remainder})")
       end
     end
 
@@ -458,7 +463,7 @@ module PowerTom
           GridValue.cell_value(row, col, value_path)
         rescue MissingDataError => e
           entries << error_entry(ctx[:slide_no], ctx[:shape], "cell",
-                                 "第 #{r + 1} 行 × 第 #{c + 1} 列:#{e.message}")
+                                 "row #{r + 1}, column #{c + 1}: #{e.message}")
         end
       end
     end
@@ -509,7 +514,7 @@ module PowerTom
       return unless stacks[band[:row]].nil?
 
       labels_by_row[[ctx[:slide_no], ctx[:shape], band[:row]]].each do |label|
-        reconcile_block_label(label, {}, nil, cols, band, "列带", data, entries)
+        reconcile_block_label(label, {}, nil, cols, band, "column band", data, entries)
       end
     end
 
@@ -522,7 +527,7 @@ module PowerTom
           GridValue.column_condition_value(node[:path], col, band[:path], data)
         rescue MissingDataError => e
           entries << error_entry(ctx[:slide_no], ctx[:shape], node[:path],
-                                 "列条件第 #{index + 1} 项:#{e.message}")
+                                 "column condition item #{index + 1}: #{e.message}")
         end
       end
     end
@@ -537,13 +542,14 @@ module PowerTom
         if items.empty?
           entries << CheckEntry.new(level: :warning, slide_no: ctx[:slide_no], shape: ctx[:shape],
                                     label: block[:path],
-                                    message: "数组 '#{block[:path]}' 为空:渲染时该行区块会被移除")
+                                    message: "array '#{block[:path]}' is empty: " \
+                                             "this row block will be removed at render time")
           next
         end
 
         items.each_with_index do |item, index|
           scope = parent_scope.merge(block[:prefix] => item)
-          where = "区块 #{block[:path]} 第 #{index + 1} 项"
+          where = "block #{block[:path]} item #{index + 1}"
           row = block[:open] + 1
           while row < block[:close]
             if_node = block[:ifs].find { |n| n[:open] == row }
@@ -582,12 +588,12 @@ module PowerTom
               end
       unless value.is_a?(Array)
         entries << error_entry(ctx[:slide_no], ctx[:shape], block[:path],
-                               "取到 #{value.class},行区块需要数组")
+                               "expected an array for the row block, got #{value.class}")
         return nil
       end
       value
     rescue MissingDataError => e
-      message = parent_item ? "父项缺少 '#{block[:relative]}'(#{e.message})" : e.message
+      message = parent_item ? "parent item is missing '#{block[:relative]}' (#{e.message})" : e.message
       entries << error_entry(ctx[:slide_no], ctx[:shape], block[:path], message)
       nil
     end
@@ -599,7 +605,7 @@ module PowerTom
                               .max_by(&:length)
                 if prefix.nil?
                   entries << error_entry(ctx[:slide_no], ctx[:shape], path,
-                                         "#{where}:条件路径不在行区块作用域内")
+                                         "#{where}: condition path is not inside the row block scope")
                   return false
                 end
                 remainder = path.delete_prefix(prefix).delete_prefix(".")
@@ -614,7 +620,7 @@ module PowerTom
       !(value.nil? || value == false)
     rescue MissingDataError => e
       entries << error_entry(ctx[:slide_no], ctx[:shape], path,
-                             "#{where}:条件求值失败:#{e.message}")
+                             "#{where}: condition evaluation failed: #{e.message}")
       false
     end
 
@@ -647,7 +653,7 @@ module PowerTom
         PathResolver.resolve(col, remainder)
       rescue MissingDataError => e
         entries << error_entry(ctx[:slide_no], ctx[:shape], path,
-                               "#{where},第 #{index + 1} 列:#{e.message}")
+                               "#{where}, column #{index + 1}: #{e.message}")
       end
     end
 
@@ -672,9 +678,9 @@ module PowerTom
     end
 
     def cell_where(col_index, template_index, width)
-      return "第 #{col_index + 1} 列" if width == 1
+      return "column #{col_index + 1}" if width == 1
 
-      "第 #{col_index + 1} 个列项的第 #{template_index + 1} 个模板列"
+      "column item #{col_index + 1}, template column #{template_index + 1}"
     end
 
     # 完整路径:按作用域栈里最长的匹配前缀取值
@@ -685,7 +691,7 @@ module PowerTom
                     .max_by(&:length)
       if prefix.nil?
         entries << error_entry(ctx[:slide_no], ctx[:shape], path,
-                               "#{where}:路径不在行区块作用域内")
+                               "#{where}: path is not inside the row block scope")
         return
       end
       remainder = path.delete_prefix(prefix).delete_prefix(".")
@@ -728,13 +734,14 @@ module PowerTom
 
       unless array.is_a?(Array)
         entries << error_entry(ctx[:slide_no], ctx[:shape], original,
-                               "#{where}取到 #{array.class},行循环需要数组")
+                               "#{where}expected an array for the row loop, got #{array.class}")
         return
       end
       if array.empty?
         entries << CheckEntry.new(level: :warning, slide_no: ctx[:slide_no], shape: ctx[:shape],
                                   label: original,
-                                  message: "#{where}数组 '#{root}' 为空:渲染时表格循环行会被移除")
+                                  message: "#{where}array '#{root}' is empty: " \
+                                           "the table loop row will be removed at render time")
         return
       end
       return if rest.empty?
@@ -742,12 +749,12 @@ module PowerTom
       array.each_with_index do |item, k|
         reconcile_loop_level(
           rest, item, "#{concrete}#{root}[#{k}].",
-          "#{where}数组 '#{root}' 第 #{k + 1} 项:", ctx, entries, original
+          "#{where}array '#{root}' item #{k + 1}: ", ctx, entries, original
         )
       end
     rescue MissingDataError => e
       entries << error_entry(ctx[:slide_no], ctx[:shape], original,
-                             "#{where}#{e.message}(期望:#{concrete}#{path})")
+                             "#{where}#{e.message} (expected: #{concrete}#{path})")
     end
 
     def error_entry(slide_no, shape, label, message)
@@ -760,7 +767,9 @@ module PowerTom
 
     # Scanner 的错误消息自带页码/形状前缀,条目里已有定位字段,剥掉避免重复
     def strip_location(message)
-      message.sub(/\A第 \d+ 页 形状'[^']*':/, "").sub(/\A第 \d+ 页备注:?/, "").sub(/\A第 \d+ 页:?/, "")
+      message.sub(/\Aslide \d+ shape '[^']*': /, "")
+             .sub(/\Aslide \d+ notes: /, "")
+             .sub(/\Aslide \d+: /, "")
     end
   end
 end

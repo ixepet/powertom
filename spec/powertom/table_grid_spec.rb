@@ -152,42 +152,42 @@ RSpec.describe "表格动态列(#grid)" do
       rows = [["班级", "{{#grid rows: distribution cols: bands}}"],
               ["{{row.name}}", "{{cell}}"]]
       expect { render(build_template(rows), full_data) }
-        .to raise_error(PowerTom::TemplateSyntaxError, /grid 标记必须放在表头行首列/)
+        .to raise_error(PowerTom::TemplateSyntaxError, /grid marker must go in the first cell of the header row/)
     end
 
     it "表格不是两列 → 语法错误" do
       rows = [["{{#grid rows: distribution cols: bands}}", "{{col.label}}", "备注"],
               ["{{row.name}}", "{{cell}}", "x"]]
       expect { render(build_template(rows), full_data) }
-        .to raise_error(PowerTom::TemplateSyntaxError, /只支持两列模板/)
+        .to raise_error(PowerTom::TemplateSyntaxError, /supports exactly two template columns/)
     end
 
     it "缺少 cols: 参数 → 语法错误" do
       rows = [["{{#grid rows: distribution}}", "{{col.label}}"],
               ["{{row.name}}", "{{cell}}"]]
       expect { render(build_template(rows), full_data) }
-        .to raise_error(PowerTom::TemplateSyntaxError, /缺少 cols: 参数/)
+        .to raise_error(PowerTom::TemplateSyntaxError, /missing the cols: argument/)
     end
 
     it "参数重复 → 语法错误" do
       rows = [["{{#grid rows: distribution rows: bands cols: bands}}", "{{col.label}}"],
               ["{{row.name}}", "{{cell}}"]]
       expect { render(build_template(rows), full_data) }
-        .to raise_error(PowerTom::TemplateSyntaxError, /参数重复/)
+        .to raise_error(PowerTom::TemplateSyntaxError, /repeats the grid argument/)
     end
 
     it "表头用了非 col 作用域标签 → 语法错误" do
       rows = [["{{#grid rows: distribution cols: bands}}", "{{title}}"],
               ["{{row.name}}", "{{cell}}"]]
       expect { render(build_template(rows), full_data) }
-        .to raise_error(PowerTom::TemplateSyntaxError, /不属于 grid 表头作用域/)
+        .to raise_error(PowerTom::TemplateSyntaxError, /is not in the grid header scope/)
     end
 
     it "内容行用了未知作用域标签 → 语法错误" do
       rows = [["{{#grid rows: distribution cols: bands}}", "{{col.label}}"],
               ["{{row.name}}", "{{other}}"]]
       expect { render(build_template(rows), full_data) }
-        .to raise_error(PowerTom::TemplateSyntaxError, /不属于 grid 内容行作用域/)
+        .to raise_error(PowerTom::TemplateSyntaxError, /is not in the grid content row scope/)
     end
 
     it "与 #rows 混用 → 语法错误" do
@@ -195,36 +195,36 @@ RSpec.describe "表格动态列(#grid)" do
               ["{{#rows groups}}", ""],
               ["{{groups[].name}}", ""]]
       expect { render(build_template(rows), full_data.merge(groups: [])) }
-        .to raise_error(PowerTom::TemplateSyntaxError, /不能混用 {{#grid}} 与 {{#rows}}/)
+        .to raise_error(PowerTom::TemplateSyntaxError, /cannot mix \{\{#grid\}\} and \{\{#rows\}\}/)
     end
 
     it "与 [] 行循环混用 → 语法错误" do
       rows = grid_rows + [["{{classes[].name}}", ""]]
       expect { render(build_template(rows), full_data.merge(classes: [])) }
-        .to raise_error(PowerTom::TemplateSyntaxError, /不能混用 {{#grid}} 与/)
+        .to raise_error(PowerTom::TemplateSyntaxError, /cannot mix \{\{#grid\}\} with/)
     end
 
     it "合并单元格 → 拒绝并提示先拆分" do
       expect { render(build_template(grid_rows, merge: [[0, 0, 1]]), full_data) }
-        .to raise_error(PowerTom::TemplateSyntaxError, /grid 循环不支持合并单元格.*先拆分/)
+        .to raise_error(PowerTom::TemplateSyntaxError, /grid loops do not support merged cells.*split them first/)
     end
 
     it "标记后没有内容行 → 语法错误" do
       rows = [["{{#grid rows: distribution cols: bands}}", "{{col.label}}"]]
       expect { render(build_template(rows), full_data) }
-        .to raise_error(PowerTom::TemplateSyntaxError, /grid 标记后缺少内容行/)
+        .to raise_error(PowerTom::TemplateSyntaxError, /grid marker is missing its content row/)
     end
 
     it "列数据缺 key → 报错定位到第几列" do
       data = { distribution: distribution, bands: [{ label: "优秀" }] }
       expect { render(build_template(grid_rows), data) }
-        .to raise_error(PowerTom::MissingDataError, /列数据第 1 项缺少 'key' 字段/)
+        .to raise_error(PowerTom::MissingDataError, /column item 1: missing 'key' field/)
     end
 
     it "value: 指向的字段不是 Hash → 报错" do
       data = { distribution: [{ name: "一班", counts: 5 }], bands: bands }
       expect { render(build_template(grid_rows), data) }
-        .to raise_error(PowerTom::MissingDataError, /行数据的 'counts' 需要 Hash/)
+        .to raise_error(PowerTom::MissingDataError, /row field 'counts' must be a Hash/)
     end
 
     it "行数据缺少列 key → 报错" do
@@ -233,7 +233,7 @@ RSpec.describe "表格动态列(#grid)" do
         bands: [{ key: "good", label: "良好" }]
       }
       expect { render(build_template(grid_rows), data) }
-        .to raise_error(PowerTom::MissingDataError, /数据里没有字段 'good'/)
+        .to raise_error(PowerTom::MissingDataError, /has no field 'good'/)
     end
   end
 
@@ -252,7 +252,7 @@ RSpec.describe "表格动态列(#grid)" do
       result = PowerTom.check(build_template(grid_rows), data: data)
 
       error = result.errors.find { |e| e.label == "row.name" }
-      expect(error.message).to include("第 2 项", "期望:distribution[1].name")
+      expect(error.message).to include("item 2", "expected: distribution[1].name")
     end
 
     it "列缺字段 → error 指向第几列与期望路径" do
@@ -261,7 +261,7 @@ RSpec.describe "表格动态列(#grid)" do
       result = PowerTom.check(build_template(grid_rows), data: data)
 
       error = result.errors.find { |e| e.label == "col.label" }
-      expect(error.message).to include("第 2 项", "期望:bands[1].label")
+      expect(error.message).to include("item 2", "expected: bands[1].label")
     end
 
     it "{{cell}} 缺交叉值 → error 指向行列坐标" do
@@ -270,12 +270,12 @@ RSpec.describe "表格动态列(#grid)" do
       result = PowerTom.check(build_template(grid_rows), data: data)
 
       error = result.errors.find { |e| e.label == "cell" }
-      expect(error.message).to include("第 1 行 × 第 2 列", "good")
+      expect(error.message).to include("row 1, column 2", "good")
     end
 
     it "空 cols → warning 提示列会被移除" do
       result = PowerTom.check(build_template(grid_rows), data: full_data.merge(bands: []))
-      expect(result.warnings.map(&:message).join).to include("数组 'bands' 为空")
+      expect(result.warnings.map(&:message).join).to include("array 'bands' is empty")
     end
 
     it "结构错误(三列)→ error 带页码与形状" do
@@ -285,7 +285,7 @@ RSpec.describe "表格动态列(#grid)" do
       error = result.errors.first
       aggregate_failures do
         expect(error.slide_no).to eq(1)
-        expect(error.message).to include("只支持两列模板")
+        expect(error.message).to include("supports exactly two template columns")
       end
     end
   end

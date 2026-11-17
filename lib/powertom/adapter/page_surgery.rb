@@ -37,7 +37,7 @@ module PowerTom
         # 输出映射:每个输出页对应哪张原始页(含其 notes 部件)
         outputs = @plan.map do |p|
           src = order[p[:source] - 1]
-          raise Error, "页码越界:#{p[:source]}(共 #{order.size} 页)" unless src
+          raise Error, "slide number out of range: #{p[:source]} (there are #{order.size} slides)" unless src
 
           { src_slide: src, src_notes: notes_part_for(parts, p[:source]) }
         end
@@ -79,7 +79,7 @@ module PowerTom
         REXML::XPath.match(pres, "//p:sldIdLst/p:sldId").map do |sld_id|
           rid_attr = sld_id.attributes.get_attribute("r:id")
           target = rid_target[rid_attr&.value]
-          raise Error, "presentation.xml 的 sldId 引用了未知关系" unless target
+          raise Error, "presentation.xml sldId references an unknown relationship" unless target
 
           "ppt/#{target}"
         end
@@ -143,7 +143,7 @@ module PowerTom
         xml = parts.fetch("ppt/presentation.xml").dup.force_encoding(Encoding::UTF_8)
         entries = (0...count).map { |i| %(<p:sldId id="#{256 + i}" r:id="#{new_rids[i]}"/>) }.join
         unless xml.sub!(%r{<p:sldIdLst>.*?</p:sldIdLst>}m, "<p:sldIdLst>#{entries}</p:sldIdLst>")
-          raise Error, "presentation.xml 中未找到 sldIdLst"
+          raise Error, "sldIdLst not found in presentation.xml"
         end
 
         xml.force_encoding(Encoding::BINARY)

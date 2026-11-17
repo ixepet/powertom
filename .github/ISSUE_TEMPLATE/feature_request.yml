@@ -1,0 +1,25 @@
+name: Feature request
+description: Propose an enhancement to the engine or the tooling
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem to solve
+      description: What template or data shape cannot be expressed today?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed syntax / behaviour
+      description: If it involves new template syntax, show the intended table/slide layout and the data it binds to.
+    validations:
+      required: true
+  - type: checkboxes
+    id: alternatives
+    attributes:
+      label: Considered alternatives
+      options:
+        - label: I checked the Limitations section and the docs/table-loop-design.md roadmap
+          required: true

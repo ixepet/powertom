@@ -59,9 +59,9 @@ RSpec.describe PowerTom, ".check" do
     aggregate_failures do
       expect(result.ok?).to be(true)
       expect(result.exit_code).to eq(0)
-      expect(result.report).to include("模板校验")
+      expect(result.report).to include("template check")
       expect(result.report).to match(/\.pptx/)
-      expect(result.report).to include("0 个 error")
+      expect(result.report).to include("0 error(s)")
     end
   end
 
@@ -80,29 +80,29 @@ RSpec.describe PowerTom, ".check" do
   it "#each 页逐项对账:缺哪项报哪项,附期望路径" do
     data = { scenarios: [{ headline: "齐" }, { headline: "齐" }, {}] }
     result = check(labeled_with_directives, data: data)
-    e = result.errors.find { |x| x.message.include?("第 3 项") }
-    expect(e.message).to include("scenarios", "headline", "期望:scenarios[2].headline")
+    e = result.errors.find { |x| x.message.include?("item 3") }
+    expect(e.message).to include("scenarios", "headline", "expected: scenarios[2].headline")
   end
 
   it "#each 路径缺失/非数组 → error;空数组 → 删组 warning" do
     aggregate_failures do
       result = check(labeled_with_directives, data: COMPLETE_DATA.except(:scenarios))
-      expect(result.errors).to include(an_object_having_message(/没有字段 'scenarios'/))
+      expect(result.errors).to include(an_object_having_message(/has no field 'scenarios'/))
 
       result2 = check(labeled_with_directives, data: COMPLETE_DATA.merge(scenarios: "老师"))
-      expect(result2.errors).to include(an_object_having_message(/必须为数组/))
+      expect(result2.errors).to include(an_object_having_message(/expected an array/))
 
       result3 = check(labeled_with_directives, data: COMPLETE_DATA.merge(scenarios: []))
-      expect(result3.warnings).to include(an_object_having_message(/整组删除/))
+      expect(result3.warnings).to include(an_object_having_message(/whole page group/))
     end
   end
 
   it "#if 为假 → 删页 warning;为真 → 无" do
     result = check(labeled_with_directives, data: COMPLETE_DATA.merge(show_compare: false))
-    expect(result.warnings.map(&:message).join).to include("show_compare", "将被删除")
+    expect(result.warnings.map(&:message).join).to include("show_compare", "will be removed")
 
     result2 = check(labeled_with_directives, data: COMPLETE_DATA)
-    expect(result2.warnings.map(&:message).join).not_to include("将被删除")
+    expect(result2.warnings.map(&:message).join).not_to include("will be removed")
   end
 
   it "占位文本溢出预警:绑定值显著长于占位标签时 warning" do
@@ -116,7 +116,7 @@ RSpec.describe PowerTom, ".check" do
     aggregate_failures do
       expect(e).not_to be_nil
       expect(e.slide_no).to eq(2)
-      expect(e.message).to include("溢出")
+      expect(e.message).to include("overflow")
     end
   end
 
@@ -126,7 +126,7 @@ RSpec.describe PowerTom, ".check" do
     result = check(labeled, data: COMPLETE_DATA)
     aggregate_failures do
       expect(result.errors.size).to eq(1)
-      expect(result.errors.first.message).to include("只支持点路径与下标")
+      expect(result.errors.first.message).to include("paths only support dot paths and indices")
       expect(result.errors.first.slide_no).to eq(2)
     end
   end
@@ -134,30 +134,30 @@ RSpec.describe PowerTom, ".check" do
   it "备注多条指令 → error 条目" do
     labeled = inject([], 2 => "{{#each a}}\n{{#if b}}")
     result = check(labeled, data: COMPLETE_DATA)
-    expect(result.errors.first.message).to include("只允许一条")
+    expect(result.errors.first.message).to include("only one is allowed")
   end
 
   it "备注残留普通标签 → warning(§3.3)" do
     labeled = inject([], 2 => "设计说明 {{note_only}}")
     result = check(labeled, data: COMPLETE_DATA)
-    expect(result.warnings.map(&:message).join).to include("{{note_only}}", "不渲染备注")
+    expect(result.warnings.map(&:message).join).to include("{{note_only}}", "does not render notes")
   end
 
   it "未使用字段 → warning" do
     result = check(labeled_with_directives, data: COMPLETE_DATA.merge(extra_field: "x"))
-    expect(result.warnings.map(&:message).join).to include("'extra_field' 未被模板使用")
+    expect(result.warnings.map(&:message).join).to include("'extra_field' is not used by the template")
   end
 
   it "未提供样例数据 → 跳过对账的 warning,语法错误仍会报告" do
     result = check(labeled_with_directives)
     aggregate_failures do
       expect(result.ok?).to be(true)
-      expect(result.warnings.map(&:message).join).to include("未提供样例数据")
+      expect(result.warnings.map(&:message).join).to include("no sample data")
     end
 
     bad = inject([{ slide_no: 2, shape: "文本框 18", old_text: "现状痛点", runs: ["{{#each x}}"] }])
     result2 = check(bad)
-    expect(result2.errors.map(&:message).join).to include("页级指令")
+    expect(result2.errors.map(&:message).join).to include("page directive")
   end
 
   it "data 传 .toml 路径直接装载(TOML 默认格式)" do
@@ -198,7 +198,7 @@ RSpec.describe PowerTom, ".check" do
 
     it "图片文件不存在 → error" do
       result = check(labeled_image, data: COMPLETE_DATA.merge(banner: "/no/such.png"))
-      expect(result.errors.map(&:message).join).to include("图片文件不存在")
+      expect(result.errors.map(&:message).join).to include("picture file does not exist")
     end
 
     it "#each 页图片字段逐项对账:缺哪项报哪项" do
@@ -206,7 +206,7 @@ RSpec.describe PowerTom, ".check" do
         scenarios: [{ headline: "x", cover: "/tmp/a.png" }, { headline: "y" }]
       )
       result = check(labeled_image(with_each: true), data: data)
-      expect(result.errors.find { |x| x.label == "cover" && x.message.include?("第 2 项") })
+      expect(result.errors.find { |x| x.label == "cover" && x.message.include?("item 2") })
         .not_to be_nil
     end
   end
@@ -223,7 +223,7 @@ RSpec.describe PowerTom, ".check" do
       expect(result.errors.map(&:message).join).not_to include("formatter")
 
       result2 = check(inject_formatter("nope.2"), data: COMPLETE_DATA.merge(ratio: 0.1))
-      expect(result2.errors.map(&:message).join).to include("未注册的 formatter 'nope'")
+      expect(result2.errors.map(&:message).join).to include("unregistered formatter 'nope'")
     end
   end
 

@@ -140,5 +140,5 @@ end
 if File.expand_path($PROGRAM_NAME) == File.expand_path(__FILE__)
   out = ARGV[0] || "examples/score_report/template_scaffold.pptx"
   path = PowerTomDev::ScoreReportScaffold.build(out)
-  puts "已生成脚手架模板:#{path}"
+  puts "scaffold template generated: #{path}"
 end

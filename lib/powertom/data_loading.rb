@@ -15,13 +15,13 @@ module PowerTom
 
       unless data.end_with?(".toml")
         raise InvalidTemplateError,
-              "数据文件 #{data} 不是 .toml:TOML 是 PowerTom 的默认数据格式,v0 只支持 .toml"
+              "data file #{data} is not .toml: TOML is PowerTom's default data format; v0 only supports .toml"
       end
-      raise InvalidTemplateError, "数据文件不存在: #{data}" unless File.file?(data)
+      raise InvalidTemplateError, "data file not found: #{data}" unless File.file?(data)
 
       normalize_dates(Tomlrb.load_file(data))
     rescue Tomlrb::ParseError => e
-      raise InvalidTemplateError, "TOML 数据文件解析失败(#{data}):#{e.message}"
+      raise InvalidTemplateError, "failed to parse TOML data file (#{data}): #{e.message}"
     end
 
     # tomlrb 把 TOML 日期时间解析成自己的 Tomlrb::LocalDate / LocalTime /

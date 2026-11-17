@@ -11,8 +11,8 @@ module PowerTom
   module Formatter
     class << self
       def register(name, &block)
-        raise ArgumentError, "formatter 名不能为空" if name.nil? || name.to_s.empty?
-        raise ArgumentError, "formatter 需要接收 (value, arg) 的 block" unless block
+        raise ArgumentError, "formatter name cannot be empty" if name.nil? || name.to_s.empty?
+        raise ArgumentError, "formatter requires a block receiving (value, arg)" unless block
 
         registry[name.to_s] = block
         name.to_s
@@ -38,7 +38,7 @@ module PowerTom
         proc = registry[name]
         unless proc
           raise PowerTom::Error,
-                "未注册的 formatter '#{name}'(可用:#{registered_names.join(', ')})"
+                "unregistered formatter '#{name}' (available: #{registered_names.join(', ')})"
         end
         proc.call(value, arg).to_s
       end
@@ -63,7 +63,7 @@ module PowerTom
     def numeric!(value, name)
       return value if value.is_a?(Numeric)
 
-      raise PowerTom::Error, "formatter '#{name}' 要求数字,得到 #{value.class}"
+      raise PowerTom::Error, "formatter '#{name}' requires a number, got #{value.class}"
     end
 
     def thousands(int_str)
@@ -104,11 +104,14 @@ module PowerTom
     }.freeze
 
     register("date") do |value, arg|
-      raise PowerTom::Error, "formatter 'date' 要求 Date/Time,得到 #{value.class}" unless value.respond_to?(:strftime)
+      unless value.respond_to?(:strftime)
+        raise PowerTom::Error,
+              "formatter 'date' requires a Date/Time value, got #{value.class}"
+      end
 
       pattern = DATE_PATTERNS.fetch(arg) do
         raise PowerTom::Error,
-              "formatter 'date' 不支持 '#{arg}'(可用:nil, #{DATE_PATTERNS.keys.compact.join(', ')})"
+              "formatter 'date' does not support '#{arg}' (available: nil, #{DATE_PATTERNS.keys.compact.join(', ')})"
       end
       value.strftime(pattern)
     end

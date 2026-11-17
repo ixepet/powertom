@@ -68,13 +68,13 @@ RSpec.describe PowerTomDev::TemplateLint do
   it "页数不符 → error" do
     c = contract("slide_count = 3\n\n[[pages]]\nindex = 2\n")
     result = described_class.run(template: @labeled, contract: c)
-    expect(messages(result)).to include("页数不符", "契约 3 页", "实际 18 页")
+    expect(messages(result)).to include("page count mismatch", "contract 3", "actual 18")
   end
 
   it "缺少形状 → error 带页码与形状名" do
     c = contract("[[pages]]\nindex = 2\nshapes = [\"不存在的形状\"]\n")
     result = described_class.run(template: @labeled, contract: c)
-    e = result.errors.find { |x| x.message.include?("缺少形状") }
+    e = result.errors.find { |x| x.message.include?("missing shape") }
     aggregate_failures do
       expect(e.page).to eq(2)
       expect(e.message).to include("不存在的形状")
@@ -88,24 +88,24 @@ RSpec.describe PowerTomDev::TemplateLint do
       labels = ["page_title:number"]
     TOML
     result = described_class.run(template: @labeled, contract: c)
-    expect(messages(result)).to include("缺少标签:{{page_title:number}}")
+    expect(messages(result)).to include("missing tag: {{page_title:number}}")
   end
 
   it "契约外标签 → warning(防止拼错的标签留在页面上)" do
     c = contract("[[pages]]\nindex = 2\nlabels = [\"page_title\"]\n")
     result = described_class.run(template: @labeled, contract: c)
-    expect(result.warnings.map(&:message).join).to include("契约外标签:{{workload}}")
+    expect(result.warnings.map(&:message).join).to include("tag outside the contract: {{workload}}")
     expect(result.ok?).to be(true)
   end
 
   it "备注指令不符(应有却无 / 不应有却有)→ error" do
     should_have = contract("[[pages]]\nindex = 9\n")
     expect(messages(described_class.run(template: @labeled, contract: should_have)))
-      .to include("备注指令不符", "契约 无", "实际 {{#each scenarios}}")
+      .to include("notes directive mismatch", "contract none", "actual {{#each scenarios}}")
 
     should_not = contract("[[pages]]\nindex = 2\ndirective = \"if show\"\n")
     expect(messages(described_class.run(template: @labeled, contract: should_not)))
-      .to include("契约 {{#if show}}", "实际 无")
+      .to include("contract {{#if show}}", "actual none")
   end
 
   context "图片占位" do
@@ -127,7 +127,7 @@ RSpec.describe PowerTomDev::TemplateLint do
     it "声明了但缺失 → error;命名拼错但存在同名文本形状 → 不是图片" do
       c = contract("[[pages]]\nindex = 5\nimages = [\"powertom:image:nope\"]\n")
       result = described_class.run(template: image_template, contract: c)
-      expect(messages(result)).to include("缺少图片占位:'powertom:image:nope'")
+      expect(messages(result)).to include("missing picture placeholder: 'powertom:image:nope'")
 
       wrong_kind = File.join(@tmp_root, "wrong_kind.pptx")
       PowerTomDev::LabelInjector.inject(
@@ -136,13 +136,14 @@ RSpec.describe PowerTomDev::TemplateLint do
       )
       c2 = contract("[[pages]]\nindex = 9\nimages = [\"powertom:image:fake\"]\n")
       result2 = described_class.run(template: wrong_kind, contract: c2)
-      expect(messages(result2)).to include("存在但不是图片")
+      expect(messages(result2)).to include("exists but is not a picture")
     end
 
     it "契约外图片占位 → warning(拼错的占位不会被使用)" do
       c = contract("[[pages]]\nindex = 5\n")
       result = described_class.run(template: image_template, contract: c)
-      expect(result.warnings.map(&:message).join).to include("契约外图片占位:'powertom:image:banner'")
+      expect(result.warnings.map(&:message).join)
+        .to include("picture placeholder outside the contract: 'powertom:image:banner'")
     end
   end
 
@@ -163,7 +164,7 @@ RSpec.describe PowerTomDev::TemplateLint do
     adapter.save(prs, path)
 
     result = described_class.run(template: path, contract: base_contract)
-    expect(messages(result)).to include("母版/版式上的标签不会生效", "{{oops}}")
+    expect(messages(result)).to include("tags on masters/layouts never take effect", "{{oops}}")
   end
 
   it "备注里残留普通标签 → warning" do
@@ -174,7 +175,7 @@ RSpec.describe PowerTomDev::TemplateLint do
     adapter.save(prs, path)
 
     result = described_class.run(template: path, contract: base_contract)
-    expect(result.warnings.map(&:message).join).to include("备注含标签 {{note_only}}", "不会渲染")
+    expect(result.warnings.map(&:message).join).to include("notes contain tag {{note_only}}", "notes are not rendered")
   end
 
   it "传 DATA 时附带数据对账(powertom:check)" do
@@ -182,7 +183,7 @@ RSpec.describe PowerTomDev::TemplateLint do
     aggregate_failures do
       expect(result.check).not_to be_nil
       expect(result.check.errors).not_to be_empty
-      expect(result.report).to include("数据对账", "powertom:check")
+      expect(result.report).to include("data reconciliation", "powertom:check")
     end
   end
 

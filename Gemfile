@@ -14,6 +14,8 @@ group :development, :test do
   # 代码风格与 API 文档
   gem "rubocop", "~> 1.60", require: false
   gem "yard", "~> 0.9", require: false
+  # 依赖漏洞审计(CI lint 任务里执行)
+  gem "bundler-audit", require: false
 end
 
 gem "tomlrb", "~> 3.0"

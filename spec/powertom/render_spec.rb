@@ -123,14 +123,14 @@ RSpec.describe PowerTom, ".render" do
   end
 
   it "数据未使用字段记 warning(§2.3)" do
-    expect(rendered_warnings).to include("数据字段 'extra_field' 未被模板使用")
+    expect(rendered_warnings).to include("data field 'extra_field' is not used by the template")
   end
 
   context "strict 模式缺失字段" do
     it "抛 MissingDataError,信息定位到页码与标签" do
       incomplete = DATA.except(:highlight_title)
       expect { PowerTom.render(labeled_path, data: incomplete) }
-        .to raise_error(PowerTom::MissingDataError, /第 5 页.*highlight_title/)
+        .to raise_error(PowerTom::MissingDataError, /slide 5.*highlight_title/)
     end
   end
 
@@ -138,7 +138,7 @@ RSpec.describe PowerTom, ".render" do
     it "填空字符串并记 warning" do
       incomplete = DATA.except(:highlight_title)
       result = PowerTom.render(labeled_path, data: incomplete, strict: false)
-      expect(result.warnings.join).to include("第 5 页", "已填空字符串")
+      expect(result.warnings.join).to include("slide 5", "filled with an empty string")
       saved = File.join(tmp_root || Dir.tmpdir, "strict_false_out.pptx")
       result.save(saved)
       p5 = paragraph_texts(saved, 5)
@@ -155,7 +155,7 @@ RSpec.describe PowerTom, ".render" do
         [{ slide_no: 2, shape: "文本框 18", old_text: "现状痛点", runs: ["{{#each kpis}}"] }]
       )
       expect { PowerTom.render(bad, data: {}) }
-        .to raise_error(PowerTom::TemplateSyntaxError, /页级指令.*备注/)
+        .to raise_error(PowerTom::TemplateSyntaxError, /page directive.*notes/)
     end
 
     it "formatter 语法合法且渲染生效(§3.4)" do
@@ -182,7 +182,7 @@ RSpec.describe PowerTom, ".render" do
         [{ slide_no: 2, shape: "文本框 18", old_text: "现状痛点", runs: ["{{price:nope}}"] }]
       )
       expect { PowerTom.render(bad, data: { price: 1 }) }
-        .to raise_error(PowerTom::Error, /未注册的 formatter 'nope'/)
+        .to raise_error(PowerTom::Error, /unregistered formatter 'nope'/)
     end
 
     it "非法路径报语法错误" do
@@ -192,7 +192,7 @@ RSpec.describe PowerTom, ".render" do
         [{ slide_no: 2, shape: "文本框 18", old_text: "现状痛点", runs: ["{{foo bar}}"] }]
       )
       expect { PowerTom.render(bad, data: {}) }
-        .to raise_error(PowerTom::TemplateSyntaxError, /只支持点路径与下标/)
+        .to raise_error(PowerTom::TemplateSyntaxError, /paths only support dot paths and indices/)
     end
   end
 
@@ -205,7 +205,7 @@ RSpec.describe PowerTom, ".render" do
       adapter.save(prs, noted)
 
       result = PowerTom.render(noted, data: DATA)
-      expect(result.warnings.join).to include("备注", "{{hidden_note}}")
+      expect(result.warnings.join).to include("notes", "{{hidden_note}}")
     end
   end
 

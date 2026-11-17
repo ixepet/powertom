@@ -1,0 +1,47 @@
+name: Bug report
+description: Report a problem with rendering, checking or the template syntax
+labels: [bug]
+body:
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: Include the full error message or `PowerTom.check` report, and what you expected instead.
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Minimal reproduction
+      description: |
+        The smallest template + data that triggers it. A few table rows / one
+        slide with the tag, plus the Ruby Hash or TOML snippet, are enough —
+        please do not attach confidential decks.
+      placeholder: |
+        # template (relevant shape/table cells)
+        # data
+        # the render/check call
+    validations:
+      required: true
+  - type: input
+    id: versions
+    attributes:
+      label: Versions
+      description: PowerTom, ruby_pptx, Ruby (`gem list powertom ruby_pptx; ruby -v`)
+      placeholder: powertom 0.3.0, ruby_pptx 0.2.0, Ruby 3.4.1
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Text tags / formatters
+        - Page directives (#each / #if)
+        - Table loops (#rows / #grid / #cols)
+        - Picture replacement
+        - PowerTom.check / powertom:lint
+        - Packaging / installation
+        - Other
+    validations:
+      required: true
