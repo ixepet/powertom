@@ -220,7 +220,16 @@ bundle exec yard doc --no-output   # API docs check
 bundle exec bundler-audit check --update   # dependency advisories
 ```
 
-The golden-sample template used by the end-to-end tests (split runs, cloning, picture replacement, fidelity) is not committed, because of size and ownership; only its structural snapshot `spec/fixtures/hai_mate/manifest.toml` is. With the original template at hand:
+Two fixture tiers cover the end-to-end paths:
+
+- **Committed mini golden sample** (`spec/fixtures/mini/template.pptx`): split-run
+  merging, multi-tag paragraphs, page cloning/removal, picture replacement and
+  LibreOffice fidelity run in every CI build (`spec/powertom/mini_golden_spec.rb`).
+  Regenerate it with `bundle exec ruby tools/build_mini_golden.rb` if the template
+  needs new coverage.
+- **Private golden sample**: the larger real-world deck used by the HaiMate
+  examples (`spec/fixtures/hai_mate/template.pptx`) is not committed, because of
+  size and ownership; only its structural snapshot `spec/fixtures/hai_mate/manifest.toml` is. With the original template at hand:
 
 ```bash
 bundle exec rake fixtures:generate TEMPLATE=/path/to/template.pptx OUT=spec/fixtures/hai_mate

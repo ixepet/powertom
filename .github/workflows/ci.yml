@@ -109,6 +109,7 @@ jobs:
       - name: 公开模板与表格循环的 PDF 转换
         run: |
           bundle exec rspec \
+            spec/powertom/mini_golden_spec.rb \
             spec/powertom/table_row_loop_spec.rb \
             spec/powertom/table_row_loop_nested_spec.rb \
             spec/powertom/table_grid_spec.rb \
