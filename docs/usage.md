@@ -58,7 +58,8 @@ Rules:
 | `{{#if show_appendix}}` | Remove this page when the value is `false` or `nil`. |
 
 - Directives live in the **slide notes**, one per page.
-- Labels on an `#each` page resolve against the current item first.
+- Labels on an `#each` page resolve against the current item only — there is no
+  fallback to the root data. Use `{{headline}}`, not `{{scenario.headline}}`.
 - A missing `#each` path is an error; pages are never dropped silently.
 - A page cannot combine a page directive with a table block/loop.
 

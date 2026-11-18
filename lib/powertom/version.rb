@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 module PowerTom
-  # 设计文档 §6:v0.4.1 组合图/散点/气泡/雷达绑定 + workbook 主题字体 + 类型守卫
-  VERSION = "0.4.1"
+  # 0.4.2:发布随 gem 分发的 powertom:check Rake 任务;README FAQ 记录 #each
+  # 作用域、Rake 任务加载与 JSON/YAML 适配
+  VERSION = "0.4.2"
 end

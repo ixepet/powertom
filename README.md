@@ -135,6 +135,14 @@ result = PowerTom.render("templates/report.pptx", data: {
 | `{{#each scenarios}}` | notes | Clone the page per array item (empty array removes the group) |
 | `{{#if show_compare}}` | notes | Remove the page when falsy |
 
+> [!WARNING]
+> **Scope inside `{{#each}}`.** An `{{#each scenarios}}` page renders once per
+> item, and every tag on that page resolves against the **item** — there is no
+> fallback to the root data. Write `{{headline}}`, not `{{scenario.headline}}`:
+> a prefix that does not exist on the item raises `MissingDataError`. A value
+> that lives only at the top level is not visible on that page; put it on a
+> separate page or include it in each item.
+
 - **Split runs are handled**: if PowerPoint stores `{{title}}` as several runs, the engine merges the paragraph and replaces correctly; the result inherits the first run's style.
 - **Nested table rows**: `{{#rows groups}}` occupies a whole row (first cell only), and the next row is the parent content row; `{{#rows groups[].items}}` followed by its own content row adds one nesting level. Two levels maximum; parent and child tags use full paths (`{{groups[].name}}`, `{{groups[].items[].name}}`).
 - **Dynamic columns**: put `{{#grid rows: distribution cols: bands value: counts}}` in the header row's first cell. The header row's second cell is the column template (`{{col.label}}`), and the next row is the row template (`{{row.name}}` in the first cell, `{{cell}}` in the data columns). Exactly two columns; `value:` is optional (defaults to `row[col.key]`).
@@ -158,6 +166,14 @@ PowerTom.register_formatter("rmb") { |value, _arg| "#{value} RMB" }
 ## Template checker
 
 Most tools treat validation as a side effect of logging. PowerTom makes it a first-class step: bad templates fail in CI before anything is rendered.
+
+Add the task to your project's Rakefile once (the gem ships it):
+
+```ruby
+require "powertom/tasks"
+```
+
+Then run:
 
 ```bash
 bundle exec rake powertom:check TEMPLATE=templates/report.pptx DATA=data/sample.toml
@@ -209,8 +225,49 @@ Output is **all or nothing**: every check runs before anything is written to dis
 | Tags on masters/layouts are rejected | Only shapes on slides are processed; `PowerTom.check` reports these tags as errors because they never take effect |
 | No PPT → PDF | Use LibreOffice headless |
 | `.pptx` only | No legacy 97-2003 binary format |
-| TOML or Hash only | No YAML / JSON loader; load them yourself and pass a Hash (see `docs/usage.md` §7) |
+| TOML or Hash only | No YAML / JSON loader; load them yourself and pass a Hash (see the FAQ below) |
 | Pictures default to fill + centre-crop | Append `; mode=contain` to `powertom:image:<field>` to fit the image inside the frame without cropping; the aspect-ratio warning only applies to fill mode |
+
+## FAQ
+
+**Why does `{{scenario.headline}}` fail inside `{{#each scenarios}}`?**
+
+The page context becomes the current item, as in Handlebars or Liquid. Every
+tag on that page resolves against the item, with no fallback to the root
+document. Write `{{headline}}`; a prefix that does not exist on the item raises
+`MissingDataError`. Values that exist only at the top level need their own page
+or must be repeated in each item.
+
+**`rake powertom:check` says "Don't know how to build task".**
+
+The task has to be loaded by your project. Add this once to the Rakefile of the
+app that uses the gem (0.4.2+):
+
+```ruby
+require "powertom/tasks"
+```
+
+Then `bundle exec rake powertom:check TEMPLATE=... DATA=...` works. The
+repository-only `powertom:lint` and `fixtures:*` tasks are not part of the gem.
+
+**Can I pass JSON or YAML instead of TOML?**
+
+The built-in loader accepts a `Hash` or a `.toml` path. Parse other formats
+yourself and pass the resulting Hash — string and symbol keys both work:
+
+```ruby
+require "json"
+PowerTom.render("template.pptx", data: JSON.parse(File.read("data.json")))
+
+require "yaml"
+PowerTom.render("template.pptx",
+                data: YAML.safe_load_file("data.yaml",
+                                          permitted_classes: [Date, Time],
+                                          aliases: true))
+```
+
+JSON/YAML have no native date type: convert date-like strings to `Date` or
+`Time` yourself if a `date` formatter is used.
 
 ## Security
 

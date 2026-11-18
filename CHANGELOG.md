@@ -6,8 +6,20 @@ and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+## [0.4.2] - 2026-11-18
+
 ### Added
 
+- `lib/powertom/tasks.rb`: the documented `powertom:check` Rake task now ships
+  with the gem. Add `require "powertom/tasks"` to a project's Rakefile once and
+  `bundle exec rake powertom:check TEMPLATE=... DATA=...` works after
+  `gem install` / `bundle install`; the task's usage messages are English, like
+  every other user-facing message.
+- README FAQ covering the first dogfooding round: the `#each` page context is
+  the current item (`{{headline}}`, not `{{scenario.headline}}` — and there is
+  no root fallback), how to load the Rake task, and how to pass JSON/YAML as a
+  parsed Hash. A warning box next to the syntax table makes the scope rule hard
+  to miss.
 - L3 official validation layer: a minimal .NET tool
   (`tools/openxml_validator`, OpenXmlValidator / DocumentFormat.OpenXml)
   plus an `L3 OpenXML validation` workflow — ubuntu renders the L3 deck set
@@ -48,6 +60,14 @@ and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
 
 ### Fixed
 
+- `powertom:check` existed only in the repository's `rakelib/`, which the
+  gemspec never packaged, so the checker command in the README failed with
+  "Don't know how to build task" for installed users. The task moved to
+  `lib/powertom/tasks.rb` (shipped by `Dir["lib/**/*.rb"]`); `powertom:lint`
+  and `fixtures:*` stay repository-only.
+- `docs/usage.md` said `#each` labels resolve "against the current item first",
+  implying a fallback to the root data. There is no fallback; the wording now
+  says so.
 - Pie chart binding now rejects data with more than one series. PowerPoint
   draws only the first pie series, so accepting extra series silently lost
   data; `PowerTom.check` and `render` both report a located error instead.

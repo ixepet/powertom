@@ -27,6 +27,9 @@
    rake powertom:check TEMPLATE=template.pptx DATA=sample_data.toml
    ```
 
+   Add `require "powertom/tasks"` to the project's Rakefile once — the task
+   ships with the gem (0.4.2+).
+
    Every `error` must be fixed; a `warning` deserves a look. Once both are clean, the rendered deck opens normally in PowerPoint.
 
 ---
