@@ -56,7 +56,7 @@ PowerTom fills the middle layer: a **template engine on top of [`ruby_pptx`](htt
 gem "powertom"
 ```
 
-Requires Ruby >= 3.3; depends on `ruby_pptx >= 0.2.0, < 1.0` (read/write) and `tomlrb ~> 3.0` (data files).
+Requires Ruby >= 3.3; depends on `ruby_pptx >= 0.3.0, < 1.0` (read/write) and `tomlrb ~> 3.0` (data files).
 
 ## Quick start
 
@@ -258,10 +258,12 @@ git tag -a v0.3.0 -m "v0.3.0"
 git push origin v0.3.0
 ```
 
-`.github/workflows/release.yml` builds the gem and exchanges the GitHub OIDC token
-for RubyGems credentials (trusted publishing), so no manual `gem push` or OTP is
-needed. Configure the trusted publisher on RubyGems with workflow `release.yml`
-and no environment.
+`.github/workflows/release.yml` runs `rubygems/release-gem` (trusted publishing
+over the GitHub OIDC token), so no manual `gem push` or OTP is needed. The
+action also signs the gem with Sigstore, so each RubyGems version shows
+"Provenance: Built and signed on GitHub Actions" with the commit and workflow
+that built it. Configure the trusted publisher on RubyGems with workflow
+`release.yml` and no environment.
 
 ## License
 

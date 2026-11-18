@@ -2,7 +2,7 @@ PATH
   remote: .
   specs:
     powertom (0.4.1)
-      ruby_pptx (>= 0.2.0, < 1.0)
+      ruby_pptx (>= 0.3.0, < 1.0)
       tomlrb (~> 3.0)
 
 GEM
@@ -59,7 +59,7 @@ GEM
       parser (>= 3.3.7.2)
       prism (>= 1.7)
     ruby-progressbar (1.13.0)
-    ruby_pptx (0.2.0)
+    ruby_pptx (0.3.0)
       nokogiri (~> 1.18)
       rexml (>= 3.3.9, < 4)
       rubyzip (~> 3.0)
@@ -114,7 +114,7 @@ CHECKSUMS
   rubocop (1.92.2) sha256=14fb31eed143a0dc6f78186c550c1715e81cd38f59d05d1165050e445c1f5382
   rubocop-ast (1.51.0) sha256=0ec311e36b191b3872d909078a35274e962ae97dbce64be6812d145ca59acfcb
   ruby-progressbar (1.13.0) sha256=80fc9c47a9b640d6834e0dc7b3c94c9df37f08cb072b7761e4a71e22cff29b33
-  ruby_pptx (0.2.0) sha256=e30bb886dab573793e29f13102aeefc1fd2e5027886466788be4977f6ee84586
+  ruby_pptx (0.3.0) sha256=13631a1e51992852c9bf1f57b12c6e9c2c24438ab3ef862686cf0b345d9bcd10
   rubyzip (3.7.0) sha256=65c19294da75297a939006f3516deacc33185fbd721ff1954f7a231db6d3e121
   thor (1.5.0) sha256=e3a9e55fe857e44859ce104a84675ab6e8cd59c650a49106a05f55f136425e73
   tomlrb (3.0.0) sha256=e7122820cbb9b940d1758eecb6d1d4ee97c582efa37f06e0100a97cb17a566f5

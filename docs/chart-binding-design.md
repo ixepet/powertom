@@ -4,6 +4,9 @@
 > (scatter / bubble / radar, schema normalization) · 2026-11-17
 > Spikes: `tools/chart_binding_spike.rb`, `tools/chart_binding_spike2.rb` ·
 > Supersedes the assumptions in project design document §5.4.
+> Update 2026-11-18: ruby_pptx 0.3.0 added `XyChartData`/`BubbleChartData`
+> support to `replace_data`, so the adapter-level XY rewriter described in §9
+> was removed; every supported family now rides upstream.
 
 ---
 
@@ -146,6 +149,7 @@ from data.
 | --- | --- |
 | v0.4.0 (shipped) | Naming-convention locator + per-clone chart part deep copy + `replace_data` binding + `check` reconciliation + mini-golden regression |
 | v0.4.1 (shipped) | Combo charts (document order + exact series count), scatter / bubble (adapter-level XY rewriter), radar, workbook theme font, schema normalization for L3 |
+| next (unreleased) | ruby_pptx 0.3.0 makes `replace_data` rebind scatter/bubble and reject mismatched data kinds; the adapter XY rewriter is deleted and the dependency floor moves to 0.3.0 |
 
 > The spike removes the two assumptions that postponed §5.4: no XML surgery is
 > needed (upstream `SeriesRewriter`) and no separate gem is warranted (the
@@ -179,15 +183,21 @@ Consequences:
    adds or removes plots and destroys the designer's combo structure. The
    bind error reports the template's per-plot distribution (e.g.
    `column×1 + line×1`).
-2. **Scatter/bubble cannot ride upstream `replace_data`**: `SeriesFragments`
-   only emits `c:tx/c:cat/c:val` fragments and `rewrite_series` never
-   removes `c:xVal/c:yVal/c:bubbleSize`. **Implemented resolution**: the
-   adapter rewrites XY series itself — remove the four nodes, insert
+2. **Scatter/bubble could not ride upstream `replace_data` in 0.2.x**: `SeriesFragments`
+   only emitted `c:tx/c:cat/c:val` fragments and `rewrite_series` never
+   removed `c:xVal/c:yVal/c:bubbleSize`. **v0.4.1 resolution**: the
+   adapter rewrote XY series itself — remove the four nodes, insert
    regenerated `c:tx`/`c:xVal`/`c:yVal`/`c:bubbleSize` fragments (mirroring
    upstream's `num_ref_xml`, positioned by the same `CT_Series` zero-or-one
    macros) and regenerate the workbook from `XyChartData#xlsx_blob`. Data
    shape: per-series `points` (`{x, y}`; bubble adds `size`), no shared
    categories; series count must equal the template's.
+   **Update (ruby_pptx 0.3.0)**: upstream issue #1 was fixed —
+   `replace_data(XyChartData)` and `replace_data(BubbleChartData)` rewrite the
+   same nodes in schema order, keep series formatting, regenerate the
+   workbook, and raise `Pptx::Error` for a data kind the chart cannot hold.
+   The adapter now just builds the data object and calls `replace_data`; only
+   the theme-font harmonisation of the regenerated workbook stays in PowerTom.
 3. **Radar is a line-chart variant.** It shares the `cat+val` model, so it
    rides upstream `replace_data` unchanged — no guard beyond the standard data
    shape. `radarStyle` and the radial axis' scaling survive the rebind, and nil
@@ -208,5 +218,19 @@ defects:
 PowerTom normalizes charts on save (`RubyPptxAdapter#normalize_chart_quirks`):
 negative axis ids become their absolute value (references stay
 self-consistent and inside the int32 bound), and illegal radar `c:smooth`
-nodes are removed. Both are upstream defects reported separately; the
-normalization can be retired once upstream fixes them.
+nodes are removed. **This normalization is a compatibility moat and must not
+be deleted ahead of a verified upstream fix.** The adapter's contract is to
+tolerate known library defects, not to assume correct upstream output.
+
+These two writer defects are still open upstream (not covered by issue #1 or
+#2). Checked again in ruby_pptx 0.3.0: `BarChartWriter` still emits
+`CAT_AX_ID = "-2068027336"` and `RadarChartWriter` still appends
+`c:smooth val="0"`, so the L3 gate keeps `normalize_chart_quirks`.
+
+Retirement path once upstream ships a fixed release (0.3.1 / 0.4.0 or later):
+
+1. upgrade and let the L3 gate confirm both defects are gone;
+2. gate the repair by version, for example
+   `Gem::Version.new(Pptx::VERSION) < Gem::Version.new("<fixed>")`, so old
+   installations running old ruby_pptx keep the protection;
+3. only in a later major, mark the branch deprecated and remove it.

@@ -27,6 +27,21 @@ and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
 
 ### Changed
 
+- Scatter and bubble binding now rides upstream `Chart#replace_data`:
+  ruby_pptx 0.3.0 added `XyChartData` / `BubbleChartData` support (it rewrites
+  each series' `c:tx`/`c:xVal`/`c:yVal`/`c:bubbleSize` in schema order and
+  keeps the formatting) and raises `Pptx::Error` for a data kind the chart
+  cannot hold. The adapter's own XY rewriter is gone; the regenerated workbook
+  still receives the theme minor font.
+- The `ruby_pptx` floor is now `>= 0.3.0` (was `0.2.0`). On 0.2.x the binding
+  layer could only write category-chart data into scatter/bubble series, which
+  produces a chart PowerPoint has to repair.
+- Releases are published with `rubygems/release-gem` instead of the manual
+  `configure-rubygems-credentials` + `gem push` pair. The action runs
+  `rake release` and signs the gem with Sigstore, so RubyGems shows
+  "Provenance: Built and signed on GitHub Actions" for each version, linking
+  the commit and workflow that built it. The Rakefile now loads
+  `bundler/gem_tasks`.
 - Documented the JSON/YAML adapter pattern in `docs/usage.md`; no built-in
   loader is added. The existing `.toml`-only error no longer says "v0" and
   points to the Hash adapter.

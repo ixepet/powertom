@@ -66,5 +66,6 @@ README and open a private security advisory instead.
 ## Releasing (maintainers)
 
 Releases are published by pushing a `v*` tag; `.github/workflows/release.yml`
-publishes the gem via RubyGems trusted publishing (OIDC). No manual
-`gem push` or OTP.
+runs `rubygems/release-gem`, which publishes the gem via RubyGems trusted
+publishing (OIDC) and signs it with Sigstore — RubyGems then shows the build's
+provenance. No manual `gem push` or OTP.

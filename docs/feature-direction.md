@@ -31,6 +31,7 @@ Two consequences worth stating explicitly:
 | Picture contain mode | Implemented as opt-in `mode=contain`; `fill` remains the default | Geometry is bounded; margins show what is behind the picture |
 | JSON / YAML input | No built-in loaders; document adapter snippets | Small dependency surface; `Hash` is the stable API |
 | Master / layout tags | Runtime still ignores them; `PowerTom.check` now reports them as errors | Shared parts and placeholder inheritance rule out binding; the public check closes the validation gap |
+| Upstream writer defects | Normalize on save; keep until a fixed upstream release is verified, then version-gate and deprecate | The adapter must tolerate library bugs, not assume correct upstream output |
 | General principle | Accepted as written | Matches the existing check-first, all-or-nothing design |
 
 ---
@@ -49,7 +50,7 @@ combo, scatter (XY) and bubble charts.
 | Doughnut | Same as above; additional series become concentric rings. | None |
 | Pie | Only the first series is drawn; extra series are silently ignored. | **Implemented**: hard error in both `check` and render when more than one series is supplied |
 | Combo | Series are flattened across plots; adding/removing can silently reassign plot structure. | Hard error in both `check` and render |
-| Scatter / bubble | Adapter rewrites `xVal` / `yVal` / `bubbleSize` in place and zips by index. | Hard error in both `check` and render |
+| Scatter / bubble | `replace_data(XyChartData/BubbleChartData)` rewrites `xVal` / `yVal` / `bubbleSize` per series (ruby_pptx >= 0.3.0). | Hard error in both `check` and render |
 
 Additional verified details:
 
@@ -76,9 +77,9 @@ Additional verified details:
   express which incoming series belongs to which plot, so the only safe
   contract is "same total count, same document order".
 - **Scatter / bubble**: these series carry their own `xVal` / `yVal`
-  (`bubbleSize`) instead of a shared category cache. The adapter rewrites the
-  existing `c:ser` elements positionally; a count mismatch would leave stale or
-  missing series.
+  (`bubbleSize`) instead of a shared category cache. Upstream rewrites them
+  positionally from `XyChartData` / `BubbleChartData` (ruby_pptx >= 0.3.0), so
+  a count mismatch would leave stale or missing series.
 - **Pie**: PowerPoint's pie model is effectively single-series. Accepting more
   series produces output that looks successful but loses data.
 
@@ -240,11 +241,12 @@ The risks are not primarily technical:
 
 ## Verification notes
 
-- Chart series behaviour was verified against `ruby_pptx` 0.2.0
-  (`Chart#replace_data`, `SeriesRewriter#adjust_series_count`,
-  `#clone_series`, `#trim_series`) and against rendered output:
-  bar charts accept add/remove; pie ignores extra series; doughnut renders
-  extra series as rings.
+- Chart series behaviour was verified against `ruby_pptx` 0.2.0 and re-checked
+  against 0.3.0 (`Chart#replace_data`, `SeriesRewriter#adjust_series_count`,
+  `#clone_series`, `#trim_series`, `#check_data_kind`) and against rendered
+  output: bar charts accept add/remove; pie ignores extra series; doughnut
+  renders extra series as rings; 0.3.0 raises `Pptx::Error` for a data kind the
+  chart cannot hold.
 - Chart data shape, zero-series rejection and the combo/XY/bubble count guards
   live in `PowerTom::Render#validate_chart_data!`,
   `#validate_chart_series_count!` and `PowerTom::Validator`.

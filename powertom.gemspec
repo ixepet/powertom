@@ -28,8 +28,10 @@ Gem::Specification.new do |spec|
   spec.require_paths = ["lib"]
 
   # 适配层隔离上游变动:约束放宽到 < 1.0,下游可直接获得 0.x 的修复;
-  # 破坏性变更由 CI(锁 0.2.x)+ 适配层吸收
-  spec.add_dependency "ruby_pptx", ">= 0.2.0", "< 1.0"
+  # 破坏性变更由 CI(锁当前 minor)+ 适配层吸收。
+  # 下限 0.3.0:散点/气泡绑定依赖上游 replace_data(XyChartData/BubbleChartData)
+  # (0.2.x 会把类别图表数据写进 XY 系列,产 PowerPoint 需修复的文件)
+  spec.add_dependency "ruby_pptx", ">= 0.3.0", "< 1.0"
   # 数据文件默认格式 TOML(解析);tomlrb 只负责读,写出侧由 fixture 工具自带微型序列化器
   spec.add_dependency "tomlrb", "~> 3.0"
 end

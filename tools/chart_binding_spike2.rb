@@ -1,14 +1,11 @@
 # frozen_string_literal: true
 
-# 图表绑定 v0.4.x 预研 spike(设计文档 §9):实测 ruby_pptx 0.2.0 的
-# replace_data 在三类扩展图表上的真实行为,为"组合图绑定 + XY 结论"取证:
+# 图表绑定 v0.4.x 预研 spike(设计文档 §9);2026-11-18 起对照 ruby_pptx 0.3.0:
 #   C1 组合图(bar1+line1 次轴)同形重绑定 → 逐 plot 读回断言
-#   C2 组合图系列变多(2→3)→ 克隆自最后一个 plot 的最后一个系列
-#   C3 组合图系列变少(2→1)→ 空 plot 被移除(结构改变,取证用)
+#   C2/C3 组合图系列增减 → 0.3.0 起抛 Pptx::Error(不再静默移动/移除 plot)
 #   C4 组合图产物 LibreOffice 转 PDF(未装 soffice 时 SKIP)
-#   X1 散点图 replace_data(XyChartData) → 预期报错(SeriesFragments 不产 xy 片段)
-#   X2 散点图 replace_data(ChartData) → 预期产出 schema 非法 ser(c:val 注入
-#      且残留 xVal/yVal),取证后即"XY 不能走上游 replace_data"的结论
+#   X1 散点图 replace_data(XyChartData) → 0.3.0 起重绑 c:xVal/c:yVal(issue #1 已修)
+#   X2 散点图 replace_data(ChartData) → 0.3.0 起抛 Pptx::Error 且不改动图表
 #
 #   bundle exec ruby tools/chart_binding_spike2.rb [输出目录]
 require "tmpdir"
@@ -103,65 +100,62 @@ module PowerTomDev
 
       puts "== C1 rebind same shape: plot1=#{plots[0].size} ser, plot2=#{plots[1].size} ser OK"
 
-      # C2 系列变多 2→3:克隆自最后 plot 的最后系列(line)
+      # C2 系列变多 2→3:0.3.0 起上游拒绝(系列按文档顺序映射到 plot)
       more = File.join(out_dir, "combo_more.pptx")
       data3 = Pptx::ChartData.new
       data3.categories = %w[Jan Feb Mar]
       data3.add_series("Rev2", [100, 110, 120])
       data3.add_series("Mgn2", [0.30, 0.28, 0.26])
       data3.add_series("Mgn3", [0.31, 0.29, 0.27])
-      rebind(template, more, data3)
-      plots3 = read_plots(more, SHAPE)
-      unless plots3.map(&:size) == [1, 2]
-        raise "C2 FAILED: expected plot sizes [1, 2], got #{plots3.map(&:size).inspect}"
+      begin
+        rebind(template, more, data3)
+        raise "C2 FAILED: expected Pptx::Error for 2->3 on a combo chart"
+      rescue Pptx::Error => e
+        puts "== C2 rebind 2->3 raises Pptx::Error: #{e.message[0, 90]}... OK"
       end
 
-      puts "== C2 rebind 2->3: bar keeps 1, line clones to 2 OK"
-
-      # C3 系列变少 2→1:空 plot 被移除(组合图退化为纯柱状图)
+      # C3 系列变少 2→1:同样被上游拒绝(不再静默移除空 plot)
       fewer = File.join(out_dir, "combo_fewer.pptx")
       data1 = Pptx::ChartData.new
       data1.categories = %w[Jan Feb Mar]
       data1.add_series("Rev2", [100, 110, 120])
-      rebind(template, fewer, data1)
-      plots1 = read_plots(fewer, SHAPE)
-      raise "C3 unexpected: line plot should be removed, plots=#{plots1.inspect}" unless plots1.size == 1
+      begin
+        rebind(template, fewer, data1)
+        raise "C3 FAILED: expected Pptx::Error for 2->1 on a combo chart"
+      rescue Pptx::Error => e
+        puts "== C3 rebind 2->1 raises Pptx::Error: #{e.message[0, 90]}... OK"
+      end
 
-      puts "== C3 rebind 2->1: line plot REMOVED (chart degraded to bar) — evidence for exact-count rule"
-
-      # X1 散点图 + XyChartData:预期上游不支持
+      # X1 散点图 + XyChartData:0.3.0 起支持,重绑后 xVal/yVal 更新
       xy = File.join(out_dir, "xy_template.pptx")
       build_xy(xy)
+      rebound = File.join(out_dir, "xy_rebound.pptx")
       xy_data = Pptx::XyChartData.new
       s = xy_data.add_series("s2")
       s.add_point(3, 30)
       s.add_point(4, 40)
-      begin
-        chart = chart_of(xy, XY_SHAPE)
-        chart.replace_data(xy_data)
-        puts "== X1 replace_data(XyChartData) unexpectedly SUCCEEDED — investigate"
-      rescue StandardError => e
-        puts "== X1 replace_data(XyChartData) raises #{e.class}: #{e.message.to_s[0, 120]}"
+      chart = chart_of(xy, XY_SHAPE)
+      chart.replace_data(xy_data)
+      chart.part.package.save(rebound)
+      ser_xml = Zip::File.open(rebound) do |z|
+        z.get_input_stream("ppt/charts/chart1.xml").read[%r{<c:ser>.*?</c:ser>}m]
       end
+      x_val = ser_xml[%r{<c:xVal>.*?</c:xVal>}m].to_s
+      y_val = ser_xml[%r{<c:yVal>.*?</c:yVal>}m].to_s
+      raise "X1 FAILED: xVal/yVal not rewritten" unless
+        x_val.include?("<c:v>3</c:v>") && y_val.include?("<c:v>30</c:v>")
 
-      # X2 散点图 + ChartData:取证 ser 的非法结构(c:val 注入 + xVal/yVal 残留)
-      broken = File.join(out_dir, "xy_broken.pptx")
+      puts "== X1 replace_data(XyChartData): c:xVal/c:yVal rewritten (upstream #1 fixed) OK"
+
+      # X2 散点图 + ChartData:0.3.0 起拒绝,图表保持原样
       cat_data = Pptx::ChartData.new
       cat_data.categories = %w[A B]
       cat_data.add_series("s2", [30, 40])
       begin
-        chart = chart_of(xy, XY_SHAPE)
-        chart.replace_data(cat_data)
-        chart.part.package.save(broken)
-        ser_xml = Zip::File.open(broken) do |z|
-          z.get_input_stream("ppt/charts/chart1.xml").read[%r{<c:ser>.*?</c:ser>}m]
-        end
-        has_val = ser_xml.include?("<c:val>")
-        keeps_xy = ser_xml.include?("<c:xVal>")
-        puts "== X2 replace_data(ChartData) on scatter: ser has c:val=#{has_val}, stale c:xVal=#{keeps_xy}"
-        puts "   (xVal=true & val=true ⇒ schema-invalid ser; upstream replace_data unusable for XY)"
-      rescue StandardError => e
-        puts "== X2 replace_data(ChartData) raises #{e.class}: #{e.message.to_s[0, 120]}"
+        chart_of(xy, XY_SHAPE).replace_data(cat_data)
+        raise "X2 FAILED: expected Pptx::Error for ChartData on a scatter chart"
+      rescue Pptx::Error => e
+        puts "== X2 replace_data(ChartData) on scatter raises Pptx::Error: #{e.message[0, 90]}... OK"
       end
 
       # C4 LibreOffice 保真(未装 soffice 时 SKIP)
@@ -176,7 +170,7 @@ module PowerTomDev
         puts "== C4 soffice not found in PATH: SKIP"
       end
 
-      [template, same, more, fewer]
+      [template, same]
     end
 
     RADAR_SHAPE = "powertom:chart:radar"

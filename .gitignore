@@ -1,6 +1,8 @@
 *.gem
 .bundle/
 pkg/
+# L3 校验工作流的生成目录(tools/build_l3_decks.rb 的输出,CI 里作为 artifact 传递)
+decks/
 
 # macOS 目录元数据
 .DS_Store

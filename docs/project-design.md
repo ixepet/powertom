@@ -160,9 +160,9 @@ Placeholder pictures are located by shape name or alt text (convention: name is 
 
 **Implemented in v0.4.0 (single-plot families, combo) and v0.4.1 (scatter / bubble / radar)** — see [chart-binding-design.md](chart-binding-design.md) for the verified design and spike evidence.
 
-Charts are located by naming convention (`powertom:chart:<field>` on the shape name or alt text) and the whole data set is replaced through ruby_pptx `Chart#replace_data`; bar/column, line, area, pie, doughnut, radar and combo charts ride upstream directly. Scatter and bubble charts cannot — upstream rewrites only `c:tx/c:cat/c:val` — so the adapter rewrites `c:xVal`/`c:yVal`/`c:bubbleSize` itself and regenerates the XY workbook. Cloned (`#each`) chart pages are deep-copied per page so clones never share data.
+Charts are located by naming convention (`powertom:chart:<field>` on the shape name or alt text) and the whole data set is replaced through ruby_pptx `Chart#replace_data`; bar/column, line, area, pie, doughnut, radar, combo, scatter and bubble charts all ride upstream directly (scatter/bubble need ruby_pptx >= 0.3.0, which rebinds `c:xVal`/`c:yVal`/`c:bubbleSize`). Cloned (`#each`) chart pages are deep-copied per page so clones never share data.
 
-Guards: combo / scatter / bubble require the data's series count to equal the template's (upstream trim/clone would otherwise silently add or remove plots); pie accepts exactly one series; unsupported kinds are rejected with a located error. Saving normalizes the chart XML (axis ids that upstream emits negative, illegal radar `c:smooth`) so the output passes Microsoft's OpenXmlValidator.
+Guards: combo / scatter / bubble require the data's series count to equal the template's (a combo mismatch would silently add or remove plots upstream; XY series are matched by position); pie accepts exactly one series; unsupported kinds are rejected with a located error. Saving normalizes the chart XML (axis ids that upstream still emits negative, illegal radar `c:smooth`) so the output passes Microsoft's OpenXmlValidator. That normalization is a compatibility moat: it stays until a fixed upstream release is verified, then gets gated by `Pptx::VERSION` and only later deprecated — the adapter never assumes correct upstream output.
 
 ### 5.5 Fidelity acceptance
 

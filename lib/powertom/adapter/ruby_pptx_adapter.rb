@@ -57,7 +57,8 @@ module PowerTom
         path
       end
 
-      # 上游图表 writer 的两个缺陷(L3 OpenXmlValidator 首跑取证):
+      # 上游图表 writer 的两个缺陷(L3 OpenXmlValidator 首跑取证,ruby_pptx
+      # 0.3.0 仍未修复):
       # 1. 轴 id 常量是负数(如 VAL_AX_ID="-2112772216"),而 axId 的 schema
       #    约束是 MaxInclusive 2147483647(ST_DrawingElementId 实际按非负有界
       #    int32 校验,不是 uint32)—— LibreOffice/PowerPoint 宽容,官方校验器
@@ -65,6 +66,11 @@ module PowerTom
       #    -2^31,abs 后合法且图表内引用自洽)。
       # 2. RadarChartWriter 给每个 ser 写 c:smooth,但 radar ser 的 schema
       #    没有该子元素 —— 直接移除。
+      #
+      # 这是适配层的兼容护城河:架构不能假设底层库永远输出正确,上游修复前
+      # 不得删除。上游发布修复版本后,先升级并用 L3 验证,再按版本门控
+      # (如 Gem::Version.new(Pptx::VERSION) < Gem::Version.new("<fixed>")),
+      # 最后才在后续大版本里标记 Deprecated 并移除。
       def normalize_chart_quirks(prs)
         prs.slides.each do |slide|
           walk_shapes(slide.shapes) do |shape|
@@ -222,8 +228,7 @@ module PowerTom
       end
 
       # 全部 plot 的系列总数(绑定数据必须恰好提供这么多系列:
-      # combo 数量不匹配会让上游 trim/clone 静默增删 plot 破坏结构;
-      # scatter/bubble 的适配层重写同样按数量守卫)
+      # combo 数量不匹配会让上游 trim/clone 静默增删 plot 破坏结构)
       def chart_series_count(chart)
         chart.element.chart.plotArea.plot_elements.sum { |plot| plot.ser_list.size }
       end
@@ -250,6 +255,9 @@ module PowerTom
       # 把整个数据集写入该图表占位。克隆页共享同一 chart part(spike 实测
       # shared=true),绑定前为该形状深拷贝独立 part,再 replace_data;
       # value: {categories:, series: [{name:, values:}], number_format:}
+      # 散点/气泡:{series: [{name:, points: [{x:, y:(, size:)}]}]},
+      # ruby_pptx 0.3.0 起上游 replace_data 直接支持 XyChartData/BubbleChartData
+      # (重写 c:tx/c:xVal/c:yVal/c:bubbleSize 并重建内嵌 workbook)
       def replace_chart_data(prs, shape, slide, value)
         chart = shape.chart
         if chart_part_shared?(prs, chart.part)
@@ -260,9 +268,7 @@ module PowerTom
 
         kind = chart_kind(chart)
         if %i[XY BUBBLE].include?(kind)
-          xy = build_xy_chart_data(value, bubble: kind == :BUBBLE)
-          rewrite_xy_series(chart, xy)
-          chart.part.workbook.replace_with(xy.xlsx_blob)
+          chart.replace_data(build_xy_chart_data(value, bubble: kind == :BUBBLE))
         else
           data = Pptx::ChartData.new(number_format: part_value(value, "number_format") || "General")
           data.categories = part_value(value, "categories")
@@ -277,9 +283,7 @@ module PowerTom
               "chart data binding failed (#{shape.name}): #{e.class} #{e.message}"
       end
 
-      # 散点/气泡数据:{series: [{name:, points: [{x:, y:(, size:)}]}]}。
-      # 上游 replace_data 不能重绑 XY(SeriesFragments 只产 tx/cat/val,
-      # spike2 取证),适配层自行重写 ser 的 xVal/yVal/bubbleSize。
+      # 散点/气泡数据:{series: [{name:, points: [{x:, y:(, size:)}]}]}
       def build_xy_chart_data(value, bubble:)
         xy = (bubble ? Pptx::BubbleChartData : Pptx::XyChartData)
              .new(number_format: part_value(value, "number_format") || "General")
@@ -294,95 +298,6 @@ module PowerTom
           end
         end
         xy
-      end
-
-      # 与上游 rewrite_series 同构:remove 后 insert,元素定位交给
-      # CT_Series 的 zero_or_one 宏(TAG_SEQ 保证 schema 顺序)
-      def rewrite_xy_series(chart, xy)
-        sers = chart.element.chart.plotArea.series_elements
-        if sers.size != xy.size
-          raise PowerTom::Error,
-                "chart template draws #{chart_distribution_label(chart)} " \
-                "(#{sers.size} series in total), got #{xy.size} series"
-        end
-
-        sers.zip(xy.series.to_a) do |ser, series|
-          ser.remove_tx
-          ser.remove_cat
-          ser.remove_val
-          ser.remove_xVal
-          ser.remove_yVal
-          ser.remove_bubbleSize
-
-          tx, x_val, y_val, bubble_size = xy_fragments(xy, series)
-          ser.insert_tx(ser.build_from_xml(tx))
-          ser.insert_xVal(ser.build_from_xml(x_val))
-          ser.insert_yVal(ser.build_from_xml(y_val))
-          ser.insert_bubbleSize(ser.build_from_xml(bubble_size)) if bubble_size
-        end
-      end
-
-      def xy_fragments(xy_data, series)
-        number_format = series.number_format || xy_data.number_format
-        tx = xy_namespaced(xy_tx_fragment(series))
-        x_val = xy_namespaced(xy_num_ref_fragment("xVal", series.x_values_ref, series.x_values, number_format))
-        y_val = xy_namespaced(xy_num_ref_fragment("yVal", series.y_values_ref, series.y_values, number_format))
-        bubble_size = if xy_data.bubble?
-                        xy_namespaced(xy_num_ref_fragment("bubbleSize", series.bubble_sizes_ref,
-                                                          series.bubble_sizes, number_format))
-                      end
-        [tx, x_val, y_val, bubble_size]
-      end
-
-      # 与上游 SeriesFragments#namespaced 一致:独立解析的片段需要自带
-      # 命名空间声明
-      def xy_namespaced(fragment)
-        fragment.sub(/\A<(c:\w+)/) { |tag| "#{tag} #{Pptx::Oxml::Ns.nsdecls('c', 'a', 'r')}" }
-      end
-
-      def xy_tx_fragment(series)
-        <<~XML
-          <c:tx>
-            <c:strRef>
-              <c:f>#{series.name_ref}</c:f>
-              <c:strCache>
-                <c:ptCount val="1"/>
-                <c:pt idx="0"><c:v>#{xy_escape(series.name)}</c:v></c:pt>
-              </c:strCache>
-            </c:strRef>
-          </c:tx>
-        XML
-      end
-
-      # 与上游 num_ref_xml 同构:引用 + 缓存;nil 值省点但 ptCount 照计(空档)
-      def xy_num_ref_fragment(tag, reference, values, number_format)
-        points = values.each_with_index.filter_map do |value, index|
-          next if value.nil?
-
-          %(<c:pt idx="#{index}"><c:v>#{xy_format_number(value)}</c:v></c:pt>)
-        end.join
-        <<~XML
-          <c:#{tag}>
-            <c:numRef>
-              <c:f>#{reference}</c:f>
-              <c:numCache>
-                <c:formatCode>#{number_format}</c:formatCode>
-                <c:ptCount val="#{values.size}"/>
-                #{points}
-              </c:numCache>
-            </c:numRef>
-          </c:#{tag}>
-        XML
-      end
-
-      def xy_format_number(value)
-        return value.to_s unless value.is_a?(Float)
-
-        value == value.truncate ? value.to_i.to_s : value.to_s
-      end
-
-      def xy_escape(value)
-        value.to_s.gsub("&", "&amp;").gsub("<", "&lt;").gsub(">", "&gt;")
       end
 
       # 绑定会重建内嵌 workbook,上游 writer 只在含日期分类时才写 styles.xml
