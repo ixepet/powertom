@@ -1,3 +1,10 @@
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/logo-dark.png">
+    <img src="docs/assets/logo-light.png" alt="PowerTom — Ruby PowerPoint template engine" width="360">
+  </picture>
+</p>
+
 # PowerTom — PowerPoint template engine for Ruby
 
 [![Gem Version](https://img.shields.io/gem/v/powertom)](https://rubygems.org/gems/powertom)
