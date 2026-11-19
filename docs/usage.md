@@ -60,6 +60,8 @@ Rules:
 - Directives live in the **slide notes**, one per page.
 - Labels on an `#each` page resolve against the current item only — there is no
   fallback to the root data. Use `{{headline}}`, not `{{scenario.headline}}`.
+- `{{@index}}`, `{{@index1}}`, `{{@first}}` and `{{@last}}` are available on
+  `#each` pages (see §4.7).
 - A missing `#each` path is an error; pages are never dropped silently.
 - A page cannot combine a page directive with a table block/loop.
 
@@ -79,6 +81,7 @@ Table loops are opt-in per table; header and total rows stay static.
 - One loop row per table. `[]` is only valid inside table cells.
 - An empty array removes the template row; headers and totals remain.
 - Labels without `[]` in the same row still come from the page data.
+- `{{@index}}` / `{{@index1}}` / `{{@first}}` / `{{@last}}` work on the text of the loop row (see §4.7).
 
 ### 4.2 Two-level legacy form: `{{#rows parent}}` + next row
 
@@ -180,6 +183,34 @@ column items where the condition is falsy:
 - An empty `cols` keeps the first column; an empty `rows` keeps the header.
 - A table can use only one of `#grid`, `#rows` or `[]`.
 
+### 4.7 Loop variables: `@index`, `@index1`, `@first`, `@last`
+
+| Tag | Value |
+| --- | --- |
+| `{{@index}}` | 0-based index of the current item |
+| `{{@index1}}` | 1-based index |
+| `{{@first}}` | `true` on the first item |
+| `{{@last}}` | `true` on the last item |
+
+- Available in `[]` row loops, `#rows` blocks, `#grid` data rows and `#each` pages.
+- They refer to the innermost loop (in parent/child blocks, the child index).
+- Header/total rows and non-loop pages are errors in `check` and at render time.
+- Formatters apply: `{{@index1:number}}`.
+
+### 4.8 Aggregates: `{{array[].field:sum}}`
+
+| Tag | Result |
+| --- | --- |
+| `{{classes[].avg:sum}}` | sum |
+| `{{classes[].avg:avg}}` | mean |
+| `{{classes[].avg:min}}` / `:max` | smallest / largest |
+| `{{classes[]:count}}` | item count |
+
+- Single-level array with a numeric field; nil values are skipped, empty `sum`
+  is `0`, empty `avg/min/max` render blank.
+- Works in body text, table total rows and `#each` pages (array from the item).
+- No expressions, sorting or filtering; `check` rejects non-numeric fields.
+
 ## 5. Images
 
 - Name a picture shape (or its alt text) `powertom:image:cover`.
@@ -191,6 +222,20 @@ column items where the condition is falsy:
   the picture (slide background or another shape); no background fill is
   synthesised.
 - A missing field keeps the placeholder (`strict: false`); a path that does not exist is an error.
+- Picture fields are references. Configure `PowerTom.configure { |c| c.asset_resolver = ... }`
+  (or pass `asset_resolver:` to `render`/`check`) to resolve them from object
+  storage: the resolver returns a path or `{data: <binary>, extension: "png"}`.
+  PowerTom never performs network calls itself.
+
+### 5.1 Conditional shapes: `powertom:if:<field>`
+
+- Name a shape (or its alt text) `powertom:if:show_logo`.
+- When the value is falsy (`false` / `nil`), the shape is removed at render
+  time; truthy keeps it untouched. Groups are supported — the whole group goes.
+- On an `#each` page the field is read from the current item.
+- `PowerTom.check` validates the field (and every `#each` item); a missing field
+  is an error. Conditions are evaluated before binding, so hidden shapes do not
+  raise for their own tags.
 
 ## 6. Charts
 

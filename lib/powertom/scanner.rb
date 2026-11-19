@@ -8,9 +8,11 @@ module PowerTom
     # 宽松的"疑似标签"正则,用于语法校验兜底:任何 {{...}} 都必须能通过严格校验
     TAG_RE = /\{\{[^{}]*\}\}/
 
-    # 严格的文本标签正则:点路径与下标 + 可选 formatter 规格(§3.4)
+    # 严格的文本标签正则:点路径与下标 + 可选 formatter 规格(§3.4);
+    # 循环变量(@index/@index1/@first/@last)同样是合法标签
     LABEL_RE = /
-      \{\{\s*([A-Za-z0-9_\[\]]+(?:\.[A-Za-z0-9_\[\]]+)*)
+      \{\{\s*
+      (@(?:index|index1|first|last)|[A-Za-z0-9_\[\]]+(?:\.[A-Za-z0-9_\[\]]+)*)
       (?::([A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z0-9_]+)*))?
       \s*\}\}
     /x
@@ -21,7 +23,28 @@ module PowerTom
     # formatter 规格:词 + 可选 .参数(percent.1 / date.year_month)
     FORMAT_SPEC_RE = /\A[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z0-9_]+)*\z/
 
+    # 循环内只读变量(%3.3/%7):@index 0 基、@index1 1 基、
+    # @first / @last 布尔。作用域在 render/check 阶段校验
+    LOOP_VARIABLE_RE = /\A@(index|index1|first|last)\z/
+    LOOP_VARIABLES = %w[@index @index1 @first @last].freeze
+
+    # 受限聚合(0.8.0):{{array[].field:sum}} / {{array[]:count}}。
+    # 只接受单层数组 + 数值字段,不支持表达式或排序
+    AGGREGATORS = %w[sum avg min max count].freeze
+
     module_function
+
+    def loop_variable?(path)
+      LOOP_VARIABLE_RE.match?(path.to_s)
+    end
+
+    def aggregator_spec?(spec)
+      AGGREGATORS.include?(spec.to_s)
+    end
+
+    def aggregation?(path, spec)
+      path.to_s.include?("[]") && aggregator_spec?(spec)
+    end
 
     # 扫描段落上下文,收集标签并校验语法。
     # contexts: [{slide_no:, shape:, run_texts:}]
@@ -95,6 +118,8 @@ module PowerTom
               "v0 does not support directives in the body"
       end
       path, spec = raw.split(":", 2)
+      # 聚合标签允许在非表格位置使用 [],由 Binder/Validator 按数组路径处理
+      ctx = ctx.merge(allow_array: true) if aggregation?(path, spec)
       validate_path!(path, tag, where, ctx)
       return unless spec && !spec.match?(FORMAT_SPEC_RE)
 
@@ -135,11 +160,13 @@ module PowerTom
 
     # 路径逐段校验:字段、字段[下标]、字段[](仅表格行循环)
     def validate_path!(path, tag, where, ctx)
+      return if loop_variable?(path)
+
       path.split(".").each do |segment|
         next if segment.match?(/\A[A-Za-z0-9_]+(?:\[\d+\])?\z/)
 
         if segment.match?(/\A[A-Za-z0-9_]+\[\]\z/)
-          unless ctx[:in_table]
+          unless ctx[:in_table] || ctx[:allow_array]
             raise TemplateSyntaxError,
                   "#{where}: #{tag} uses [] outside a table row; [] is only allowed in table row loops. " \
                   "Use explicit indices in the body and notes"

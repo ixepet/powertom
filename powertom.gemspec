@@ -20,10 +20,12 @@ Gem::Specification.new do |spec|
     "documentation_uri" => "#{spec.homepage}/blob/main/docs/usage.md",
     "rubygems_mfa_required" => "true"
   }
-  # ruby_pptx 0.2 与 tomlrb 3.0 均要求 >= 3.3
+  # ruby_pptx 0.3 与 tomlrb 3.0 均要求 >= 3.3
   spec.required_ruby_version = ">= 3.3"
 
-  spec.files = Dir["lib/**/*.rb"] + %w[README.md LICENSE CHANGELOG.md]
+  spec.bindir = "exe"
+  spec.executables = ["powertom"]
+  spec.files = Dir["lib/**/*.rb"] + Dir["exe/*"] + %w[README.md LICENSE CHANGELOG.md]
   spec.extra_rdoc_files = %w[README.md LICENSE CHANGELOG.md]
   spec.require_paths = ["lib"]
 

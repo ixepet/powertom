@@ -168,6 +168,18 @@ Guards: combo / scatter / bubble require the data's series count to equal the te
 
 The output must open in PowerPoint without a "repair" dialog. CI strategy is layered: **L1** structural lint (`tools/ooxml_lint.rb`, run on golden outputs in specs — dangling `[Content_Types].xml` overrides / relationship targets are the top repair trigger and LibreOffice silently tolerates them), **L3** official schema validation (`tools/openxml_validator` via `.github/workflows/l3.yml`, a Windows runner running Microsoft's OpenXmlValidator; a hard gate), and **L4** LibreOffice headless PDF conversion with three assertions — conversion succeeds, the page count is correct, and a PDF text spot-check contains the expected values. LibreOffice is more lenient than PowerPoint, so a manual acceptance checklist remains (**L5**: for every new golden sample, open it once in real PowerPoint). Chart templates additionally need a per-clone-page "Edit Data" click to confirm no page shows another page's data.
 
+### 5.6 Loop variables and shape conditions (0.8.0)
+
+**Loop variables.** `{{@index}}`, `{{@index1}}`, `{{@first}}` and `{{@last}}` are read-only tags available in every loop the engine expands: `{{array[].field}}` rows, `#rows` blocks, `#grid` data rows and `#each` pages. The `@` sigil reserves a namespace that cannot collide with data fields. Resolution uses the **innermost** loop at that paragraph; the render pipeline carries a `loop_info: {index:, size:}` in the bind context, and `check` verifies the tag sits on a content row of the table plan (or on an `#each` page), so a header/total row is a located error instead of a blank cell.
+
+**Shape conditions.** A shape (or its alt text) named `powertom:if:<field>` is deleted when the value is falsy. Conditions are evaluated after page cloning and before any binding, so a hidden group never triggers missing-field errors from its own tags; `check` reconciles the field with the same `#each` item semantics as pictures. Groups are removed whole, and descendants of an already-removed group are skipped.
+
+### 5.7 Asset resolution and aggregates (0.8.0)
+
+**Asset resolution.** Picture values are references. `PowerTom.configuration.asset_resolver` (or the per-render `asset_resolver:` argument) receives `(ref, {slide_no:, shape:, field:})` and returns a local path or `{data: <binary>, extension: "<ext>"}`. The adapter materialises bytes into a temp file only for the duration of `replace_image`, so `ruby_pptx` keeps its existing image-part path. No HTTP client is built in: the application's resolver is the trust boundary, and `check` validates the same return shape.
+
+**Aggregates.** `{{array[].field:sum}}` / `:avg` / `:min` / `:max` and `{{array[]:count}}` are formatter-shaped but resolved by the binder before scope resolution: split at `[]`, resolve the array against the page (or `#each` item), read the field per item, skip nils, and return a number. `check` performs the same traversal and rejects non-numeric fields. Table structure detection explicitly ignores aggregate tags, so a total row is not mistaken for a loop row.
+
 ## 6. Milestones
 
 | Phase | Content | Acceptance |

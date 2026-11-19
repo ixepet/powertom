@@ -2,6 +2,7 @@
 
 require "date"
 require_relative "path_resolver"
+require_relative "scanner"
 require_relative "formatter"
 
 module PowerTom
@@ -28,6 +29,18 @@ module PowerTom
     #   scope_root: #each 的根路径字段名,用于未使用字段统计
     # spec:formatter 规格(§3.4),如 "currency" / "percent.1";nil → 不格式化
     def render_label(path, context, spec: nil)
+      if Scanner.aggregation?(path, spec)
+        value = render_aggregation(path, spec, context)
+        return value.nil? ? "" : value.to_s
+      end
+
+      if Scanner.loop_variable?(path)
+        value = resolve_loop_variable(path, context)
+        return Formatter.apply(value, spec) if spec
+
+        return value.to_s
+      end
+
       record_root(path, context)
       value = resolve_label(path, context)
       # §2.2:nil 渲染为空字符串,formatter 不参与(避免 currency 之类的报错)
@@ -186,6 +199,62 @@ module PowerTom
 
     def describe(context)
       "slide #{context[:slide_no]} shape '#{context[:shape]}'"
+    end
+
+    # 受限聚合:{{array[].field:sum}} / {{array[]:count}}。
+    # 单层数组 + 数值字段;nil 视为空档跳过,不做表达式/排序
+    def render_aggregation(path, spec, context)
+      record_root(path, context)
+      array_path, field_path = path.split("[]", 2)
+      field = field_path.to_s.delete_prefix(".")
+      root = context[:scope] || @data
+      array = PathResolver.resolve(root, array_path)
+      unless array.is_a?(Array)
+        raise MissingDataError,
+              "#{describe(context)}:{{#{path}}} #{array_path} must be an array, got #{array.class}"
+      end
+
+      name = spec.split(".").first
+      return array.size if name == "count"
+
+      values = array.each_with_index.map do |item, index|
+        value = field.empty? ? item : PathResolver.resolve(item, field)
+        unless value.nil? || value.is_a?(Numeric)
+          raise MissingDataError,
+                "#{describe(context)}:{{#{path}}} item #{index + 1} '#{field}' " \
+                "must be numeric, got #{value.class}"
+        end
+        value
+      end.compact
+
+      case name
+      when "sum" then values.sum
+      when "avg" then values.empty? ? nil : values.sum.fdiv(values.size)
+      when "min" then values.min
+      when "max" then values.max
+      end
+    end
+
+    # 循环变量(context[:loop_info] 携带当前最内层循环的 index/size)。
+    # 不在循环内使用是模板错误,与数据缺失区分开
+    def resolve_loop_variable(path, context)
+      info = context[:loop_info]
+      unless info
+        raise TemplateSyntaxError,
+              "#{describe(context)}:{{#{path}}} is only available inside a loop " \
+              "(a table row loop, a #rows block or a {{#each}} page)"
+      end
+
+      case path
+      when "@index" then info[:index]
+      when "@index1" then info[:index] + 1
+      when "@first" then info[:index].zero?
+      when "@last" then info[:index] == info[:size] - 1
+      else
+        raise TemplateSyntaxError,
+              "#{describe(context)}:{{#{path}}} is not a loop variable " \
+              "(available: #{Scanner::LOOP_VARIABLES.join(', ')})"
+      end
     end
 
     def to_text(value, path)

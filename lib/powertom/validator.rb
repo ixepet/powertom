@@ -78,9 +78,11 @@ module PowerTom
     # notes:    [{slide_no:, text:}]
     # container_texts: [{container:, shape:, text:}](母版/版式上的文本)
     # pictures: [{slide_no:, shape:, field:}](powertom:image 占位)
+    # conditionals: [{slide_no:, shape:, field:}](powertom:if 形状条件)
     # data:     Hash 或 nil(nil → 跳过字段对账,只做语法与结构检查)
     def check(contexts:, notes:, data:, pictures: [], charts: [], tables: [], table_structures: [],
-              chart_placeholders: [], container_texts: [], template_name: "template.pptx")
+              chart_placeholders: [], container_texts: [], conditionals: [], asset_resolver: nil,
+              template_name: "template.pptx")
       entries = []
       used_roots = Set.new
 
@@ -142,10 +144,32 @@ module PowerTom
         block_row_stacks[key] = TableLoop.build_row_stacks(plan[:blocks]) if plan[:kind] == :blocks
       end
 
+      # 2.4 循环变量(@index/@index1/@first/@last):只在表格行循环或 #each 页内有效
+      labels_by_page.each do |slide_no, labels|
+        labels.each do |l|
+          next unless Scanner.loop_variable?(l[:path])
+
+          ctx = l[:context]
+          directive = directives[slide_no]
+          in_each = directive && directive[:kind] == :each
+          plan = ctx[:table_shape] && table_plans[[ctx[:slide_no], ctx[:table_shape]]]
+          next if in_each || (plan && loop_row?(plan, ctx[:row_index]))
+
+          message = if plan
+                      "loop variable {{#{l[:path]}}} is used outside the table's loop rows"
+                    else
+                      "loop variable {{#{l[:path]}}} is only available inside a table row loop " \
+                        "or a {{#each}} page"
+                    end
+          entries << error_entry(ctx[:slide_no], ctx[:shape], l[:path], message)
+        end
+      end
+
       # 2.5 formatter 注册对账(§3.4):不依赖样例数据
       labels_by_page.each_value do |labels|
         labels.each do |l|
           next unless l[:spec]
+          next if aggregation_label?(l) # 聚合名不是 formatter
 
           name = l[:spec].split(".").first
           next if Formatter.registered?(name)
@@ -201,6 +225,8 @@ module PowerTom
         labels_by_page.each_value do |labels|
           labels.each do |l|
             ctx = l[:context]
+            next if Scanner.loop_variable?(l[:path])
+            next if aggregation_label?(l)
             next if ctx[:table_shape] && failed_tables.include?([ctx[:slide_no], ctx[:table_shape]])
             next if block_row_stacks.dig([ctx[:slide_no], ctx[:table_shape]], ctx[:row_index])
             next if block_band_cell?(table_plans, ctx)
@@ -217,14 +243,26 @@ module PowerTom
         end
         reconcile_block_tables(table_plans, labels_by_table_row, data, entries)
         pictures.each do |pctx|
-          reconcile_picture(pctx, directives[pctx[:slide_no]], data, entries)
+          reconcile_picture(pctx, directives[pctx[:slide_no]], data, entries, asset_resolver)
         end
         chart_placeholders.each do |cctx|
           reconcile_chart_placeholder(cctx, directives[cctx[:slide_no]], data, entries)
         end
+        conditionals.each do |cctx|
+          reconcile_conditional(cctx, directives[cctx[:slide_no]], data, entries)
+        end
+        labels_by_page.each do |slide_no, labels|
+          labels.each do |l|
+            next unless aggregation_label?(l)
+
+            reconcile_aggregation(l, directives[slide_no], data, entries)
+          end
+        end
         labels_by_page.each_value do |labels|
           labels.each do |l|
             next if l[:path].include?("[]")
+            next if Scanner.loop_variable?(l[:path])
+            next if aggregation_label?(l)
             next if block_row_stacks.dig([l[:context][:slide_no], l[:context][:table_shape]],
                                          l[:context][:row_index])
             next if block_band_cell?(table_plans, l[:context])
@@ -237,10 +275,12 @@ module PowerTom
         # 图片与图表字段同样计入(通常为顶层键)
         pictures.each { |pctx| used_roots << root_of(pctx[:field]) }
         chart_placeholders.each { |cctx| used_roots << root_of(cctx[:field]) }
+        conditionals.each { |cctx| used_roots << root_of(cctx[:field]) }
         labels_by_page.each_value do |labels|
           labels.each do |l|
             directive = directives[l[:context][:slide_no]]
             next if directive && directive[:kind] == :each
+            next if Scanner.loop_variable?(l[:path])
 
             if block_row_stacks.dig([l[:context][:slide_no], l[:context][:table_shape]],
                                     l[:context][:row_index])
@@ -401,8 +441,9 @@ module PowerTom
     end
 
     # 图片字段对账(§5.3):与文本标签同一套 #each/普通 语义;额外检查
-    # 值必须是 String 且文件真实存在(设计师漏传图是最常见的交付事故)
-    def reconcile_picture(pctx, directive, data, entries)
+    # 值必须是 String 且文件真实存在(设计师漏传图是最常见的交付事故);
+    # 配置了 AssetResolver 时改为校验 resolver 的返回(路径或 {data:, extension:})
+    def reconcile_picture(pctx, directive, data, entries, asset_resolver = nil)
       return if pctx[:mode_error] # 占位选项错误已在模板属性检查中报告
 
       path = pctx[:field]
@@ -426,7 +467,7 @@ module PowerTom
             )
             next
           end
-          check_image_value(value, ctx, path, entries, k)
+          check_image_value(value, ctx, path, entries, k, asset_resolver)
         end
       else
         value = begin
@@ -435,11 +476,11 @@ module PowerTom
           entries << error_entry(ctx[:slide_no], ctx[:shape], path, e.message)
           return
         end
-        check_image_value(value, ctx, path, entries)
+        check_image_value(value, ctx, path, entries, nil, asset_resolver)
       end
     end
 
-    def check_image_value(value, ctx, path, entries, item_index = nil)
+    def check_image_value(value, ctx, path, entries, item_index = nil, asset_resolver = nil)
       return if value.nil?
 
       where = item_index ? "item #{item_index + 1}: " : ""
@@ -448,10 +489,110 @@ module PowerTom
                                "#{where}picture field requires a String file path, got #{value.class}")
         return
       end
-      return if File.file?(value)
 
-      entries << error_entry(ctx[:slide_no], ctx[:shape], path,
-                             "#{where}picture file does not exist: #{value}")
+      source = begin
+        asset_resolver ? asset_resolver.call(value, ctx) : value
+      rescue StandardError => e
+        entries << error_entry(ctx[:slide_no], ctx[:shape], path,
+                               "#{where}asset resolver failed for #{value.inspect}: #{e.class} #{e.message}")
+        return
+      end
+
+      if source.nil?
+        entries << error_entry(ctx[:slide_no], ctx[:shape], path,
+                               "#{where}asset resolver returned nil for #{value.inspect}")
+      elsif source.is_a?(String)
+        return if File.file?(source)
+
+        entries << error_entry(ctx[:slide_no], ctx[:shape], path,
+                               "#{where}picture file does not exist: #{source}")
+      elsif source.is_a?(Hash)
+        data = source.key?(:data) ? source[:data] : source["data"]
+        extension = source.key?(:extension) ? source[:extension] : source["extension"]
+        return if data.is_a?(String) && !data.empty? && extension.to_s.match?(/\A[a-zA-Z0-9]{2,5}\z/)
+
+        entries << error_entry(ctx[:slide_no], ctx[:shape], path,
+                               "#{where}asset resolver must return {data: <binary String>, extension: '<ext>'}")
+      else
+        entries << error_entry(ctx[:slide_no], ctx[:shape], path,
+                               "#{where}asset resolver returned #{source.class}, expected a path or a Hash")
+      end
+    end
+
+    # 受限聚合:{{array[].field:sum}} / {{array[]:count}};与 #each/页面同一作用域
+    def reconcile_aggregation(label, directive, data, entries)
+      path = label[:path]
+      ctx = label[:context]
+      name = label[:spec].split(".").first
+      if directive && directive[:kind] == :each
+        items = begin
+          PathResolver.resolve(data, directive[:path])
+        rescue MissingDataError
+          return # 指令级 error 已单独报告
+        end
+        return unless items.is_a?(Array)
+
+        items.each_with_index do |item, k|
+          check_aggregation_value(path, name, item, ctx, entries,
+                                  "array '#{directive[:path]}' item #{k + 1}: ")
+        end
+      else
+        check_aggregation_value(path, name, data, ctx, entries, nil)
+      end
+    end
+
+    def check_aggregation_value(path, name, root, ctx, entries, where)
+      array_path, field_path = path.split("[]", 2)
+      field = field_path.to_s.delete_prefix(".")
+      array = PathResolver.resolve(root, array_path)
+      unless array.is_a?(Array)
+        entries << error_entry(ctx[:slide_no], ctx[:shape], path,
+                               "#{where}#{array_path} must be an array, got #{array.class}")
+        return
+      end
+      return if name == "count"
+
+      array.each_with_index do |item, index|
+        value = field.empty? ? item : PathResolver.resolve(item, field)
+        unless value.nil? || value.is_a?(Numeric)
+          entries << error_entry(ctx[:slide_no], ctx[:shape], path,
+                                 "#{where}item #{index + 1} '#{field}' must be numeric, " \
+                                 "got #{value.class}")
+        end
+      rescue MissingDataError => e
+        entries << error_entry(ctx[:slide_no], ctx[:shape], path,
+                               "#{where}item #{index + 1}: #{e.message}")
+      end
+    rescue MissingDataError => e
+      entries << error_entry(ctx[:slide_no], ctx[:shape], path, "#{where}#{e.message}")
+    end
+
+    # 形状级条件(powertom:if:<field>):与图片同一套 #each/普通语义;
+    # 条件值可以是任意真值,只校验字段存在
+    def reconcile_conditional(cctx, directive, data, entries)
+      path = cctx[:field]
+      ctx = { slide_no: cctx[:slide_no], shape: cctx[:shape] }
+      if directive && directive[:kind] == :each
+        items = begin
+          PathResolver.resolve(data, directive[:path])
+        rescue MissingDataError
+          return # 指令级 error 已单独报告
+        end
+        return unless items.is_a?(Array)
+
+        items.each_with_index do |item, k|
+          PathResolver.resolve(item, path)
+        rescue MissingDataError => e
+          entries << error_entry(
+            ctx[:slide_no], ctx[:shape], path,
+            "array '#{directive[:path]}' item #{k + 1}: #{e.message}"
+          )
+        end
+      else
+        PathResolver.resolve(data, path)
+      end
+    rescue MissingDataError => e
+      entries << error_entry(ctx[:slide_no], ctx[:shape], path, e.message)
     end
 
     # 图表占位对账(powertom:chart:*):与图片同一套 #each/普通语义,
@@ -865,6 +1006,9 @@ module PowerTom
     def reconcile_block_label(label, scope, row_item, cols, band, where, data, entries)
       path = label[:path]
       ctx = label[:context]
+      return if Scanner.loop_variable?(path)
+      return if aggregation_label?(label)
+
       if path == "cell"
         reconcile_block_cells(ctx, row_item, cols, band, where, entries)
       elsif path.start_with?("row.")
@@ -1001,6 +1145,22 @@ module PowerTom
 
     def root_of(path)
       path.split(".").first[/\A[A-Za-z0-9_]+/] || path
+    end
+
+    # 受控聚合标签({{array[].field:sum}})由数据层对账,不走行/网格作用域
+    def aggregation_label?(label)
+      Scanner.aggregation?(label[:path], label[:spec])
+    end
+
+    # 该模板行是否属于循环内容(表头/合计等静态行返回 false)
+    def loop_row?(plan, row_index)
+      case plan[:kind]
+      when :simple then row_index == plan[:row]
+      when :nested then [plan[:parent][:content], plan[:child][:content]].include?(row_index)
+      when :grid then row_index == plan[:grid][:content]
+      when :blocks then plan[:blocks].any? { |block| row_index > block[:open] && row_index < block[:close] }
+      else false
+      end
     end
 
     # Scanner 的错误消息自带页码/形状前缀,条目里已有定位字段,剥掉避免重复

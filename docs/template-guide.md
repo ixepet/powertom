@@ -28,7 +28,8 @@
    ```
 
    Add `require "powertom/tasks"` to the project's Rakefile once — the task
-   ships with the gem (0.4.2+).
+   ships with the gem (0.4.2+). Without Rake, run
+   `powertom check template.pptx --data sample_data.toml` (0.8.0+).
 
    Every `error` must be fixed; a `warning` deserves a look. Once both are clean, the rendered deck opens normally in PowerPoint.
 
@@ -247,6 +248,38 @@ When "one record spans several rows" or you need a three-level structure, use pa
 
 > Old templates are unaffected: the L1 form "`{{#rows}}` + next row" still works; block mode starts only when `{{/rows}}` or `{{#cols}}` appears.
 
+### 2.8 Loop variables: `{{@index}}`, `{{@index1}}`, `{{@first}}`, `{{@last}}`
+
+Inside any loop row or `#each` page these read-only variables describe the current item:
+
+| Variable | Value |
+| --- | --- |
+| `{{@index}}` | 0-based index |
+| `{{@index1}}` | 1-based index (for row numbers) |
+| `{{@first}}` | `true` on the first item, `false` otherwise |
+| `{{@last}}` | `true` on the last item, `false` otherwise |
+
+- Available in `{{array[].field}}` row loops, `#rows` blocks, `#grid` data rows and `{{#each}}` pages.
+- They refer to the **innermost** loop: in a parent/child row block, `@index1` is the child's position.
+- On a table header or total row they are an error (`check` reports "outside the table's loop rows"); on a page without a loop they are an error too.
+- Formatters work: `{{@index1:number}}` renders `1,000`-style grouping.
+
+### 2.9 Aggregates: totals without Ruby
+
+A tag can aggregate a single-level array with a numeric field:
+
+| Tag | Result |
+| --- | --- |
+| `{{classes[].avg:sum}}` | sum of `avg` |
+| `{{classes[].avg:avg}}` | mean |
+| `{{classes[].avg:min}}` / `:max` | smallest / largest |
+| `{{classes[]:count}}` | number of items |
+
+- Works in body text, a table total row and an `{{#each}}` page (where the array comes from the current item).
+- `nil` values are skipped; `sum` of an empty array is `0`; `avg`/`min`/`max` of an empty array render blank.
+- Non-numeric fields are an error in `powertom:check`.
+- This is deliberately not an expression language: no arithmetic, sorting or filtering. Prepare those in Ruby.
+
 ---
 
 ## 3. Placeholder text and text overflow
@@ -278,6 +311,15 @@ For example, name the cover key visual `powertom:image:cover` and a team page `p
 - `#each` cloned pages are supported too: put a placeholder on the loop page and give each data item its own path; every cloned page receives its own picture.
 - When a picture field is missing (non-strict mode), the placeholder is kept and a warning is recorded; if the field is present but the **file does not exist**, rendering raises an error.
 - `powertom:check` checks picture fields: missing fields, wrong types, missing files and invalid placeholder options (`mode=` other than `fill`/`contain`) all report errors — running it before delivery is the safest bet.
+
+### 4.1 Conditional shapes: `powertom:if:<field>`
+
+Name a shape (or set its alt text) `powertom:if:show_logo`. When the matching value is falsy (`false` or `nil`), the whole shape is **removed** at render time; when truthy it stays untouched.
+
+- Works for text boxes, pictures, charts and groups — naming a group removes everything inside it.
+- On an `{{#each}}` page the field is read from the current item; there is no fallback to page-level data.
+- `powertom:check` validates the field (including every `#each` item); a missing field is an error.
+- Conditionals are evaluated before binding, so hidden shapes do not produce missing-field errors for their own tags.
 
 ---
 
@@ -335,6 +377,9 @@ rake powertom:check TEMPLATE=template.pptx DATA=sample_data.toml
 
 # Without sample data: syntax and structure only
 rake powertom:check TEMPLATE=template.pptx
+
+# Render without Rake (JSON or TOML data)
+powertom render template.pptx --data sample_data.json --out report.pptx
 ```
 
 - `error`: rendering is impossible until it is fixed (missing fields, directive syntax errors).
@@ -365,6 +410,9 @@ detail = "Every Sunday at 8 pm"
 | Loop page render error "cannot determine the loop count" | The array named by `#each` is missing from the data | Agree on the field name with the engineer |
 | A shape name in an error ends with `#2` | Duplicate shape names on the page | Rename them to make errors easy to locate |
 | A tag split into pieces is still replaced | The engine merges at paragraph level; nothing to do | Keep typing tags in one go |
+| `MissingDataError` for `{{scenario.headline}}` on an `#each` page | The page context is the current item, not the root | Use `{{headline}}`; there is no root fallback (§2.1) |
+| "loop variable is used outside the table's loop rows" | `{{@index}}` on a header or total row | Put loop variables on the template row only (§2.8) |
+| A `powertom:if:` shape still shows | The field is truthy, or the marker is on the wrong shape | Check the data value; the marker must be the shape name or alt text (§4.1) |
 
 ---
 

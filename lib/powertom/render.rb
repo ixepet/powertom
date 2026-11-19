@@ -69,10 +69,11 @@ module PowerTom
   # → 绑定(#each 页取迭代作用域)→ 保存。
   # 任何抛错都发生在写盘之前:产物要么完整要么不存在。
   class Render
-    def initialize(template_path, data:, strict:)
+    def initialize(template_path, data:, strict:, asset_resolver: nil)
       @template_path = template_path
       @data = data
       @strict = strict
+      @asset_resolver = asset_resolver
     end
 
     def call
@@ -97,9 +98,12 @@ module PowerTom
         # pages 与输出页一一对应(手术按计划顺序展开,不重排)
         page_scopes = Hash.new { |_h, _k| { scope: nil, scope_root: nil } }
         pages.each_with_index do |p, i|
-          page_scopes[i] = { scope: p[:scope], scope_root: p[:scope_root] }
+          page_scopes[i] = { scope: p[:scope], scope_root: p[:scope_root],
+                             iteration: p[:iteration], iteration_count: p[:iteration_count] }
         end
       end
+
+      remove_conditional_shapes(adapter, work_prs, page_scopes, binder)
 
       # 表格行循环:按数组长度展开模板行,再采集单元格段落做绑定
       table_scopes = expand_table_rows(adapter, work_prs, page_scopes, binder)
@@ -112,7 +116,8 @@ module PowerTom
         row_item = row_item_for(table_scopes, ctx)
         bctx = ctx.merge(scope: page[:scope], scope_root: page[:scope_root],
                          row_scopes: row_scopes, grid_scope: grid_scope,
-                         row_item: row_item)
+                         row_item: row_item,
+                         loop_info: page_loop_info(page) || row_loop_info_for(table_scopes, ctx))
         new_texts = RunMerge.merge(
           ctx[:run_texts],
           ->(path, spec) { binder.render_label(path, bctx, spec: spec) }
@@ -165,7 +170,8 @@ module PowerTom
           end
           root = directive[:path].split(".").first[/\A[A-Za-z0-9_]+/]
           value.each_with_index do |item, k|
-            pages << { source: no, iteration: k, scope: item, scope_root: root }
+            pages << { source: no, iteration: k, iteration_count: value.size,
+                       scope: item, scope_root: root }
           end
         end
       end
@@ -205,13 +211,29 @@ module PowerTom
                 "slide #{pctx[:slide_no]} picture field '#{pctx[:field]}' requires a String file path, " \
                 "got #{value.class}"
         end
-        unless File.file?(value)
-          raise PowerTom::Error,
-                "slide #{pctx[:slide_no]} picture field '#{pctx[:field]}' file does not exist: #{value}"
+        source = resolve_asset(value, pctx)
+        if source.is_a?(String)
+          unless File.file?(source)
+            raise PowerTom::Error,
+                  "slide #{pctx[:slide_no]} picture field '#{pctx[:field]}' file does not exist: #{source}"
+          end
+          warn_image_aspect(adapter, pctx, source, warnings) if pctx[:mode] == :fill
         end
-        warn_image_aspect(adapter, pctx, value, warnings) if pctx[:mode] == :fill
-        adapter.replace_image(pctx[:slide], pctx[:picture], value, mode: pctx[:mode])
+        adapter.replace_image(pctx[:slide], pctx[:picture], source, mode: pctx[:mode])
       end
+    end
+
+    # 图片字段是"引用",真正来源由 AssetResolver 决定(受控目录、对象存储等)。
+    # 没有配置 resolver 时引用就是本地路径
+    def resolve_asset(ref, pctx)
+      return ref unless @asset_resolver
+
+      source = @asset_resolver.call(ref, { slide_no: pctx[:slide_no], shape: pctx[:shape], field: pctx[:field] })
+      return source unless source.nil?
+
+      raise PowerTom::Error,
+            "slide #{pctx[:slide_no]} picture field '#{pctx[:field]}': " \
+            "asset resolver returned nil for #{ref.inspect}"
     end
 
     # 固定策略是"填满形状、居中裁切";比例差异大时提前提示设计师
@@ -635,7 +657,8 @@ module PowerTom
       block = node[:block]
       node[:items].each_with_index do |item, index|
         scope = parent_scope.merge(block[:prefix] => item)
-        record = { scopes: scope, row_item: item }
+        record = { scopes: scope, row_item: item,
+                   loop_info: { index: index, size: node[:items].size } }
         append_block_template_records(block, node[:children_by_item][index], scope, records, record,
                                       node[:if_values_by_item][index])
       end
@@ -798,6 +821,76 @@ module PowerTom
 
       record = scope[:records][ctx[:row_index]]
       record && record[:row_item]
+    end
+
+    # {{@index}} 的作用域:页级 #each 优先(两者不允许叠加),否则取表格当前行
+    def page_loop_info(page)
+      return nil unless page[:iteration]
+
+      { index: page[:iteration], size: page[:iteration_count] }
+    end
+
+    # 当前行所属的最内层循环;静态行(表头/合计)返回 nil
+    def row_loop_info_for(scopes, ctx)
+      return nil unless ctx[:table_shape]
+
+      scope = scopes[[ctx[:slide_no], ctx[:table_shape]]]
+      return nil unless scope
+
+      case scope[:kind]
+      when :blocks
+        record = scope[:records][ctx[:row_index]]
+        record && record[:loop_info]
+      when :simple
+        offset = ctx[:row_index] - scope[:start]
+        return nil if offset.negative? || offset >= scope[:count]
+
+        { index: offset, size: scope[:count] }
+      when :nested
+        offset = ctx[:row_index] - scope[:start]
+        row = offset.negative? ? nil : scope[:rows][offset]
+        return nil unless row
+
+        if row[:child]
+          { index: row[:child], size: scope[:children][row[:parent]].size }
+        else
+          { index: row[:parent], size: scope[:parents].size }
+        end
+      when :grid
+        offset = ctx[:row_index] - scope[:content_start]
+        return nil if offset.negative? || offset >= scope[:rows].size
+
+        { index: offset, size: scope[:rows].size }
+      end
+    end
+
+    # 形状级条件(powertom:if:<field>):falsy 时删除该形状。
+    # 先处理父级(组),被删组内的子形状跳过,避免对已隐藏内容求值
+    def remove_conditional_shapes(adapter, prs, page_scopes, binder)
+      removed = []
+      adapter.conditional_contexts(prs).each do |cctx|
+        element = cctx[:element]
+        next if inside_removed?(element, removed)
+
+        page = page_scopes[cctx[:slide_no] - 1]
+        ctx = { slide_no: cctx[:slide_no], shape: cctx[:shape],
+                scope: page[:scope], scope_root: page[:scope_root] }
+        value = binder.value_at(cctx[:field], ctx, purpose: "powertom:if")
+        next if truthy?(value)
+
+        adapter.remove_shape(element)
+        removed << element
+      end
+    end
+
+    def inside_removed?(element, removed)
+      node = element
+      while node
+        return true if removed.include?(node)
+
+        node = node.parent
+      end
+      false
     end
 
     # §2.3 数据有模板未使用的字段 → warning(v0 只追踪顶层字段)

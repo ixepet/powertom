@@ -72,15 +72,22 @@ module PowerTom
         path == "col" || path.start_with?("col.")
     end
 
-    # 文本里出现的循环数组根路径(如 "classes[].name" → "classes")
+    # 文本里出现的循环数组根路径(如 "classes[].name" → "classes");
+    # 聚合标签(classes[].avg:sum)不是行循环标记,跳过
     def loop_roots(text)
       text.to_s.scan(Scanner::TAG_RE).filter_map do |tag|
         raw = tag[/\{\{\s*([^{}]*?)\s*\}\}/, 1].to_s
         next if raw.start_with?("#")
 
-        path = raw.split(":", 2).first
+        path, spec = raw.split(":", 2)
+        next if aggregator_path?(path, spec)
+
         path.split("[]", 2).first if path.include?("[]")
       end
+    end
+
+    def aggregator_path?(path, spec)
+      path.include?("[]") && Scanner.aggregator_spec?(spec)
     end
 
     # ---- L0:简单行循环 ----
@@ -883,13 +890,17 @@ module PowerTom
       tag[/\{\{\s*([^{}]*?)\s*\}\}/, 1].to_s.start_with?("#grid")
     end
 
-    # 单元格里可绑定的标签路径(去掉 formatter 与 # / 闭合指令)
+    # 单元格里可绑定的标签路径(去掉 formatter 与 # / 闭合指令);
+    # 聚合标签由数据层对账,不参与表格作用域校验
     def label_paths(text)
       text.to_s.scan(Scanner::TAG_RE).filter_map do |tag|
         raw = raw_of(tag)
         next if raw.start_with?("#") || raw.start_with?("/")
 
-        raw.split(":", 2).first
+        path, spec = raw.split(":", 2)
+        next if aggregator_path?(path, spec)
+
+        path
       end
     end
   end

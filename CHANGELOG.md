@@ -6,6 +6,38 @@ and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-11-18
+
+### Added
+
+- Restricted aggregators: `{{array[].field:sum}}`, `:avg`, `:min`, `:max` and
+  `{{array[]:count}}` over a single-level array with a numeric field. They work
+  in page text, static table rows (totals) and `#each` items; nil values are
+  skipped, `sum` of an empty array is `0`, and `avg/min/max` of an empty array
+  render blank. `check` rejects a missing array or a non-numeric field. There
+  are no expressions, sorting or filtering — prepare those in Ruby.
+- `PowerTom::AssetResolver`: `PowerTom.configure { |c| c.asset_resolver = ... }`
+  or `render(..., asset_resolver:)`. A picture field is a reference; the
+  resolver returns a file path or `{data: <binary>, extension: "png"}`, so
+  object storage and controlled directories work without PowerTom making
+  network calls. `check` validates the resolver result with the same rules.
+- `powertom render TEMPLATE --out PATH [--data PATH] [--no-strict]` in the CLI:
+  JSON is parsed in the CLI layer, TOML goes through the library's loader.
+  Render failures exit `1`; usage or unreadable input exits `2`.
+- Loop variables: `{{@index}}` (0-based), `{{@index1}}` (1-based),
+  `{{@first}}` and `{{@last}}`. They work in `{{array[].field}}` row loops,
+  `#rows` blocks, `#grid` data rows and `{{#each}}` pages, refer to the
+  innermost loop, and accept formatters. Header/total rows and pages without a
+  loop are located errors in both `check` and render.
+- Shape-level conditions: name a shape (or its alt text) `powertom:if:<field>`;
+  falsy removes the shape (groups remove their content), truthy keeps it.
+  Conditions are evaluated before binding, so hidden shapes do not raise for
+  their own tags; `check` validates the field for every `#each` item.
+- `powertom` executable (`exe/powertom`, installed by RubyGems) for pipelines
+  that do not use Rake. `powertom check TEMPLATE [--data PATH]` prints the same
+  report as `rake powertom:check`; `powertom version` and `powertom help`
+  complete the surface.
+
 ## [0.4.2] - 2026-11-18
 
 ### Added

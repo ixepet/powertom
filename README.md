@@ -134,6 +134,9 @@ result = PowerTom.render("templates/report.pptx", data: {
 | `{{day:date.year_month}}` | body | Formatter: 2026年11月 |
 | `{{#each scenarios}}` | notes | Clone the page per array item (empty array removes the group) |
 | `{{#if show_compare}}` | notes | Remove the page when falsy |
+| `{{@index}}` / `{{@index1}}` | loop | 0-based / 1-based index of the current item |
+| `{{@first}}` / `{{@last}}` | loop | `true` on the first / last item |
+| `{{classes[].avg:sum}}` | body / total row | Aggregate: `sum`, `avg`, `min`, `max`; `{{classes[]:count}}` counts items |
 
 > [!WARNING]
 > **Scope inside `{{#each}}`.** An `{{#each scenarios}}` page renders once per
@@ -141,13 +144,18 @@ result = PowerTom.render("templates/report.pptx", data: {
 > fallback to the root data. Write `{{headline}}`, not `{{scenario.headline}}`:
 > a prefix that does not exist on the item raises `MissingDataError`. A value
 > that lives only at the top level is not visible on that page; put it on a
-> separate page or include it in each item.
+> separate page or include it in each item. Loop variables (`{{@index}}`,
+> `{{@index1}}`, `{{@first}}`, `{{@last}}`) are the way to number items.
 
 - **Split runs are handled**: if PowerPoint stores `{{title}}` as several runs, the engine merges the paragraph and replaces correctly; the result inherits the first run's style.
 - **Nested table rows**: `{{#rows groups}}` occupies a whole row (first cell only), and the next row is the parent content row; `{{#rows groups[].items}}` followed by its own content row adds one nesting level. Two levels maximum; parent and child tags use full paths (`{{groups[].name}}`, `{{groups[].items[].name}}`).
 - **Dynamic columns**: put `{{#grid rows: distribution cols: bands value: counts}}` in the header row's first cell. The header row's second cell is the column template (`{{col.label}}`), and the next row is the row template (`{{row.name}}` in the first cell, `{{cell}}` in the data columns). Exactly two columns; `value:` is optional (defaults to `row[col.key]`).
 - **Row blocks (v0.2.x)**: `{{#rows groups}} ... {{/rows}}` each occupy a whole row; everything between them is one record template and is cloned per item. Up to 3 nested levels; `{{row.name}}` refers to the current record. A `{{#cols ...}}` band may be declared in the header or directly inside a row block, and may span several template columns; `value: scores,rates` maps one field to each template column (a single field is shared by all). A `{{#if ...}} ... {{/if}}` block inside a row block removes its rows when the condition is falsy; inside a `#cols` band it removes the wrapped columns per column item.
 - **Pictures**: name the shape or its alt text `powertom:image:cover` and pass a file path in the data. Replacement fills the shape and crops from the centre by default; append `; mode=contain` (`powertom:image:logo; mode=contain`) to fit the whole image inside the frame instead.
+- **Conditional shapes**: name the shape or its alt text `powertom:if:<field>`. When the value is falsy the shape is removed at render time; `PowerTom.check` verifies the field exists. On an `{{#each}}` page the field comes from the current item.
+- **Loop variables**: `{{@index}}` (0-based), `{{@index1}}` (1-based), `{{@first}}` and `{{@last}}` are available in `#each` pages, `{{array[].field}}` rows, `#rows` blocks and `#grid` data rows. They refer to the innermost loop; using them on a header/total row or outside a loop is a located error in `check` and at render time.
+- **Aggregates**: `{{classes[].avg:sum}}` (also `avg`, `min`, `max`) and `{{classes[]:count}}` work in body text, table total rows and `#each` items. Single-level arrays with numeric fields only; nil values are skipped; no expressions, sorting or filtering.
+- **Asset resolution**: picture fields are references. By default they are local paths; `PowerTom.configure { |c| c.asset_resolver = ... }` (or `render(..., asset_resolver:)`) lets an application return a path or `{data:, extension:}` from object storage. PowerTom never fetches URLs itself, so the resolver stays the security boundary.
 - **Charts**: name the chart shape or its alt text `powertom:chart:sales` and pass `{ categories, series, number_format }` in the data; the whole data set is replaced and series formatting is inherited from the template. Supported: bar/column, line, area, pie (exactly one series), doughnut and **radar** (including the filled variant — `radarStyle` and radial-axis scaling such as a fixed maximum are preserved). Combo charts and scatter/bubble charts use a different contract — see Limitations.
 - One directive per notes page, maximum.
 - TOML dates are written unquoted (`report_date = 2026-01-20`), normalised to Ruby `Date`, and can be formatted with `{{report_date:date.cn}}`.
@@ -179,6 +187,9 @@ Then run:
 bundle exec rake powertom:check TEMPLATE=templates/report.pptx DATA=data/sample.toml
 ```
 
+The Rake task reads TOML (pass a parsed Hash from Ruby for other formats); the
+CLI below also accepts JSON.
+
 Example report:
 
 ```text
@@ -202,7 +213,28 @@ result.report       # the human-readable report shown above
 result.exit_code    # 0 or 1 — usable in CI
 ```
 
-Checks: missing fields (including each item of an `#each` array), unregistered formatters, directive syntax, more than one directive per page, picture fields and placeholder options, missing files, chart kind and data shape, tags on masters/layouts (they never take effect), placeholder overflow warnings, unused data fields, leftover tags in notes.
+Checks: missing fields (including each item of an `#each` array), unregistered formatters, directive syntax, more than one directive per page, picture fields and placeholder options, asset resolver results, chart kind and data shape, conditional fields, loop-variable scope, aggregate arrays and numeric fields, tags on masters/layouts (they never take effect), placeholder overflow warnings, unused data fields, leftover tags in notes.
+
+## CLI
+
+The gem ships a `powertom` executable for pipelines that do not use Rake:
+
+```bash
+powertom check templates/report.pptx --data data/sample.toml
+powertom render templates/report.pptx --data data/values.json --out out/report.pptx
+powertom version
+```
+
+`check` prints the same human-readable report as the Rake task; both `check`
+and `render` accept `.toml` or `.json` sample data. `render` writes the deck to
+`--out`; `--no-strict` fills missing fields with blanks and warns. Exit codes
+are the stable contract:
+
+| Code | Meaning |
+| --- | --- |
+| 0 | success (warnings allowed) |
+| 1 | template/data errors that block rendering |
+| 2 | usage error, unreadable template, data or asset |
 
 ## Error model
 
@@ -210,7 +242,10 @@ Checks: missing fields (including each item of an `#each` array), unregistered f
 | --- | --- |
 | Missing field | `PowerTom::MissingDataError` by default, with slide number, shape name and tag; with `strict: false`, fills in blank and records a warning |
 | Invalid tag syntax | `PowerTom::TemplateSyntaxError` before rendering |
+| Loop variable outside a loop | `PowerTom::TemplateSyntaxError` — `@index` on a header row or a page without a loop is a template bug, not missing data |
+| Aggregate misuse | `PowerTom::MissingDataError` when the array is missing or an item's field is not numeric |
 | Not a valid pptx | `PowerTom::InvalidTemplateError` |
+| Asset resolver failure | `PowerTom::Error` when the resolver returns `nil` or an unsupported value |
 | Missing `#each` path | Always raises — pages are never silently dropped |
 
 Output is **all or nothing**: every check runs before anything is written to disk.
@@ -225,8 +260,11 @@ Output is **all or nothing**: every check runs before anything is written to dis
 | Tags on masters/layouts are rejected | Only shapes on slides are processed; `PowerTom.check` reports these tags as errors because they never take effect |
 | No PPT → PDF | Use LibreOffice headless |
 | `.pptx` only | No legacy 97-2003 binary format |
-| TOML or Hash only | No YAML / JSON loader; load them yourself and pass a Hash (see the FAQ below) |
+| TOML or Hash only | The library takes a Hash or a `.toml` path; the CLI also accepts `.json`. No YAML loader (see the FAQ below) |
 | Pictures default to fill + centre-crop | Append `; mode=contain` to `powertom:image:<field>` to fit the image inside the frame without cropping; the aspect-ratio warning only applies to fill mode |
+| Loop variables refer to the innermost loop | In nested `#rows` blocks there is no syntax for the parent index; compute it in the data if needed |
+| Aggregates are deliberately narrow | One array level, one numeric field, no expressions, sorting or rounding; complex math belongs in Ruby |
+| Shape conditions use page scope | Evaluated per page / `#each` item before binding; they cannot reference table-row fields, and deleting a group removes its children |
 
 ## FAQ
 
@@ -249,6 +287,8 @@ require "powertom/tasks"
 
 Then `bundle exec rake powertom:check TEMPLATE=... DATA=...` works. The
 repository-only `powertom:lint` and `fixtures:*` tasks are not part of the gem.
+If the project does not use Rake at all, run `powertom check TEMPLATE
+--data DATA` instead (0.8.0+).
 
 **Can I pass JSON or YAML instead of TOML?**
 
@@ -269,12 +309,37 @@ PowerTom.render("template.pptx",
 JSON/YAML have no native date type: convert date-like strings to `Date` or
 `Time` yourself if a `date` formatter is used.
 
+**How do I put a total under a table?**
+
+Use an aggregate in the static total row: `{{classes[].avg:sum}}` (also `avg`,
+`min`, `max`) or `{{classes[]:count}}`. The loop row keeps using
+`{{classes[].name}}`; `check` verifies the array exists and the field is
+numeric. Aggregates also work in body text and on `#each` items.
+
+**Can pictures come from S3 or HTTP?**
+
+Yes, through an asset resolver — PowerTom does not make network calls itself:
+
+```ruby
+PowerTom.configure do |config|
+  config.asset_resolver = lambda do |ref, context|
+    # ref is the data value; return a path or raw bytes
+    { data: MyStore.fetch(ref), extension: "png" }
+  end
+end
+```
+
+A resolver receives `(ref, {slide_no:, shape:, field:})` and returns a file path
+or `{data: <binary String>, extension: "<ext>"}`. `PowerTom.check` validates the
+resolver result with the same rules; returning `nil` is an error. Per-render
+override: `PowerTom.render(..., asset_resolver: ->(ref, ctx) { ... })`.
+
 ## Security
 
 To report a vulnerability, see [SECURITY.md](SECURITY.md) — please do not open public issues for security problems.
 
 - Template tags are pure data binding: the scanner matches `{{...}}` with regex and resolves paths against your data. No code from the template or the data is ever evaluated.
-- Picture fields are read as file paths from the server running the render. If your data comes from untrusted input, validate paths on your side (restrict to a controlled directory and an extension allowlist) before passing them to `render` — see [dogfooding plan §7](https://github.com/ixepet/powertom/blob/main/docs/dogfooding-plan.md) for the reference `AssetResolver` design.
+- Picture fields are references. Without an `asset_resolver`, they are read as local paths from the server running the render — validate untrusted input on your side (a controlled directory and an extension allowlist) before passing it to `render`. With an `asset_resolver`, the application's resolver is the trust boundary and PowerTom performs no network I/O itself; see the FAQ above.
 - Dependency advisories are checked in CI with `bundler-audit` (`bundle exec bundler-audit check --update` locally).
 
 ## Development

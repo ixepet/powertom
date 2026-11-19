@@ -32,6 +32,12 @@ Two consequences worth stating explicitly:
 | JSON / YAML input | No built-in loaders; document adapter snippets | Small dependency surface; `Hash` is the stable API |
 | Master / layout tags | Runtime still ignores them; `PowerTom.check` now reports them as errors | Shared parts and placeholder inheritance rule out binding; the public check closes the validation gap |
 | Upstream writer defects | Normalize on save; keep until a fixed upstream release is verified, then version-gate and deprecate | The adapter must tolerate library bugs, not assume correct upstream output |
+| CLI | Read-only `check` plus `render` (TOML/JSON); exit codes 0/1/2; `--json` output and `lint` deferred | Rake-free CI needs one command; keeping the public surface small avoids a second render API |
+| Loop variables | `@index` / `@index1` / `@first` / `@last`, innermost loop only; static rows are errors | Numbering is a daily need; a reserved `@` namespace cannot collide with data fields |
+| Shape conditions | `powertom:if:<field>` deletes the shape on falsy, evaluated before binding | Optional content is common; delete-on-falsy keeps the designer's layout unchanged when shown |
+| Aggregates | `array[].field:sum/avg/min/max`, `array[]:count` over one array + numeric field | Totals are a daily need; refusing expressions keeps `check` static |
+| Asset resolution | Pluggable resolver returns a path or `{data:, extension:}`; no built-in HTTP | Production needs object storage without SSRF or new dependencies |
+| i18n | Deferred until a real bilingual template exists; data preprocessing is the workaround | Adds a locale API and translation contract without demonstrated demand |
 | General principle | Accepted as written | Matches the existing check-first, all-or-nothing design |
 
 ---

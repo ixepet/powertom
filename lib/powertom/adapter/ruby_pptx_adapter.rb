@@ -461,9 +461,11 @@ module PowerTom
 
       # §5.3 图片替换:get_or_add 新 image part(按内容 sha1 去重,扩展名/content type
       # 由 ruby_pptx 按真实图片类型维护),repoint blip 引用。
+      # image_source: 文件路径 String,或 {data:, extension:}(AssetResolver 返回字节)
       # fill:填满形状、居中裁切;contain:等比缩放到形状内、居中留边。
       # SVG 等矢量图没有原生像素尺寸,contain 保持原几何,fill 不做裁切。
-      def replace_image(slide, picture, image_path, mode: :fill)
+      def replace_image(slide, picture, image_source, mode: :fill)
+        image_path, temp = materialize_image(image_source)
         _image_part, r_id = slide.part.get_or_add_image_part(image_path)
         pic_el = picture.element
         pic_el.blip.embed = r_id
@@ -482,7 +484,33 @@ module PowerTom
         true
       rescue StandardError => e
         raise PowerTom::Error,
-              "picture replacement failed (#{File.basename(image_path.to_s)}): #{e.class} #{e.message}"
+              "picture replacement failed (#{image_label(image_source)}): #{e.class} #{e.message}"
+      ensure
+        temp&.close!
+      end
+
+      # AssetResolver 的字节结果落到临时文件,ruby_pptx 的图片 part 按真实类型识别
+      def materialize_image(source)
+        return [source, nil] if source.is_a?(String)
+
+        data = part_value(source, "data")
+        extension = part_value(source, "extension").to_s
+        unless data.is_a?(String) && !data.empty?
+          raise PowerTom::Error, "asset resolver must return a file path or {data:, extension:} with binary data"
+        end
+        unless extension.match?(/\A[a-zA-Z0-9]{2,5}\z/)
+          raise PowerTom::Error, "asset resolver image extension is invalid: #{extension.inspect}"
+        end
+
+        temp = Tempfile.new(["powertom_image", ".#{extension}"])
+        temp.binmode
+        temp.write(data)
+        temp.close
+        [temp.path, temp]
+      end
+
+      def image_label(source)
+        source.is_a?(String) ? File.basename(source) : "asset"
       end
 
       # contain:按 min(宽比, 高比) 缩放,居中写入 picture 的 xfrm,并清掉旧裁切。
@@ -772,7 +800,44 @@ module PowerTom
         found
       end
 
+      CONDITIONAL_PREFIX = "powertom:if:"
+
+      # 形状级条件占位:name / alt text 以 powertom:if: 开头。
+      # 返回 [{slide_no:, shape:, field:, element:}],含组合形状(先父后子)
+      def conditional_contexts(prs)
+        list = []
+        prs.slides.each_with_index do |slide, i|
+          walk_all_shapes(slide.shapes) do |shape|
+            field = conditional_field(shape)
+            next unless field
+
+            list << { slide_no: i + 1, shape: shape.name, field: field, element: shape.element }
+          end
+        end
+        list
+      end
+
+      # 删除形状(含整个组合);render 在绑定前调用
+      def remove_shape(element)
+        element.parent&.remove(element)
+      end
+
       private
+
+      def walk_all_shapes(shapes, &block)
+        shapes.each do |shape|
+          block.call(shape)
+          walk_all_shapes(shape.shapes, &block) if shape.is_a?(Pptx::GroupShape)
+        end
+      end
+
+      def conditional_field(shape)
+        name = shape.name.to_s
+        return name.delete_prefix(CONDITIONAL_PREFIX) if name.start_with?(CONDITIONAL_PREFIX)
+
+        descr = alt_text_of(shape)
+        descr.delete_prefix(CONDITIONAL_PREFIX) if descr&.start_with?(CONDITIONAL_PREFIX)
+      end
 
       def walk_shapes(shapes, &block)
         shapes.each do |shape|
