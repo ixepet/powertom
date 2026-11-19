@@ -6,6 +6,8 @@ and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-11-19
+
 ### Fixed
 
 - `check` no longer raises on malformed templates or sample data. It is a CI
