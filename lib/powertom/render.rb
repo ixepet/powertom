@@ -269,6 +269,11 @@ module PowerTom
     # 各自绑定本项的数据;缺字段(strict: false)时保留占位图表。
     def bind_charts(adapter, prs, page_scopes, binder, _warnings)
       adapter.chart_contexts(prs).each do |cctx|
+        if cctx[:mode_error]
+          raise PowerTom::Error,
+                "slide #{cctx[:slide_no]} chart '#{cctx[:shape]}': #{cctx[:mode_error]}"
+        end
+
         page = page_scopes[cctx[:slide_no] - 1]
         ctx = { slide_no: cctx[:slide_no], shape: cctx[:shape],
                 scope: page[:scope], scope_root: page[:scope_root] }

@@ -117,6 +117,14 @@ module PowerTom
               "#{where}: #{tag} is a page directive and must be written in the slide notes; " \
               "v0 does not support directives in the body"
       end
+      # 空标签({{}} / {{ }})不是合法路径:raw.split(":", 2) 对空串返回 [],
+      # path 会是 nil,后续 path.split 会抛 NoMethodError 而非 TemplateSyntaxError。
+      # 这里显式拦成语法错误,让 check 能报告它而不是崩栈。
+      if raw.strip.empty?
+        raise TemplateSyntaxError,
+              "#{where}: #{tag} is not a valid tag; a tag needs a path, e.g. {{field}}"
+      end
+
       path, spec = raw.split(":", 2)
       # 聚合标签允许在非表格位置使用 [],由 Binder/Validator 按数组路径处理
       ctx = ctx.merge(allow_array: true) if aggregation?(path, spec)

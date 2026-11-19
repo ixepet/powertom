@@ -8,6 +8,65 @@ and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
 
 ### Fixed
 
+- `check` no longer raises on malformed templates or sample data. It is a CI
+  gate, so it must always return a report instead of a Ruby backtrace:
+  - An empty tag (`{{}}` or `{{ }}`) is now a `TemplateSyntaxError` with a
+    location instead of a `NoMethodError`. `String#split(":", 2)` returns `[]`
+    for an empty string, so the path was `nil` and the first `path.split`
+    blew up.
+  - A picture, chart or conditional placeholder with an empty field name
+    (`powertom:chart:` with nothing after the colon) is reported as an error
+    instead of crashing on the empty root.
+  - Sample data that is not a Hash (a JSON document with an array at the top
+    level, for example) is reported as an error explaining that field
+    reconciliation needs top-level fields.
+  - A `{{#each}}` directive whose path resolves to `nil` or to a non-array no
+    longer crashes the overflow check.
+- `check` and render now agree on the chart data shape. Scatter and bubble
+  charts carry their own `points` per series and have no `categories`; on a
+  `{{#each}}` page `check` used to apply the ordinary chart rules and report
+  a missing `categories` for valid data, so a legitimate template could never
+  pass CI.
+- `check` now reports formatter arguments and value types. `{{d:date.bogus}}`
+  and `{{amt:currency}}` bound to a string both fail at render time; they are
+  reported at check time now. The argument rules come from `Formatter` itself
+  (`register` can declare the arguments it accepts), so check and render
+  cannot drift apart.
+- `check` reports the conflict between a page-level `{{#each}}` and a table
+  row loop on the same page. Render refuses that combination, so check has to
+  as well.
+- The asset resolver receives the same context in `check` as in render:
+  `{slide_no:, shape:, field:}`. A resolver that branches on the field name
+  behaved differently between the two.
+- A shape name containing an apostrophe no longer duplicates the location
+  prefix in check messages.
+
+### Added
+
+- `PowerTom::Formatter.validate` and `PowerTom::Formatter.validate_spec`
+  check a formatter specification and a bound value against the rules the
+  formatter itself applies.
+- `PowerTom.register_formatter` accepts the arguments a formatter supports, so
+  a custom formatter can be validated at check time as well.
+
+### Changed
+
+- `ruby_pptx` is pinned to 0.3.1 in the lockfile. Upstream fixed the two
+  chart defects PowerTom worked around (negative `c:axId`/`c:crossAx` and
+  the illegal `c:smooth` in radar series, Largo/ruby_pptx#3), so the local
+  chart normalisation is now gated on the ruby_pptx version and is skipped
+  from 0.3.1 on. It stays active for 0.3.0, which still needs it.
+
+### Security
+
+- The intermediate workbook rewrite no longer writes temporary `.xlsx`
+  files. It runs entirely in memory and returns bytes: `Tempfile`'s
+  finalizer race on Ruby 4.0 (`Tempfile.new` defers `File.unlink` to GC)
+  cannot happen any more, and the rewritten workbook is a byte string
+  rather than a `StringIO`.
+- Intermediate surgery and image files are created with `Tempfile.create`
+  (a plain `File` without a finalizer) and are closed and unlinked
+  explicitly.
 - Rubyzip file handle leaks that locked rendered files on Windows.
   `Zip::Entry#get_inputstream` without a block opens an independent file
   handle that is only released by a GC finalizer, and `Zip::File` holds no
@@ -18,22 +77,6 @@ and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
   `Zip::File.open_buffer` over a `StringIO`: the template handle exists
   only while the template is read, so a rendered template can be deleted or
   renamed right after a render on Windows.
-- The intermediate workbook rewrite no longer writes temporary `.xlsx`
-  files. It runs entirely in memory and returns bytes: `Tempfile`'s
-  finalizer race on Ruby 4.0 (`Tempfile.new` defers `File.unlink` to GC)
-  cannot happen any more, and the rewritten workbook is a byte string
-  rather than a `StringIO`.
-- Intermediate surgery and image files are created with `Tempfile.create`
-  (a plain `File` without a finalizer) and are closed and unlinked
-  explicitly.
-
-### Changed
-
-- `ruby_pptx` is pinned to 0.3.1 in the lockfile. Upstream fixed the two
-  chart defects PowerTom worked around (negative `c:axId`/`c:crossAx` and
-  the illegal `c:smooth` in radar series, Largo/ruby_pptx#3), so the local
-  chart normalisation is now gated on the ruby_pptx version and is skipped
-  from 0.3.1 on. It stays active for 0.3.0, which still needs it.
 
 ## [0.8.0] - 2026-11-18
 

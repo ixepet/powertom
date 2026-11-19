@@ -189,12 +189,13 @@ module PowerTom
           walk_shapes(slide.shapes) do |shape|
             next unless shape.respond_to?(:chart?) && shape.chart?
 
-            field = chart_field(shape)
-            next unless field
+            field, error = chart_field(shape)
+            next if field.nil? && error.nil?
 
             kind = chart_kind(shape.chart)
             entry = { slide_no: i + 1, shape: shape.name, field: field,
-                      slide: slide, chart_shape: shape, kind: kind }
+                      slide: slide, chart_shape: shape, kind: kind,
+                      mode_error: error }
             if %i[combo XY BUBBLE].include?(kind)
               entry[:series_count] = chart_series_count(shape.chart)
               entry[:distribution] = chart_distribution_label(shape.chart)
@@ -250,14 +251,29 @@ module PowerTom
 
       CHART_FIELD_PREFIX = "powertom:chart:"
 
+      # 图表占位符的字段名。
+      #
+      # 返回 [field, error]:
+      #   - field 非 nil → 是图表占位符,field 是字段名
+      #   - field 为 nil → 不是图表占位符
+      #   - error 非 nil → 是占位符但写错了(如 powertom:chart: 漏了字段名)
+      #
+      # 空字段名必须报错而不是静默放行:写成 powertom:chart: 是设计师的
+      # 常见拼写失误,渲染期会拿空字段去取值,check 阶段要指出来。
       def chart_field(shape)
         name = shape.name.to_s
-        return name.delete_prefix(CHART_FIELD_PREFIX) if name.start_with?(CHART_FIELD_PREFIX)
+        return chart_field_result(name.delete_prefix(CHART_FIELD_PREFIX)) if name.start_with?(CHART_FIELD_PREFIX)
 
         descr = chart_alt_text(shape)
-        return descr.delete_prefix(CHART_FIELD_PREFIX) if descr&.start_with?(CHART_FIELD_PREFIX)
+        return chart_field_result(descr.delete_prefix(CHART_FIELD_PREFIX)) if descr&.start_with?(CHART_FIELD_PREFIX)
 
-        nil
+        [nil, nil]
+      end
+
+      # 字段名为空是占位符写错(powertom:chart: 漏了字段名),要报错;
+      # 有字段名则是正常的图表占位符。
+      def chart_field_result(field)
+        field.empty? ? [field, "chart placeholder has no field name"] : [field, nil]
       end
 
       def chart_alt_text(shape)

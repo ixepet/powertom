@@ -80,6 +80,7 @@ module PowerTom
         next if raw.start_with?("#")
 
         path, spec = raw.split(":", 2)
+        next if path.nil? || path.empty?
         next if aggregator_path?(path, spec)
 
         path.split("[]", 2).first if path.include?("[]")
@@ -87,7 +88,7 @@ module PowerTom
     end
 
     def aggregator_path?(path, spec)
-      path.include?("[]") && Scanner.aggregator_spec?(spec)
+      path.to_s.include?("[]") && Scanner.aggregator_spec?(spec)
     end
 
     # ---- L0:简单行循环 ----
@@ -898,6 +899,7 @@ module PowerTom
         next if raw.start_with?("#") || raw.start_with?("/")
 
         path, spec = raw.split(":", 2)
+        next if path.nil? || path.empty?
         next if aggregator_path?(path, spec)
 
         path

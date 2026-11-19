@@ -90,6 +90,11 @@ module PowerTom
     rescue PowerTom::Error => e
       @err.puts "powertom: #{e.message}"
       2
+    rescue StandardError => e
+      # check 的契约是"报告问题而不抛异常";若检查器自身崩了,也不能把
+      # Ruby 栈回溯甩给 CI 用户。退出码 2 = 用法/输入错误(工具故障)。
+      @err.puts "powertom: internal check error: #{e.class}: #{e.message}"
+      2
     end
 
     def render(args)

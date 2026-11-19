@@ -165,18 +165,42 @@ module PowerTom
         end
       end
 
-      # 2.5 formatter 注册对账(§3.4):不依赖样例数据
+      # 2.4.1 循环层级冲突:页级 #each 与表格行循环不能叠加。
+      # 渲染期 render.rb expand_table_rows 会为这种组合直接抛错,
+      # check 必须提前报出来,否则坏模板会绕过 CI 门禁。
+      table_plans.each_key do |slide_no, shape|
+        directive = directives[slide_no]
+        next unless directive && directive[:kind] == :each
+
+        entries << error_entry(
+          slide_no, shape, nil,
+          "a page-level {{#each}} cannot be combined with table row loops " \
+          "(only one loop level is supported)"
+        )
+      end
+
+      # 2.5 formatter 对账(§3.4):注册名 + 参数合法性。都不依赖样例数据。
+      #   - 注册名不在册 → error(可用名列表)
+      #   - 注册名在册但参数不被支持 → error(如 date.bogus)
+      # 参数规则来自 Formatter 自身,不留第二份实现。
       labels_by_page.each_value do |labels|
         labels.each do |l|
           next unless l[:spec]
           next if aggregation_label?(l) # 聚合名不是 formatter
 
           name = l[:spec].split(".").first
-          next if Formatter.registered?(name)
+          unless Formatter.registered?(name)
+            entries << error_entry(l[:context][:slide_no], l[:context][:shape], l[:path],
+                                   "unregistered formatter '#{name}' " \
+                                   "(available: #{Formatter.registered_names.join(', ')})")
+            next
+          end
+
+          problem = formatter_spec_problem(l[:spec])
+          next unless problem
 
           entries << error_entry(l[:context][:slide_no], l[:context][:shape], l[:path],
-                                 "unregistered formatter '#{name}' " \
-                                 "(available: #{Formatter.registered_names.join(', ')})")
+                                 "formatter spec '#{l[:spec]}' is invalid: #{problem}")
         end
       end
 
@@ -184,6 +208,12 @@ module PowerTom
       # (combo/XY/BUBBLE 是支持的 kind,走 reconcile 阶段的系列数量规则)。
       # 这是模板属性,不依赖样例数据,与字段对账分开检查
       chart_placeholders.each do |cctx|
+        # 占位符本身写错(如 powertom:chart: 漏了字段名)优先报出
+        if cctx[:mode_error]
+          entries << error_entry(cctx[:slide_no], cctx[:shape], cctx[:field], cctx[:mode_error])
+          next
+        end
+
         kind = cctx[:kind]
         next unless unsupported_kind?(kind)
 
@@ -218,6 +248,14 @@ module PowerTom
         entries << CheckEntry.new(level: :warning, slide_no: nil, shape: nil, label: nil,
                                   message: "no sample data (DATA) provided; " \
                                            "field reconciliation and overflow checks were skipped")
+      elsif !data.is_a?(Hash)
+        # 字段对账的前提是"顶层键"的数据结构。CLI 的 JSON 输入顶层是数组
+        # 是合法 JSON,但这里无法对账:与其崩在 data.keys 上,不如报一条
+        # 能指明原因的 error。
+        entries << CheckEntry.new(level: :error, slide_no: nil, shape: nil, label: nil,
+                                  message: "sample data must be a Hash of top-level fields, " \
+                                           "got #{data.class}; " \
+                                           "field reconciliation and overflow checks were skipped")
       else
         directives.each do |slide_no, directive|
           reconcile_directive(directive, slide_no, data, entries)
@@ -239,6 +277,9 @@ module PowerTom
             else
               reconcile_label(l, directives[l[:context][:slide_no]], data, entries)
             end
+            # formatter 的值类型:字段存在但类型不对(currency 拿到字符串),
+            # 渲染期会抛错,这里提前报
+            check_formatter_value(l, directives[l[:context][:slide_no]], data, entries)
           end
         end
         reconcile_block_tables(table_plans, labels_by_table_row, data, entries)
@@ -375,6 +416,18 @@ module PowerTom
       end
     end
 
+    # formatter 参数是否合法(规则来自 Formatter 自身,不留第二份实现)
+    def formatter_spec_problem(spec)
+      Formatter.validate_spec(spec)
+      nil
+    rescue PowerTom::Error => e
+      e.message
+    end
+
+    def formatter_spec_valid?(spec)
+      formatter_spec_problem(spec).nil?
+    end
+
     # 标签对账:普通页对根数据;#each 页对数组的每一项(缺哪项报哪项)
     def reconcile_label(label, directive, data, entries)
       path = label[:path]
@@ -405,16 +458,70 @@ module PowerTom
       end
     end
 
+    # formatter 值类型校验(§3.4):{{amt:currency}} 拿到字符串、{{d:date}}
+    # 拿到非日期,渲染期 Formatter.apply 会抛错。check 阶段用同一套规则
+    # 提前报出来,坏模板不会绕过 CI 门禁。
+    #
+    # 逐项定位(#each 页按 item N 报),取值与 reconcile_label 同源。
+    def check_formatter_value(label, directive, data, entries)
+      spec = label[:spec]
+      return if spec.nil?
+      return if aggregation_label?(label)
+      return unless Formatter.registered?(spec.split(".").first)
+      # 参数本身非法时(上面已报),值类型检查只会重复报同一件事
+      return unless formatter_spec_valid?(spec)
+
+      path = label[:path]
+      ctx = label[:context]
+      if directive && directive[:kind] == :each
+        items = begin
+          PathResolver.resolve(data, directive[:path])
+        rescue MissingDataError
+          return # 指令级 error 已单独报告
+        end
+        return unless items.is_a?(Array)
+
+        items.each_with_index do |item, k|
+          value = begin
+            PathResolver.resolve(item, path)
+          rescue MissingDataError
+            next # 字段缺失已由 reconcile_label 报告
+          end
+          problem = Formatter.validate(value, spec)
+          next unless problem
+
+          entries << error_entry(
+            ctx[:slide_no], ctx[:shape], path,
+            "array '#{directive[:path]}' item #{k + 1}: {{#{path}:#{spec}}} #{problem}"
+          )
+        end
+      else
+        value = begin
+          PathResolver.resolve(data, path)
+        rescue MissingDataError
+          return # 字段缺失已由 reconcile_label 报告
+        end
+        problem = Formatter.validate(value, spec)
+        return unless problem
+
+        entries << error_entry(ctx[:slide_no], ctx[:shape], path,
+                               "{{#{path}:#{spec}}} #{problem}")
+      end
+    end
+
     # 溢出预警(§7):autofit 关闭时文字溢出不裁,绑定值显著长于占位标签时提醒
     def overflow_check(label, directive, data, entries)
       ctx = label[:context]
       # 多项循环的标签取首项检查,避免同类警告刷屏
       source = if directive && directive[:kind] == :each
                  begin
-                   PathResolver.resolve(data, directive[:path])[0]
+                   items = PathResolver.resolve(data, directive[:path])
                  rescue MissingDataError
                    nil
                  end
+                 # 路径存在但值为 nil / 非数组时不能取 [0](nil[0] 会崩);
+                 # 非数组的形态由 reconcile_directive 单独报 error
+                 items.is_a?(Array) ? items[0] : nil
                else
                  data
                end
@@ -447,7 +554,10 @@ module PowerTom
       return if pctx[:mode_error] # 占位选项错误已在模板属性检查中报告
 
       path = pctx[:field]
-      ctx = { slide_no: pctx[:slide_no], shape: pctx[:shape] }
+      # 上下文三元组与 render 侧一致(render.rb resolve_asset):
+      # asset_resolver 收到的 ctx 必须含 :field,否则按 field 分流的
+      # resolver 在 check 与 render 下行为不一致。
+      ctx = { slide_no: pctx[:slide_no], shape: pctx[:shape], field: pctx[:field] }
       if directive && directive[:kind] == :each
         items = begin
           PathResolver.resolve(data, directive[:path])
@@ -598,6 +708,8 @@ module PowerTom
     # 图表占位对账(powertom:chart:*):与图片同一套 #each/普通语义,
     # 额外校验 {categories:, series: [{name:, values:}]} 的数据形状
     def reconcile_chart_placeholder(cctx, directive, data, entries)
+      return if cctx[:mode_error] # 占位符本身写错,已在模板属性检查中报告
+
       path = cctx[:field]
       ctx = { slide_no: cctx[:slide_no], shape: cctx[:shape] }
       if directive && directive[:kind] == :each
@@ -619,7 +731,7 @@ module PowerTom
             )
             next
           end
-          check_chart_value(value, ctx, path, entries, k)
+          check_chart_value_for_kind(value, ctx, path, entries, cctx, k)
           check_pie_series_count(value, ctx, path, entries, k) if cctx[:kind] == :PIE
           check_chart_series_count(value, cctx, entries, k)
         end
@@ -630,13 +742,20 @@ module PowerTom
           entries << error_entry(ctx[:slide_no], ctx[:shape], path, e.message)
           return
         end
-        if %i[XY BUBBLE].include?(cctx[:kind])
-          check_xy_chart_value(value, ctx, path, entries, cctx)
-        else
-          check_chart_value(value, ctx, path, entries)
-        end
+        check_chart_value_for_kind(value, ctx, path, entries, cctx)
         check_pie_series_count(value, ctx, path, entries) if cctx[:kind] == :PIE
         check_chart_series_count(value, cctx, entries)
+      end
+    end
+
+    # 散点/气泡的数据形状与普通图表不同(没有 categories,每个 series 自带 points)。
+    # #each 页与普通页必须走同一套分流,否则散点图放在克隆页上会被误判为
+    # "缺少 categories" —— 与 render 的 validate_xy_chart_data! 口径一致。
+    def check_chart_value_for_kind(value, ctx, path, entries, cctx, item_index = nil)
+      if %i[XY BUBBLE].include?(cctx[:kind])
+        check_xy_chart_value(value, ctx, path, entries, cctx)
+      else
+        check_chart_value(value, ctx, path, entries, item_index)
       end
     end
 
@@ -1144,7 +1263,10 @@ module PowerTom
     end
 
     def root_of(path)
-      path.split(".").first[/\A[A-Za-z0-9_]+/] || path
+      # path 可能为空串(占位符写了 powertom:chart: 却漏了字段名):
+      # "".split(".") 是 [], .first 是 nil,再 [] 就崩了。这里统一兜底。
+      head = path.to_s.split(".").first.to_s
+      head[/\A[A-Za-z0-9_]+/] || path.to_s
     end
 
     # 受控聚合标签({{array[].field:sum}})由数据层对账,不走行/网格作用域
@@ -1165,7 +1287,9 @@ module PowerTom
 
     # Scanner 的错误消息自带页码/形状前缀,条目里已有定位字段,剥掉避免重复
     def strip_location(message)
-      message.sub(/\Aslide \d+ shape '[^']*': /, "")
+      # 形状名可能含单引号(如 "Bob's Box"):用贪婪匹配到最后一个 "': ",
+      # 否则 [^']* 会在第一个引号处停下,前缀剥不掉,消息里位置信息会重复。
+      message.sub(/\Aslide \d+ shape '.*': /m, "")
              .sub(/\Aslide \d+ notes: /, "")
              .sub(/\Aslide \d+: /, "")
     end
