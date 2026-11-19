@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require "ruby_pptx"
+require "stringio"
 require "tempfile"
 require "zip"
 
@@ -57,8 +58,7 @@ module PowerTom
         path
       end
 
-      # 上游图表 writer 的两个缺陷(L3 OpenXmlValidator 首跑取证,ruby_pptx
-      # 0.3.0 仍未修复):
+      # 上游图表 writer 的两个缺陷(L3 OpenXmlValidator 首跑取证):
       # 1. 轴 id 常量是负数(如 VAL_AX_ID="-2112772216"),而 axId 的 schema
       #    约束是 MaxInclusive 2147483647(ST_DrawingElementId 实际按非负有界
       #    int32 校验,不是 uint32)—— LibreOffice/PowerPoint 宽容,官方校验器
@@ -67,11 +67,26 @@ module PowerTom
       # 2. RadarChartWriter 给每个 ser 写 c:smooth,但 radar ser 的 schema
       #    没有该子元素 —— 直接移除。
       #
+      # 上游已在 ruby_pptx 0.3.1 修复这两项(Largo/ruby_pptx#3):负数 axId
+      # 不再写出,radar ser 也不再带 c:smooth。因此按版本门控——0.3.1 以上
+      # 不再需要本地归一化,0.3.0 仍然需要,行为保持不变。
+      #
       # 这是适配层的兼容护城河:架构不能假设底层库永远输出正确,上游修复前
       # 不得删除。上游发布修复版本后,先升级并用 L3 验证,再按版本门控
       # (如 Gem::Version.new(Pptx::VERSION) < Gem::Version.new("<fixed>")),
       # 最后才在后续大版本里标记 Deprecated 并移除。
+      CHART_QUIRKS_FIXED_IN = Gem::Version.new("0.3.1")
+
+      # @return [Boolean] true when the running ruby_pptx still needs the
+      #   local chart normalisation (negative axis ids, illegal radar
+      #   c:smooth). False from 0.3.1 on, where upstream writes valid XML.
+      def self.chart_quirks_needed?
+        Gem::Version.new(Pptx::VERSION) < CHART_QUIRKS_FIXED_IN
+      end
+
       def normalize_chart_quirks(prs)
+        return unless self.class.chart_quirks_needed?
+
         prs.slides.each do |slide|
           walk_shapes(slide.shapes) do |shape|
             next unless shape.respond_to?(:chart?) && shape.chart?
@@ -341,55 +356,61 @@ module PowerTom
       # 两种情形:已有 styles.xml(含日期)→ 就地替换基础字体名;
       # 没有 → 注入最小 styles.xml + content-type Override + workbook 关系。
       # 结构对不上时返回 nil,调用方保持原样
+      #
+      # 全程在内存里改写 workbook(字节串进、字节串出),不落临时文件。
+      # 早先版本用 Tempfile.new / Tempfile.create 落地 xlsx 再用 rubyzip 读写:
+      # Ruby 4.0 的 Tempfile.new 走 FinalizerManager(tempfile.rb:386-397),
+      # 延迟到 GC 才 File.unlink;即便改用 create 显式 unlink,Windows 上
+      # rubyzip 关闭 zip 句柄的时机仍会与之竞态,抛 Errno::EACCES。
+      # open_buffer / write_buffer 让整个 zip 生命周期都在 StringIO 内,
+      # 没有文件路径、句柄或 unlink,竞态从根上消失。
       def rebuild_workbook_base_font(blob, font_name)
-        src = Tempfile.new(["powertom_wb_src", ".xlsx"])
-        dst = Tempfile.new(["powertom_wb_dst", ".xlsx"])
-        begin
-          File.binwrite(src.path, blob)
-          done = false
-          Zip::File.open(src.path) do |zip|
-            has_styles = zip.entries.any? { |entry| entry.name == "xl/styles.xml" }
-            Zip::OutputStream.open(dst.path) do |out|
-              zip.entries.each do |entry|
-                next if entry.directory?
+        done = false
+        patched = nil
+        Zip::File.open_buffer(StringIO.new(blob.b)) do |zip|
+          has_styles = zip.entries.any? { |entry| entry.name == "xl/styles.xml" }
+          # 用显式中间变量承接 write_buffer 的返回值:它给的是 StringIO,
+          # 字节串要取 .string。写在这里而不是写成 `write_buffer{...}.string`
+          # 是为了避开嵌套 do...end 的解析歧义(那时 .string 会被归到内层块里,
+          # 结果是 patched 变成 StringIO,下游 Zlib::Deflate 会拒绝非 String)。
+          buffer = Zip::OutputStream.write_buffer do |out|
+            zip.entries.each do |entry|
+              next if entry.directory?
 
-                out.put_next_entry(entry.name)
-                content = entry.get_input_stream.read
-                case entry.name
-                when "xl/styles.xml"
-                  content = content.sub(BASE_FONT_NAME_RE) do |_match|
-                    done = true
-                    %(<name val="#{font_name}"/>)
-                  end
-                when "xl/_rels/workbook.xml.rels"
-                  unless has_styles
-                    new_rel = "<Relationship Id=\"#{next_workbook_rid(content)}\" " \
-                              "Type=\"#{STYLES_RT}\" Target=\"styles.xml\"/>"
-                    content = content.sub("</Relationships>",
-                                          "#{new_rel}</Relationships>")
-                  end
-                when "[Content_Types].xml"
-                  unless has_styles
-                    content = content.sub(
-                      "</Types>",
-                      %(<Override PartName="/xl/styles.xml" ContentType="#{STYLES_CT}"/></Types>)
-                    )
-                  end
+              out.put_next_entry(entry.name)
+              content = entry.get_input_stream(&:read)
+              case entry.name
+              when "xl/styles.xml"
+                content = content.sub(BASE_FONT_NAME_RE) do |_match|
+                  done = true
+                  %(<name val="#{font_name}"/>)
                 end
-                out.write(content)
+              when "xl/_rels/workbook.xml.rels"
+                unless has_styles
+                  new_rel = "<Relationship Id=\"#{next_workbook_rid(content)}\" " \
+                            "Type=\"#{STYLES_RT}\" Target=\"styles.xml\"/>"
+                  content = content.sub("</Relationships>",
+                                        "#{new_rel}</Relationships>")
+                end
+              when "[Content_Types].xml"
+                unless has_styles
+                  content = content.sub(
+                    "</Types>",
+                    %(<Override PartName="/xl/styles.xml" ContentType="#{STYLES_CT}"/></Types>)
+                  )
+                end
               end
-              unless has_styles
-                out.put_next_entry("xl/styles.xml")
-                out.write(injected_styles_xml(font_name))
-                done = true
-              end
+              out.write(content)
+            end
+            unless has_styles
+              out.put_next_entry("xl/styles.xml")
+              out.write(injected_styles_xml(font_name))
+              done = true
             end
           end
-          done ? File.binread(dst.path) : nil
-        ensure
-          src.close!
-          dst.close!
+          patched = buffer.string
         end
+        done ? patched : nil
       end
 
       def next_workbook_rid(rels_xml)
@@ -486,7 +507,9 @@ module PowerTom
         raise PowerTom::Error,
               "picture replacement failed (#{image_label(image_source)}): #{e.class} #{e.message}"
       ensure
-        temp&.close!
+        # Tempfile.create 返回纯 File(无 close!),显式 best-effort unlink;
+        # 见 rebuild_workbook_base_font 关于 Ruby 4.0 finalizer 竞态的说明。
+        PowerTom.dispose_tempfile(temp)
       end
 
       # AssetResolver 的字节结果落到临时文件,ruby_pptx 的图片 part 按真实类型识别
@@ -502,7 +525,7 @@ module PowerTom
           raise PowerTom::Error, "asset resolver image extension is invalid: #{extension.inspect}"
         end
 
-        temp = Tempfile.new(["powertom_image", ".#{extension}"])
+        temp = Tempfile.create(["powertom_image", ".#{extension}"])
         temp.binmode
         temp.write(data)
         temp.close

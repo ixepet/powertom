@@ -37,8 +37,7 @@ module PowerTomDev
           # 二进制部分(媒体/字体)对文本结构无意义,跳过读取
           next unless entry.name.end_with?(".xml", ".rels")
 
-          stream = zip.get_input_stream(entry.name)
-          parts[entry.name] = stream.read
+          parts[entry.name] = zip.get_input_stream(entry.name, &:read)
         end
       end
       analyze_parts(parts)

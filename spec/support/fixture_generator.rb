@@ -86,7 +86,7 @@ module PowerTomDev
               next
             end
 
-            data = entry.get_input_stream.read
+            data = entry.get_input_stream(&:read)
 
             if strip_media && name.start_with?("ppt/media/")
               ext = name.downcase[/\.[^.]+\z/].to_s

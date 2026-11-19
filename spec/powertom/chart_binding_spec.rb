@@ -55,7 +55,7 @@ RSpec.describe PowerTom, ".render 图表绑定" do
   # 输出文件里指定页 slide rels 指向的 chart part 名(共享判定)
   def chart_part_ref(pptx, slide_no)
     Zip::File.open(pptx) do |zip|
-      xml = zip.get_input_stream("ppt/slides/_rels/slide#{slide_no}.xml.rels").read
+      xml = zip.get_input_stream("ppt/slides/_rels/slide#{slide_no}.xml.rels", &:read)
       xml[%r{charts/(chart\d+\.xml)}, 1]
     end
   end
@@ -63,14 +63,14 @@ RSpec.describe PowerTom, ".render 图表绑定" do
   # 指定页的 chart part、其内嵌 workbook part 名及 workbook 字节(spike2 深拷贝断言)
   def chart_and_workbook_ref(pptx, slide_no)
     Zip::File.open(pptx) do |zip|
-      slide_rels = zip.get_input_stream("ppt/slides/_rels/slide#{slide_no}.xml.rels").read
+      slide_rels = zip.get_input_stream("ppt/slides/_rels/slide#{slide_no}.xml.rels", &:read)
       chart = slide_rels[%r{charts/(chart\d+\.xml)}, 1]
-      chart_rels = zip.get_input_stream("ppt/charts/_rels/#{chart}.rels").read
+      chart_rels = zip.get_input_stream("ppt/charts/_rels/#{chart}.rels", &:read)
       workbook = chart_rels[%r{embeddings/([^"]+\.xlsx)}, 1]
       {
         chart: chart,
         workbook: workbook,
-        workbook_blob: zip.get_input_stream("ppt/embeddings/#{workbook}").read
+        workbook_blob: zip.get_input_stream("ppt/embeddings/#{workbook}", &:read)
       }
     end
   end
@@ -358,7 +358,7 @@ RSpec.describe PowerTom, ".render 图表绑定" do
           next if entry.directory?
 
           out.put_next_entry(entry.name)
-          content = entry.get_input_stream.read
+          content = entry.get_input_stream(&:read)
           if entry.name == "ppt/theme/theme1.xml"
             content = content.sub(%r{<a:minorFont>.*?</a:minorFont>}m) do |minor|
               minor.sub(/(<a:latin typeface=")[^"]*(")/, "\\1#{typeface}\\2")
@@ -377,8 +377,8 @@ RSpec.describe PowerTom, ".render 图表绑定" do
     Zip::File.open(pptx) do |zip|
       xlsx = zip.entries.map(&:name).find { |n| n.match?(%r{ppt/embeddings/.*\.xlsx\z}) }
       font = nil
-      Zip::File.open_buffer(zip.get_input_stream(xlsx).read) do |inner|
-        font = inner.get_input_stream("xl/styles.xml").read[/<name val="([^"]*)"/, 1]
+      Zip::File.open_buffer(zip.get_input_stream(xlsx, &:read)) do |inner|
+        font = inner.get_input_stream("xl/styles.xml", &:read)[/<name val="([^"]*)"/, 1]
       end
       font
     end
@@ -526,6 +526,32 @@ RSpec.describe PowerTom, ".render 图表绑定" do
       expect(xml.scan(/val="-\d+"/)).to be_empty
       expect(xml).not_to include("<c:smooth")
       expect(PowerTomDev::OoxmlLint.lint(out)).to be_empty
+    end
+  end
+
+  it "图表 quirk 归一化按 ruby_pptx 版本门控:0.3.1 起上游已修" do
+    fixed_in = PowerTom::Adapter::RubyPptxAdapter::CHART_QUIRKS_FIXED_IN
+    current = Gem::Version.new(Pptx::VERSION)
+    aggregate_failures do
+      expect(fixed_in).to eq(Gem::Version.new("0.3.1"))
+      expect(PowerTom::Adapter::RubyPptxAdapter.chart_quirks_needed?).to eq(current < fixed_in)
+    end
+  end
+
+  it "ruby_pptx 0.3.1 起本地归一化为 no-op(上游已写合法 XML)" do
+    skip "requires ruby_pptx >= 0.3.1" if PowerTom::Adapter::RubyPptxAdapter.chart_quirks_needed?
+
+    template = build_radar_template(Pptx::Enum::XL_CHART_TYPE::RADAR_MARKERS)
+    adapter = PowerTom::Adapter::RubyPptxAdapter.new
+    prs = adapter.open(template)
+    before = adapter.find_shape(prs, 1, "powertom:chart:radar").chart.element.to_xml
+    adapter.send(:normalize_chart_quirks, prs)
+    after = adapter.find_shape(prs, 1, "powertom:chart:radar").chart.element.to_xml
+
+    aggregate_failures do
+      expect(after).to eq(before)
+      expect(before).not_to include("<c:smooth")
+      expect(before.scan(/val="-\d+"/)).to be_empty
     end
   end
 

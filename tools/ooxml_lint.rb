@@ -42,7 +42,7 @@ module PowerTomDev
     # Every part must be covered by a <Default> (by extension) or an
     # <Override>; every <Override> must point at a part that exists.
     def content_type_errors(zip, names, errors)
-      document = REXML::Document.new(zip.get_input_stream("[Content_Types].xml").read)
+      document = REXML::Document.new(zip.get_input_stream("[Content_Types].xml", &:read))
       defaults = {}
       overrides = {}
       REXML::XPath.match(document, "//*[local-name()='Default']").each do |element|
@@ -71,7 +71,7 @@ module PowerTomDev
       names.grep(/\.rels\z/).each do |rels_name|
         base = rels_name.sub("_rels/", "").sub(/\.rels\z/, "")
         base_dir = File.dirname(base)
-        document = REXML::Document.new(zip.get_input_stream(rels_name).read)
+        document = REXML::Document.new(zip.get_input_stream(rels_name, &:read))
         REXML::XPath.match(document, "//*[local-name()='Relationship']").each do |rel|
           next if rel.attributes["TargetMode"] == "External"
 
@@ -101,8 +101,8 @@ module PowerTomDev
       return unless names.include?("ppt/presentation.xml") &&
                     names.include?("ppt/_rels/presentation.xml.rels")
 
-      presentation = REXML::Document.new(zip.get_input_stream("ppt/presentation.xml").read)
-      rels = REXML::Document.new(zip.get_input_stream("ppt/_rels/presentation.xml.rels").read)
+      presentation = REXML::Document.new(zip.get_input_stream("ppt/presentation.xml", &:read))
+      rels = REXML::Document.new(zip.get_input_stream("ppt/_rels/presentation.xml.rels", &:read))
       rids = REXML::XPath.match(rels, "//*[local-name()='Relationship']")
                          .filter_map { |rel| rel.attributes["Id"] }.to_set
       REXML::XPath.match(presentation, "//*[local-name()='sldId']").each do |sld_id|

@@ -1,5 +1,6 @@
 # frozen_string_literal: true
 
+require "fileutils"
 require "tempfile"
 require_relative "scanner"
 require_relative "binder"
@@ -21,6 +22,20 @@ module PowerTom
   # v0 覆盖:单页多标签、跨 run 标签、{{#each}} 页面克隆、{{#if}} 页面删除(§3.3)。
   def self.render(template_path, data:, strict: true)
     Render.new(template_path, data: DataLoading.coerce(data), strict: strict).call
+  end
+
+  # Close and unlink a Tempfile.create-backed plain File.
+  # Ruby 4.0's Tempfile.new uses a GC-driven finalizer that races Windows
+  # unlink with still-open zip handles; Tempfile.create has no finalizer, so
+  # the lifetime is fully explicit. Best-effort: a leftover file in the OS
+  # temp directory must never mask a render result or the original exception.
+  def self.dispose_tempfile(temp)
+    return unless temp
+
+    temp.close unless temp.closed?
+    FileUtils.rm_f(temp.path)
+  rescue StandardError
+    nil
   end
 
   # Result of {PowerTom.render}: the edited presentation plus render warnings.
@@ -47,12 +62,13 @@ module PowerTom
 
     # Remove the intermediate surgery file.
     #
-    # Results that are never saved release it via the Tempfile finalizer when
-    # garbage collected; calling this explicitly frees it right away.
+    # The tempfile is created with Tempfile.create (a plain File, no finalizer),
+    # so it is released here explicitly. Results that are never saved leave it
+    # to the OS temp cleanup on reboot rather than relying on a finalizer.
     #
     # @return [nil]
     def close
-      @tempfile&.close!
+      PowerTom.dispose_tempfile(@tempfile)
       @tempfile = nil
       nil
     end
@@ -141,7 +157,7 @@ module PowerTom
     private
 
     def cleanup_work_temp
-      @work_temp&.close!
+      PowerTom.dispose_tempfile(@work_temp)
       @work_temp = nil
     end
 
@@ -184,7 +200,7 @@ module PowerTom
 
     # 结构手术走字节级包操作:模板原文件 → 手术后的临时文件 → 重新打开绑定
     def run_surgery(_adapter, pages)
-      @work_temp = Tempfile.new(["powertom_surgery", ".pptx"])
+      @work_temp = Tempfile.create(["powertom_surgery", ".pptx"])
       @work_path = @work_temp.path
       @work_temp.close
       Adapter::PageSurgery.execute(@template_path, @work_path, pages)

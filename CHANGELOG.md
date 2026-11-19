@@ -6,6 +6,35 @@ and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+### Fixed
+
+- Rubyzip file handle leaks that locked rendered files on Windows.
+  `Zip::Entry#get_inputstream` without a block opens an independent file
+  handle that is only released by a GC finalizer, and `Zip::File` holds no
+  handle itself, so the `Zip::File.open { }` block cannot close it. Every
+  read in the library, the specs and the tooling now passes a block
+  (`get_input_stream(&:read)`), so the stream closes as soon as it is
+  consumed. `PageSurgery` additionally reads the template through
+  `Zip::File.open_buffer` over a `StringIO`: the template handle exists
+  only while the template is read, so a rendered template can be deleted or
+  renamed right after a render on Windows.
+- The intermediate workbook rewrite no longer writes temporary `.xlsx`
+  files. It runs entirely in memory and returns bytes: `Tempfile`'s
+  finalizer race on Ruby 4.0 (`Tempfile.new` defers `File.unlink` to GC)
+  cannot happen any more, and the rewritten workbook is a byte string
+  rather than a `StringIO`.
+- Intermediate surgery and image files are created with `Tempfile.create`
+  (a plain `File` without a finalizer) and are closed and unlinked
+  explicitly.
+
+### Changed
+
+- `ruby_pptx` is pinned to 0.3.1 in the lockfile. Upstream fixed the two
+  chart defects PowerTom worked around (negative `c:axId`/`c:crossAx` and
+  the illegal `c:smooth` in radar series, Largo/ruby_pptx#3), so the local
+  chart normalisation is now gated on the ruby_pptx version and is skipped
+  from 0.3.1 on. It stays active for 0.3.0, which still needs it.
+
 ## [0.8.0] - 2026-11-18
 
 ### Added

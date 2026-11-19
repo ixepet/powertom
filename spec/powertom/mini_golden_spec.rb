@@ -69,10 +69,10 @@ RSpec.describe PowerTom, ".render mini golden" do
 
     r_id = picture.element.blip_rId
     Zip::File.open(pptx) do |zip|
-      rels = zip.get_input_stream("ppt/slides/_rels/slide#{slide_no}.xml.rels").read
+      rels = zip.get_input_stream("ppt/slides/_rels/slide#{slide_no}.xml.rels", &:read)
       target = rels[/Id="#{r_id}"[^>]*Target="([^"]+)"/, 1] ||
                rels[/Target="([^"]+)"[^>]*Id="#{r_id}"/, 1]
-      zip.get_input_stream("ppt/media/#{File.basename(target.to_s)}").read
+      zip.get_input_stream("ppt/media/#{File.basename(target.to_s)}", &:read)
     end
   end
 

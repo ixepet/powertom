@@ -138,7 +138,7 @@ module PowerTomDev
       chart.replace_data(xy_data)
       chart.part.package.save(rebound)
       ser_xml = Zip::File.open(rebound) do |z|
-        z.get_input_stream("ppt/charts/chart1.xml").read[%r{<c:ser>.*?</c:ser>}m]
+        z.get_input_stream("ppt/charts/chart1.xml", &:read)[%r{<c:ser>.*?</c:ser>}m]
       end
       x_val = ser_xml[%r{<c:xVal>.*?</c:xVal>}m].to_s
       y_val = ser_xml[%r{<c:yVal>.*?</c:yVal>}m].to_s

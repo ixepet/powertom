@@ -70,11 +70,11 @@ RSpec.describe PowerTom, ".render 图片替换" do
     r_id = picture.element.blip_rId
     Zip::File.open(pptx) do |zip|
       rels_name = "ppt/slides/_rels/slide#{slide_no}.xml.rels"
-      rels = zip.get_input_stream(rels_name).read
+      rels = zip.get_input_stream(rels_name, &:read)
       target = rels[/Id="#{r_id}"[^>]*Target="([^"]+)"/, 1] ||
                rels[/Target="([^"]+)"[^>]*Id="#{r_id}"/, 1]
       part = "ppt/media/#{File.basename(target.to_s)}"
-      bytes = zip.get_input_stream(part).read
+      bytes = zip.get_input_stream(part, &:read)
       { r_id: r_id, part: part, bytes: bytes, crop: picture }
     end
   end

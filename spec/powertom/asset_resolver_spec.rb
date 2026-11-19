@@ -41,7 +41,7 @@ RSpec.describe "AssetResolver" do
   def media_bytes(pptx)
     Zip::File.open(pptx) do |zip|
       zip.entries.select { |e| e.name.start_with?("ppt/media/") }
-         .map { |e| zip.get_input_stream(e.name).read }
+         .map { |e| zip.get_input_stream(e.name, &:read) }
     end
   end
 

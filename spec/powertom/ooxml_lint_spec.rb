@@ -33,7 +33,7 @@ RSpec.describe PowerTom::Adapter::PageSurgery, ".execute" do
 
   def content_types(path)
     Zip::File.open(path) do |zip|
-      zip.get_input_stream("[Content_Types].xml").read
+      zip.get_input_stream("[Content_Types].xml", &:read)
     end
   end
 

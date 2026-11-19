@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require "rexml/document"
+require "stringio"
 require "zip"
 
 module PowerTom
@@ -56,13 +57,25 @@ module PowerTom
 
       # ---- 读取 ----
 
+      # 把模板的所有部件读进内存 Hash。
+      #
+      # 为什么要 open_buffer 而不是 Zip::File.open(路径):
+      # rubyzip 3.x 的 Zip::File 在文件名模式下自己不持有文件句柄,真正占句柄
+      # 的是每个 Zip::InputStream —— get_input_stream 会 ::File.open 一个独立
+      # 句柄,只有带 block(ensure close)或显式 close 才释放。不带 block 的
+      # entry.get_input_stream.read 会把句柄悬到 GC,Windows 上表现为
+      # "Permission denied":模板文件在 render 结束后仍被占用,删不掉也改不了。
+      #
+      # 因此这里一次性把容器读进 StringIO 再 open_buffer:模板文件句柄只在
+      # File.binread 的那一瞬存在,随即关闭;后续全部在内存里完成,零句柄泄漏。
+      # 附带收益是省掉每个 entry 重复 open+seek 的开销。
       def read_parts
         parts = {}
-        Zip::File.open(@template_path) do |zip|
+        Zip::File.open_buffer(StringIO.new(File.binread(@template_path))) do |zip|
           zip.entries.each do |entry|
             next if entry.directory?
 
-            parts[entry.name] = entry.get_input_stream.read
+            parts[entry.name] = entry.get_input_stream(&:read)
           end
         end
         parts
