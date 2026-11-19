@@ -18,6 +18,8 @@ GEM
     lint_roller (1.1.0)
     nokogiri (1.19.7-arm64-darwin)
       racc (~> 1.4)
+    nokogiri (1.19.7-x64-mingw-ucrt)
+      racc (~> 1.4)
     nokogiri (1.19.7-x86_64-linux-gnu)
       racc (~> 1.4)
     parallel (2.3.0)
@@ -25,6 +27,7 @@ GEM
       ast (~> 2.4.1)
       racc
     prism (2.1.0-arm64-darwin)
+    prism (2.1.0-x64-mingw-ucrt)
     prism (2.1.0-x86_64-linux-gnu)
     racc (1.8.1)
     rainbow (3.1.1)
@@ -59,7 +62,7 @@ GEM
       parser (>= 3.3.7.2)
       prism (>= 1.7)
     ruby-progressbar (1.13.0)
-    ruby_pptx (0.3.0)
+    ruby_pptx (0.3.1)
       nokogiri (~> 1.18)
       rexml (>= 3.3.9, < 4)
       rubyzip (~> 3.0)
@@ -73,6 +76,7 @@ GEM
 
 PLATFORMS
   arm64-darwin-27
+  x64-mingw-ucrt
   x86_64-linux
 
 DEPENDENCIES
@@ -95,11 +99,13 @@ CHECKSUMS
   language_server-protocol (3.17.0.6) sha256=5ef2c0c138f8267e1bc631d3328347d354f96724b0af22f2c79516120443b7f0
   lint_roller (1.1.0) sha256=2c0c845b632a7d172cb849cc90c1bce937a28c5c8ccccb50dfd46a485003cc87
   nokogiri (1.19.7-arm64-darwin) sha256=f27d7f25f4873fbc3aa35a2cc2fb680c98555fec1925348da439d0869d541142
+  nokogiri (1.19.7-x64-mingw-ucrt) sha256=9ab6ea96ab479a5ff391196de73b5abf660926ea7e4c57cb1f35adf754f1d066
   nokogiri (1.19.7-x86_64-linux-gnu) sha256=25865ccb462f714e712fdf8906fde07849cb6704a808e3d629d75baa5af5dd3b
   parallel (2.3.0) sha256=f75a3e904101ce6a1ccb6b8dc800cbafd42166d83330192438dcf29395167a6f
   parser (3.3.13.0) sha256=e02f9b63c2fe05b0c68f692ba4df89b3cb113b663964f75d988fbebfd6c3deca
   powertom (0.8.0)
   prism (2.1.0-arm64-darwin) sha256=2d0c2e3e011cfd89c041940907d3ff3def379d7b0f2ba158d1d42238e8ad8afc
+  prism (2.1.0-x64-mingw-ucrt) sha256=9cd54b1d4f645cb89fc28d17b7a35e7bdc018e1c93a1d499b09d37f14498235f
   prism (2.1.0-x86_64-linux-gnu) sha256=b2b647afce09551e650b8bb3e2fc91d7d73d392a09534ca307ec0d619c33bfd4
   racc (1.8.1) sha256=4a7f6929691dbec8b5209a0b373bc2614882b55fc5d2e447a21aaa691303d62f
   rainbow (3.1.1) sha256=039491aa3a89f42efa1d6dec2fc4e62ede96eb6acd95e52f1ad581182b79bc6a
@@ -114,7 +120,7 @@ CHECKSUMS
   rubocop (1.92.2) sha256=14fb31eed143a0dc6f78186c550c1715e81cd38f59d05d1165050e445c1f5382
   rubocop-ast (1.51.0) sha256=0ec311e36b191b3872d909078a35274e962ae97dbce64be6812d145ca59acfcb
   ruby-progressbar (1.13.0) sha256=80fc9c47a9b640d6834e0dc7b3c94c9df37f08cb072b7761e4a71e22cff29b33
-  ruby_pptx (0.3.0) sha256=13631a1e51992852c9bf1f57b12c6e9c2c24438ab3ef862686cf0b345d9bcd10
+  ruby_pptx (0.3.1) sha256=97b43e4db88a62e6d044da2cb45c6f6c408deff62b0952dd07de35eb4ab8ff3e
   rubyzip (3.7.0) sha256=65c19294da75297a939006f3516deacc33185fbd721ff1954f7a231db6d3e121
   thor (1.5.0) sha256=e3a9e55fe857e44859ce104a84675ab6e8cd59c650a49106a05f55f136425e73
   tomlrb (3.0.0) sha256=e7122820cbb9b940d1758eecb6d1d4ee97c582efa37f06e0100a97cb17a566f5
