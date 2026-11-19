@@ -56,6 +56,62 @@ Ruby has two ways to produce PPTX today, and neither fits "reuse the design asse
 
 PowerTom fills the middle layer: a **template engine on top of [`ruby_pptx`](https://rubygems.org/gems/ruby_pptx)**, without parsing OOXML itself. Think Carbone / Docxtemplater for Ruby — no Node dependency, no external service, one line in your Gemfile.
 
+## Built for enterprise delivery
+
+Most "generate a deck" tooling is a library. PowerTom is built for the case
+where the deck is a **deliverable that has to survive contact with an
+organisation**: a template library with named owners, data that arrives from
+several upstream systems, and a CI pipeline that has to say *no* before a
+broken template reaches a customer.
+
+**The template is a governed asset, not a file in a repo.** Designers work in
+PowerPoint; nobody has to open XML or write code to change a layout. What the
+template *is* — a set of pages, masters and placeholders — stays under the
+design team's control, while the data layer stays under engineering's. When
+the two disagree, `check` reports the difference instead of silently
+producing a deck with blank cells.
+
+**A broken template fails in CI, not in front of a stakeholder.** `check` is a
+first-class gate, not a debugging aid:
+
+```bash
+bundle exec rake powertom:check TEMPLATE=templates/report.pptx DATA=samples/q4.toml
+# exit 0  ok
+# exit 1  the template would fail to render — errors are reported, not raised
+# exit 2  usage error, unreadable template or data
+```
+
+Every error carries the slide number, the shape name and the original tag, so
+the person who can fix it is the person who owns the template. `check` never
+raises on a malformed template — it returns a report, because a CI gate that
+crashes tells you far less than one that lists eleven problems.
+
+**Data contracts are enforced where the data enters the system.** Fields the
+template does not use are reported; fields the template needs but the data
+lacks are errors; a formatter given a string where it needs a number is an
+error. Because `check` applies the *same* rules the renderer does, a template
+that passes the gate renders — the two cannot drift apart.
+
+**Assets stay behind your own boundary.** A picture field is a *reference*.
+With an asset resolver, your application decides what a reference means —
+object storage, a controlled directory, a permissioned endpoint — and
+PowerTom performs no network I/O of its own. See
+[Asset resolution](#template-syntax) below.
+
+**Output is all or nothing.** Every check runs before anything is written to
+disk. A render either produces the whole deck or leaves no file behind, so a
+failed job cannot leave a half-written report on a shared drive.
+
+**Nothing from the template or the data is ever executed.** Tags are matched
+with a regex and resolved against your data; there is no `eval`, no template
+expression language, and no code path where a document can run code.
+Dependencies are audited in CI with `bundler-audit`, and the gem is published
+with Sigstore provenance showing which commit and workflow built it.
+
+**It fits the way Ruby teams already ship.** One gem, no Node runtime, no
+service to operate, no template format to learn — the `.pptx` stays a
+`.pptx`, editable by the people who own the design.
+
 ## Installation
 
 ```ruby
@@ -161,6 +217,7 @@ result = PowerTom.render("templates/report.pptx", data: {
 - TOML dates are written unquoted (`report_date = 2026-01-20`), normalised to Ruby `Date`, and can be formatted with `{{report_date:date.cn}}`.
 - Full guide for designers: [docs/template-guide.md](https://github.com/ixepet/powertom/blob/main/docs/template-guide.md).
 - Full usage reference: [docs/usage.md](https://github.com/ixepet/powertom/blob/main/docs/usage.md).
+- Windows behaviour and verification: [docs/windows-support.md](https://github.com/ixepet/powertom/blob/main/docs/windows-support.md).
 
 Built-in formatters: `currency`, `percent`, `number`, `date` (with `.year_month` / `.cn` / `.short`).
 Register your own:
@@ -169,6 +226,14 @@ Register your own:
 # Custom formatter — receives (value, arg) and returns the text to write
 PowerTom.register_formatter("rmb") { |value, _arg| "#{value} RMB" }
 # Use in a template: {{amount:rmb}}
+```
+
+A formatter can declare which arguments it accepts, so `check` can reject a
+wrong argument before the render:
+
+```ruby
+PowerTom.register_formatter("rmb", args: ["upper", "lower"]) { |value, arg| ... }
+# {{amount:rmb.upper}} passes; {{amount:rmb.bogus}} is reported by check
 ```
 
 ## Template checker
@@ -213,7 +278,18 @@ result.report       # the human-readable report shown above
 result.exit_code    # 0 or 1 — usable in CI
 ```
 
-Checks: missing fields (including each item of an `#each` array), unregistered formatters, directive syntax, more than one directive per page, picture fields and placeholder options, asset resolver results, chart kind and data shape, conditional fields, loop-variable scope, aggregate arrays and numeric fields, tags on masters/layouts (they never take effect), placeholder overflow warnings, unused data fields, leftover tags in notes.
+Checks: missing fields (including each item of an `#each` array), unregistered formatters, invalid formatter arguments and value types (e.g. `{{d:date.bogus}}`, or `{{amt:currency}}` bound to a string), directive syntax, more than one directive per page, picture fields and placeholder options, asset resolver results, chart kind and data shape, conditional fields, loop-variable scope, aggregate arrays and numeric fields, tags on masters/layouts (they never take effect), placeholder overflow warnings, unused data fields, leftover tags in notes.
+
+`check` **never raises on a malformed template** — it returns a report. A CI
+gate that crashes tells you far less than one that lists eleven problems, so
+empty tags, placeholders with a missing field name, sample data that is not a
+Hash and `{{#each}}` directives pointing at a missing or non-array value are
+all reported as errors with their location.
+
+`check` and the renderer apply the *same* rules, so a template that passes the
+gate renders. Scatter and bubble charts on a `{{#each}}` page, for example, are
+validated against their own `points` shape rather than the ordinary
+`categories` shape.
 
 ## CLI
 
@@ -247,8 +323,14 @@ are the stable contract:
 | Not a valid pptx | `PowerTom::InvalidTemplateError` |
 | Asset resolver failure | `PowerTom::Error` when the resolver returns `nil` or an unsupported value |
 | Missing `#each` path | Always raises — pages are never silently dropped |
+| Placeholder without a field name | `PowerTom::Error` — `powertom:chart:` with nothing after the colon is a template bug |
+| Page `#each` combined with a table row loop | `PowerTom::Error` — only one loop level is supported |
 
 Output is **all or nothing**: every check runs before anything is written to disk.
+
+`PowerTom.check` is the exception to the "raises" rule: it never raises on a
+malformed template, it reports. A CI gate that crashes tells you far less than
+one that lists eleven problems.
 
 ## Limitations
 
@@ -333,6 +415,51 @@ A resolver receives `(ref, {slide_no:, shape:, field:})` and returns a file path
 or `{data: <binary String>, extension: "<ext>"}`. `PowerTom.check` validates the
 resolver result with the same rules; returning `nil` is an error. Per-render
 override: `PowerTom.render(..., asset_resolver: ->(ref, ctx) { ... })`.
+
+## Windows and file locking
+
+PowerTom renders on Windows without leaving files open. This is not a
+freebie — the underlying zip library leaks handles by default, and on Windows
+an open handle means the file cannot be deleted, renamed or overwritten.
+
+**What the problem looked like.** `rubyzip` 3.x keeps no handle in `Zip::File`
+itself, but every `Zip::InputStream` it hands out opens an independent file
+handle through `::File.open`. `get_input_stream` without a block returns that
+stream and never closes it, so the handle survives until the GC finalizer
+runs. The result: after a render, the template and the output deck stayed
+locked, and the test suite reported it as 19–36 randomly distributed
+`Errno::EACCES` failures that moved with the random seed.
+
+**What PowerTom does about it.**
+
+- Every read passes a block, so the stream closes as soon as it is consumed.
+- `PageSurgery` reads the template through `Zip::File.open_buffer` over a
+  `StringIO`. The template handle exists only while the template is read, so a
+  rendered template can be deleted or renamed right after a render.
+- The intermediate workbook rewrite runs entirely in memory and returns bytes.
+  `Tempfile`'s finalizer race on Ruby 4.0 (`Tempfile.new` defers `File.unlink`
+  to GC) cannot happen.
+- Intermediate surgery and image files use `Tempfile.create` (a plain `File`
+  without a finalizer) and are closed and unlinked explicitly.
+
+```ruby
+result = PowerTom.render("template.pptx", data: data)
+result.save("out.pptx")
+result.close          # releases the intermediate surgery file
+
+File.delete("template.pptx")   # works on Windows
+File.delete("out.pptx")        # works on Windows
+```
+
+**How it is verified.** The suite runs clean on Ruby 4.0.9 across four random
+seeds. Beyond the unit tests, the rendered decks are opened with **Microsoft
+PowerPoint 16** through COM automation and checked on two signals: no repair
+dialogue, and `Presentation.Saved == -1` (PowerPoint did not modify the file,
+which means it considers the structure valid). The exported slides are then
+inspected visually — chart series, axis values and CJK text rendering included.
+The L3 job (`.github/workflows/l3.yml`) additionally runs Microsoft's
+OpenXmlValidator on a Windows runner as a hard gate, so schema-level
+violations fail the build rather than reaching a user's PowerPoint.
 
 ## Security
 

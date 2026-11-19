@@ -203,6 +203,71 @@ Competitors generally treat validation as a by-product of logging; PowerTom make
 - Ships a Template Guide for designers: master usage conventions, suggested placeholder lengths (with autofit off, overflowing text is not clipped), naming convention `powertom:image:*`
 - The designer-facing "template lint" is the most sustainable differentiator versus JS competitors; the guide itself is part of the moat
 
+### 7.1 The checker never raises
+
+`check` is a CI gate. Its value peaks exactly when the template is worst, and
+that is when the tool must still produce a report instead of a backtrace. The
+contract is therefore: **`check` returns a `CheckResult` for every input.**
+
+Concretely, these are reported as errors with a location, never as exceptions:
+
+| Input | Reported as |
+| --- | --- |
+| Empty tag (`{{}}`, `{{ }}`) | `TemplateSyntaxError`-level entry: "is not a valid tag; a tag needs a path" |
+| Placeholder with no field name (`powertom:chart:`, `powertom:image:`, `powertom:if:`) | "chart/image/conditional placeholder has no field name" |
+| Sample data that is not a Hash (e.g. a JSON array at the top level) | "sample data must be a Hash of top-level fields" |
+| `{{#each path}}` where the path is missing, `nil`, or not an array | "expected an array, got NilClass" / a missing-field error |
+| Formatter with an unsupported argument (`{{d:date.bogus}}`) | "formatter spec 'date.bogus' is invalid: ..." |
+| Formatter bound to a value of the wrong type (`{{amt:currency}}` with a String) | "requires a number, got String" |
+
+The CLI adds a final `rescue StandardError` so a bug in the checker itself
+still exits `2` (usage/input error) with a one-line message rather than a
+stack trace.
+
+### 7.2 The checker and the renderer share one rule set
+
+"Check says OK but render fails" is the failure mode that destroys trust in a
+template engine. The rules are therefore not duplicated:
+
+- Path resolution goes through `PathResolver` for both.
+- Chart data shapes go through the same XY/BUBBLE vs. ordinary split in both;
+  a scatter chart on a `{{#each}}` page is validated against its own `points`
+  shape, not against `categories`.
+- Formatter arguments and value types are checked by calling `Formatter`
+  itself (`Formatter.validate` / `Formatter.validate_spec`), so a custom
+  formatter registered with declared arguments is covered too.
+- The asset resolver receives the same context in both paths:
+  `{slide_no:, shape:, field:}`.
+- A page-level `{{#each}}` combined with a table row loop is refused by both.
+
+### 7.3 Windows file locking
+
+`rubyzip` 3.x keeps no handle in `Zip::File` itself, but every
+`Zip::InputStream` it hands out opens an independent handle through
+`::File.open`; `get_input_stream` without a block never closes it, so the
+handle survives until the GC finalizer runs. On Windows an open handle means
+the file cannot be deleted, renamed or overwritten — the template stayed
+locked after a render, and the suite reported 19–36 randomly distributed
+`Errno::EACCES` failures that moved with the random seed.
+
+The rules the codebase follows:
+
+- Every zip read passes a block (`get_input_stream(&:read)`).
+- Read a whole container through `Zip::File.open_buffer` over a `StringIO`
+  rather than `Zip::File.open(path)`: the file handle then exists only for the
+  duration of the read.
+- Keep intermediate rewrites in memory and return bytes, so no temporary file
+  and no `Tempfile` finalizer race (`Tempfile.new` defers `File.unlink` to GC
+  on Ruby 4.0) can occur.
+- Use `Tempfile.create` (a plain `File`, no finalizer) and unlink explicitly.
+
+Verification: the suite runs clean on Ruby 4.0.9 across four random seeds,
+and the rendered decks are opened with Microsoft PowerPoint 16 through COM
+automation — no repair dialogue, and `Presentation.Saved == -1` (PowerPoint
+did not modify the file, i.e. it considers the structure valid). L3
+(`tools/openxml_validator` on a Windows runner) remains the hard gate for
+schema-level violations.
+
 ## 8. Testing and quality strategy
 
 - **Golden fixtures**: produced in real PowerPoint, covering: single page with multiple tags, tags split across runs, loop pages, conditional pages, Chinese fonts, chart pages (included since v0.4.0; the committed mini golden carries a chart page, the L3 deck set covers every chart family). Each golden sample = template + data + assertions (page count, key text, LibreOffice PDF conversion succeeds)

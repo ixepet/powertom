@@ -16,6 +16,30 @@ bundle exec yard doc --no-output         # API docs check
 bundle exec bundler-audit check --update # dependency advisories
 ```
 
+On Windows, `Gemfile.lock` must list the `x64-mingw-ucrt` platform or
+`bundle install` fails.
+
+## Windows notes
+
+Windows is a supported development and runtime platform, and it has one
+property that shapes the code: **a file with an open handle cannot be
+deleted, renamed or overwritten.** See [docs/windows-support.md](docs/windows-support.md)
+for the full story.
+
+Two rules follow from it and apply to every change:
+
+- **Any zip entry read must pass a block.** `entry.get_input_stream(&:read)`
+  closes the stream immediately; `entry.get_input_stream.read` leaks a file
+  handle until the GC finalizer runs. `grep -rn "get_input_stream" --include="*.rb"`
+  should never show a call without a block.
+- **Do not use `Tempfile.new` for anything whose deletion must be
+  deterministic.** Ruby 4.0 defers `File.unlink` to a GC finalizer. Use
+  `Tempfile.create` (a plain `File`, no finalizer) and unlink explicitly, or
+  keep the data in memory and hand back bytes.
+
+If you have Microsoft Office installed, you can verify rendered decks locally:
+see the PowerPoint COM section of `docs/windows-support.md`.
+
 ## Test suite
 
 - The unit suite runs everywhere; all examples are expected to pass.
