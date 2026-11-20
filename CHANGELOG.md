@@ -6,6 +6,25 @@ and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+## [0.9.1] - 2026-11-20
+
+### Fixed
+
+- Table block merged-cell validation now follows the documented rule
+  (design §9.4.4): a merge is allowed on a static row's fixed columns and is
+  rejected only when it intersects a column band or a row block. Previously
+  the presence of any column band rejected a merge on *any* row, so a valid
+  template with a merged total/footer row outside the band could not pass
+  `check` or render. The adapter now reports per-row merged column spans, so
+  the decision is precise; callers that do not supply these spans keep the old
+  conservative behavior.
+- A nested `{{#rows}}` block whose relative path still contains `[]` (for
+  example `{{#rows a[].b[].c}}` under `{{#rows a}}`) is now a
+  `TemplateSyntaxError` pointing at the nested-block form. Such a path passed
+  structure validation but always failed at render with a confusing
+  "missing child array 'b[].c'" error, because `PathResolver` only supports
+  `field` and `field[index]`, not `field[]`.
+
 ## [0.9.0] - 2026-11-19
 
 ### Fixed
