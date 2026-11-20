@@ -28,11 +28,13 @@ module PowerTom
 
     # rows: [[cell_text, ...], ...]
     # merged_rows: [bool](该行是否含合并单元格)
+    # merged_spans: [[[first_col, last_col], ...], ...](逐行的水平合并列区间;
+    #   仅用于列带冲突精确到列。nil → 回退到"有合并即拒绝"的保守口径)
     # columns: 表格列数(nil → 不校验 grid 的两列模板约束)
     # 返回 nil / {kind: :simple, ...} / {kind: :nested, ...} / {kind: :grid, ...} /
     #      {kind: :blocks, blocks:, cols:}
-    def plan(rows, merged_rows: [], columns: nil)
-      return blocks_plan(rows, merged_rows) if block_syntax?(rows)
+    def plan(rows, merged_rows: [], columns: nil, merged_spans: nil)
+      return blocks_plan(rows, merged_rows, merged_spans) if block_syntax?(rows)
 
       grid_markers = collect_grid_markers(rows)
       row_markers = collect_row_markers(rows)
@@ -432,7 +434,7 @@ module PowerTom
       end
     end
 
-    def blocks_plan(rows, merged_rows)
+    def blocks_plan(rows, merged_rows, merged_spans)
       row_tags, col_tags, if_tags = collect_block_tags(rows)
       band = parse_column_band(rows, row_tags, col_tags)
       col_ifs, row_ifs = split_ifs(if_tags, band)
@@ -446,7 +448,7 @@ module PowerTom
       end
 
       check_block_ifs!(blocks)
-      check_block_merges!(merged_rows, blocks, band)
+      check_block_merges!(merged_rows, blocks, band, merged_spans)
       stacks = build_row_stacks(blocks)
       check_block_labels!(rows, stacks, band)
       { kind: :blocks, blocks: blocks, cols: band }
@@ -662,7 +664,15 @@ module PowerTom
                 "table row #{item[:row] + 1}: {{#rows #{path}}} must start with #{prefix} " \
                 "(parent block #{parent[:path]})"
         end
-        block[:relative] = path.delete_prefix("#{prefix}.")
+        relative = path.delete_prefix("#{prefix}.")
+        # 子块只展开一层数组;relative 再含 [] 时下游 PathResolver 无法解析(field[] 不受支持)。
+        # 多层数组必须写成多级嵌套区块,而不是在一条路径里塞多个 []。
+        if relative.include?("[]")
+          raise TemplateSyntaxError,
+                "table row #{item[:row] + 1}: {{#rows #{path}}} nests more than one array level; " \
+                "use a nested row block instead (for example {{#rows #{prefix}.items}})"
+        end
+        block[:relative] = relative
       elsif path.include?("[]")
         raise TemplateSyntaxError,
               "table row #{item[:row] + 1}: a top-level row block path has no [] (for example {{#rows classes}})"
@@ -761,21 +771,40 @@ module PowerTom
         first_col: open[:col], last_col: close[:col], width: width }
     end
 
-    def check_block_merges!(merged_rows, blocks, band)
-      if band
-        row = merged_rows.index(true)
-        if row
-          raise TemplateSyntaxError,
-                "table row #{row + 1}: column band loops do not support merged cells; split them first"
-        end
-      end
-
+    # 合并判定遵循设计 §9.4.4:合并允许出现在静态行/固定列,但不得与列带或行区块相交。
+    # 行区块的合并是整行克隆,任何列都冲突;列带只克隆 [first_col, last_col],
+    # 因此有列级 merged_spans 时只拒绝与该区间相交的合并,放行纯固定列的静态合并。
+    def check_block_merges!(merged_rows, blocks, band, merged_spans = nil)
       stacks = build_row_stacks(blocks)
       merged_rows.each_with_index do |merged, r|
         next unless merged
         next if stacks[r].nil?
 
         raise TemplateSyntaxError, "table row #{r + 1}: row blocks do not support merged cells; split them first"
+      end
+      return unless band
+
+      if merged_spans
+        check_band_merge_spans!(merged_spans, stacks, band)
+      else
+        row = merged_rows.index(true)
+        if row
+          raise TemplateSyntaxError,
+                "table row #{row + 1}: column band loops do not support merged cells; split them first"
+        end
+      end
+    end
+
+    # 逐行判断水平合并区间是否与列带的列区间相交;行区块行已由上层拒绝,不重复报。
+    def check_band_merge_spans!(merged_spans, stacks, band)
+      first = band[:first_col]
+      last = band[:last_col]
+      merged_spans.each_with_index do |spans, r|
+        next if stacks[r]
+        next unless spans&.any? { |c1, c2| c1 <= last && c2 >= first }
+
+        raise TemplateSyntaxError,
+              "table row #{r + 1}: merged cells cannot intersect a column band; split them first"
       end
     end
 

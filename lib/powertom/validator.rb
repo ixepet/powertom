@@ -133,6 +133,7 @@ module PowerTom
       failed_tables = Set.new
       table_structures.each do |table|
         plan = TableLoop.plan(table[:rows], merged_rows: table[:merged_rows],
+                                            merged_spans: table[:merged_spans],
                                             columns: table[:columns])
         table_plans[[table[:slide_no], table[:shape]]] = plan if plan
       rescue TemplateSyntaxError => e

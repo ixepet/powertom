@@ -603,7 +603,8 @@ module PowerTom
 
       # 表格结构(表格行循环用):逐页每张表的行与单元格文本,以及合并单元格分布
       # 返回 [{slide_no:, shape:, columns:, element:, frame:, rows: [[cell_text, ...], ...],
-      #        merged_rows: [bool, ...]}]
+      #        merged_rows: [bool, ...], merged_spans: [[[first_col, last_col], ...], ...]}]
+      # merged_spans 逐行给出水平合并覆盖的列区间(含被跨过的列),供列带冲突判定精确到列。
       def table_contexts(prs)
         list = []
         prs.slides.each_with_index do |slide, i|
@@ -611,6 +612,9 @@ module PowerTom
             next unless shape.respond_to?(:table?) && shape.table?
 
             table = shape.table
+            spans = table.rows.map do |row|
+              row_spans_for(row)
+            end
             list << {
               slide_no: i + 1,
               shape: shape.name,
@@ -618,13 +622,30 @@ module PowerTom
               element: table_element(shape),
               frame: shape.element,
               rows: table.rows.map { |row| row.cells.map { |cell| cell.text.to_s } },
-              merged_rows: table.rows.map do |row|
-                row.cells.any? { |cell| cell.merge_origin? || cell.spanned? }
-              end
+              merged_rows: spans.map { |cols| !cols.empty? },
+              merged_spans: spans
             }
           end
         end
         list
+      end
+
+      # 一行的水平合并区间:[first_col, last_col]。合并原点用 span_width 覆盖跨列,
+      # 被跨过的 spanned 单元格不再单独计区间,避免重复。
+      def row_spans_for(row)
+        cells = row.cells
+        spans = []
+        covered = {}
+        cells.each_with_index do |cell, c|
+          next if covered[c]
+          next unless cell.merge_origin? || cell.spanned?
+
+          width = cell.merge_origin? ? cell.span_width : 1
+          last = [c + width - 1, cells.size - 1].min
+          (c..last).each { |index| covered[index] = true }
+          spans << [c, last]
+        end
+        spans
       end
 
       # 克隆第 row_index 行为 count 份(插在原位置),再删除模板行;

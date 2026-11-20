@@ -750,6 +750,56 @@ RSpec.describe "表格区块语法(#rows / #cols)" do
         .to raise_error(PowerTom::TemplateSyntaxError, /row blocks do not support merged cells/)
     end
 
+    it "子块路径的 relative 含 [] → 报错(必须拆成多级嵌套区块)" do
+      rows = [
+        ["{{#rows a}}", ""],
+        ["{{a[].n}}", ""],
+        ["{{#rows a[].b[].c}}", ""],
+        ["{{a[].b[].c[].n}}", ""],
+        ["{{/rows}}", ""],
+        ["{{/rows}}", ""]
+      ]
+      expect { render(build_template(rows), { a: [] }) }
+        .to raise_error(PowerTom::TemplateSyntaxError, /nests more than one array level/)
+    end
+
+    it "列带 + 静态行在固定列合并 → 放行" do
+      # 3 列:col0-1 为固定列,col2 为列带。静态合计行在 col0-1 合并,不与 band 相交。
+      rows = [
+        ["固定", "列", "{{#cols subjects value: scores}}{{col.label}}{{/cols}}"],
+        ["{{#rows classes}}", "", ""],
+        ["{{classes[].name}}", "{{classes[].name}}", "{{cell}}"],
+        ["{{/rows}}", "", ""],
+        ["合计", "", ""]
+      ]
+      data = {
+        classes: [{ name: "一班", scores: { chinese: 100 } }],
+        subjects: [{ key: "chinese", label: "语文" }]
+      }
+      template = build_template(rows, merge: [[4, 0, 1]])
+      result = PowerTom.check(template, data: data)
+      expect(result.errors).to be_empty
+      expect { render(template, data) }.not_to raise_error
+    end
+
+    it "列带 + 静态行合并跨越 band 列 → 报错" do
+      # 3 列:col0 固定,col1-2 为列带。静态合计行在 col1-2 合并(与 band 相交)。
+      rows = [
+        ["固定", "{{#cols subjects value: scores}}{{col.label}}", "{{col.label}}{{/cols}}"],
+        ["{{#rows classes}}", "", ""],
+        ["{{classes[].name}}", "{{cell}}", "{{cell}}"],
+        ["{{/rows}}", "", ""],
+        ["合计", "", ""]
+      ]
+      data = {
+        classes: [{ name: "一班", scores: { chinese: 100, math: 90 } }],
+        subjects: [{ key: "chinese", label: "语文" }, { key: "math", label: "数学" }]
+      }
+      # 第 4 行是 block 外的静态行,合并落在 band 的数据列内 → 列克隆会破坏合并结构
+      expect { render(build_template(rows, merge: [[4, 1, 2]]), data) }
+        .to raise_error(PowerTom::TemplateSyntaxError, /merged cells cannot intersect a column band/)
+    end
+
     it "区块模式混用 #grid → 报错" do
       rows = [
         ["{{#grid rows: distribution cols: bands}}", ""],

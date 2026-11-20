@@ -461,6 +461,7 @@ module PowerTom
     # 结构错误(表内行号)补上页码与形状名,方便设计师定位
     def table_plan(table)
       TableLoop.plan(table[:rows], merged_rows: table[:merged_rows],
+                                   merged_spans: table[:merged_spans],
                                    columns: table[:columns])
     rescue TemplateSyntaxError => e
       raise TemplateSyntaxError, "slide #{table[:slide_no]} table '#{table[:shape]}': #{e.message}"
