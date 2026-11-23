@@ -176,4 +176,18 @@ RSpec.describe PowerTom::CLI do
     expect(err).to include("warning:")
     expect(slide_texts(out)).to eq([""])
   end
+
+  it "render 遇到非 PowerTom::Error 的内部异常 → 兜底返回 1,不甩 Ruby backtrace" do
+    template = build_text_template
+    # 上游(ruby_pptx 等)异常不一定是 PowerTom::Error 子类;退出码契约要求返回 1
+    allow(PowerTom).to receive(:render).and_raise(RuntimeError, "boom from upstream")
+
+    code, _out, err = run_cli("render", template, "--out", File.join(@dir, "out.pptx"))
+    aggregate_failures do
+      expect(code).to eq(1)
+      expect(err).to include("render failed")
+      expect(err).to include("boom from upstream")
+      expect(err).not_to include("cli.rb:") # 不是 backtrace
+    end
+  end
 end

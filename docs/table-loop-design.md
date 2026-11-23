@@ -167,6 +167,7 @@ Combining `#grid` with `#rows` is a two-dimensional Cartesian product with compl
 | `#rows` child row | `groups[].items[].field` | The prefix must match the parent/child markers; no skipping levels |
 | `#grid` header | `col.*` | Column item scope |
 | `#grid` content row | `row.*` / `cell` | Row item scope + intersection value |
+| `#grid` static row (totals etc., outside header/content) | page fields only | `row.*` / `col.*` / `cell` are rejected at plan time with a located error, so `check` and render fail identically |
 
 Error examples:
 

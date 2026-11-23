@@ -278,6 +278,44 @@ RSpec.describe "表格区块语法(#rows / #cols)" do
                                                                                         ["二班"]
                                                                                       ])
     end
+
+    it "列带区间内的静态行:{{col.*}} 逐列项对账 —— check 报 error,render 同样抛错(§7.2 一致)" do
+      rows = [
+        ["班级", "{{#cols subjects value: scores}}{{col.label}}{{/cols}}"],
+        ["{{#rows classes}}", ""],
+        ["{{classes[].name}}", "{{cell}}"],
+        ["{{/rows}}", ""],
+        ["合计", "{{col.missing}}"]
+      ]
+      template = build_template(rows)
+
+      result = PowerTom.check(template, data: band_data)
+      aggregate_failures do
+        expect(result.ok?).to be(false)
+        expect(result.errors.map(&:message).join).to include("no field 'missing'")
+        expect(result.errors.map(&:message).join).to include("static row 5")
+        expect(result.errors.first.label).to eq("col.missing")
+      end
+
+      expect { PowerTom.render(template, data: band_data) }
+        .to raise_error(PowerTom::MissingDataError, /missing/)
+    end
+
+    it "列带区间内的静态行:普通页面字段正常对账与渲染" do
+      rows = [
+        ["班级", "{{#cols subjects value: scores}}{{col.label}}{{/cols}}"],
+        ["{{#rows classes}}", ""],
+        ["{{classes[].name}}", "{{cell}}"],
+        ["{{/rows}}", ""],
+        ["合计", "{{total_note}}"]
+      ]
+      data = band_data.merge(total_note: "共 2 班")
+      template = build_template(rows)
+
+      expect(PowerTom.check(template, data: data).ok?).to be(true)
+      subjects = band_data[:subjects]
+      expect(read_table(render(template, data)).last).to eq(["合计"] + (["共 2 班"] * subjects.size))
+    end
   end
 
   describe "#if 条件区块" do

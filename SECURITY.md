@@ -34,6 +34,10 @@ and CHANGELOG unless you prefer to stay anonymous.
 - Crafted `.pptx` inputs that cause crashes, unexpected file access or package
   corruption when rendered (OOXML parsing happens in `ruby_pptx`; we will
   coordinate upstream fixes when the root cause is there)
+- Zip-slip: `PageSurgery` validates every zip entry name written to the output
+  package and rejects `../` traversal, absolute paths, Windows drive letters
+  and any `..` segment (`page_surgery.rb` `UNSAFE_ENTRY_RE`), because rubyzip's
+  `put_next_entry` does not sanitize entry names itself
 - Dependency vulnerabilities in `ruby_pptx`, `tomlrb` and transitive gems —
   CI runs `bundler-audit` on every build, but early reports are welcome
 

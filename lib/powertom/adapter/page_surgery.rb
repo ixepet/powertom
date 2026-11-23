@@ -37,8 +37,14 @@ module PowerTom
 
         # 输出映射:每个输出页对应哪张原始页(含其 notes 部件)
         outputs = @plan.map do |p|
-          src = order[p[:source] - 1]
-          raise Error, "slide number out of range: #{p[:source]} (there are #{order.size} slides)" unless src
+          # 注意不能用 order[p[:source] - 1] + nil 检查:Ruby 负下标会回绕,
+          # order[-1] 返回最后一页而不是 nil,source=0 会静默克隆错页
+          idx = p[:source].is_a?(Integer) ? p[:source] - 1 : -1
+          src = idx >= 0 && idx < order.size ? order[idx] : nil
+          unless src
+            raise Error,
+                  "slide number out of range: #{p[:source].inspect} (there are #{order.size} slides)"
+          end
 
           { src_slide: src, src_notes: notes_part_for(parts, p[:source]) }
         end
@@ -222,34 +228,42 @@ module PowerTom
         %r{\Appt/_rels/presentation\.xml\.rels\z}
       ].freeze
 
+      # zip entry 名安全:模板来自用户上传,entry 名不可信。
+      # 拒绝 ../ 穿越、绝对路径、Windows 盘符与任意 .. 段,防 zip-slip
+      # (rubyzip 的 put_next_entry 不净化 entry 名,会原样写入)。
+      UNSAFE_ENTRY_RE = %r{\A(\.\./|/|[A-Za-z]:[\\/])|(^|/)\.\.(/|\z)}
+
       def write_zip(parts, rewritten)
         Zip::OutputStream.open(@out_path) do |zos|
-          zos.put_next_entry("[Content_Types].xml")
-          zos.write(rewritten.fetch("[Content_Types].xml"))
+          put_entry(zos, "[Content_Types].xml", rewritten.fetch("[Content_Types].xml"))
 
           parts.each do |name, data|
             next if name == "[Content_Types].xml"
             next if SKIP_PATTERNS.any? { |re| name.match?(re) }
 
-            zos.put_next_entry(name)
-            zos.write(data)
+            put_entry(zos, name, data)
           end
 
           { "ppt/presentation.xml" => "ppt/presentation.xml",
             "ppt/_rels/presentation.xml.rels" => "ppt/_rels/presentation.xml.rels" }.each do |key, name|
-            zos.put_next_entry(name)
-            zos.write(rewritten.fetch(key))
+            put_entry(zos, name, rewritten.fetch(key))
           end
 
           %w[slide_parts notes_parts].each do |group|
             rewritten.fetch(group).each do |entries|
               entries.each do |name, data|
-                zos.put_next_entry(name)
-                zos.write(data)
+                put_entry(zos, name, data)
               end
             end
           end
         end
+      end
+
+      def put_entry(zos, name, data)
+        raise Error, "unsafe zip entry name in template package: #{name.inspect}" if name.match?(UNSAFE_ENTRY_RE)
+
+        zos.put_next_entry(name)
+        zos.write(data)
       end
     end
   end

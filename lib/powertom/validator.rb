@@ -1016,6 +1016,7 @@ module PowerTom
         cols = plan[:cols] ? (resolve_grid_array(plan[:cols][:path], ctx, data, entries) || []) : []
         reconcile_column_ifs(plan[:cols], cols, ctx, data, entries)
         reconcile_static_band_header(plan, cols, labels_by_row, ctx, data, entries)
+        reconcile_static_band_rows(plan, cols, labels_by_row, ctx, data, entries)
         reconcile_blocks(plan[:blocks], {}, nil, cols, plan[:cols], labels_by_row, ctx, data, entries)
       end
     end
@@ -1030,6 +1031,27 @@ module PowerTom
 
       labels_by_row[[ctx[:slide_no], ctx[:shape], band[:row]]].each do |label|
         reconcile_block_label(label, {}, nil, cols, band, "column band", data, entries)
+      end
+    end
+
+    # 列带区间内的其他静态行(不在任何行区块内、也不是声明行本身):主对账循环被
+    # block_band_cell? 跳过,render 侧却会为这些单元格提供 col 作用域 —— 这里补对账
+    # (col.* 逐列项、普通字段按整页数据),避免 check 放行而 render 才抛缺字段(§7.2)
+    def reconcile_static_band_rows(plan, cols, labels_by_row, ctx, data, entries)
+      band = plan[:cols]
+      return unless band
+
+      stacks = TableLoop.build_row_stacks(plan[:blocks])
+      labels_by_row.each do |(slide_no, shape, row_index), labels|
+        next unless slide_no == ctx[:slide_no] && shape == ctx[:shape]
+        next if stacks[row_index]       # 区块内的行由 reconcile_blocks 覆盖
+        next if row_index == band[:row] # 声明行由 reconcile_static_band_header 覆盖
+
+        labels.each do |label|
+          next unless label[:context][:col_index].to_i.between?(band[:first_col], band[:last_col])
+
+          reconcile_block_label(label, {}, nil, cols, band, "static row #{row_index + 1}", data, entries)
+        end
       end
     end
 

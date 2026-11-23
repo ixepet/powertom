@@ -288,6 +288,39 @@ RSpec.describe "表格动态列(#grid)" do
         expect(error.message).to include("supports exactly two template columns")
       end
     end
+
+    it "静态行(合计行)写 {{cell}} → plan/check/render 三层都报错,check 不再放行" do
+      rows = grid_rows + [["合计", "{{cell}}"]]
+      template = build_template(rows)
+
+      expect { PowerTom::TableLoop.plan(rows, columns: 2) }
+        .to raise_error(PowerTom::TemplateSyntaxError, /grid scope variable/)
+
+      result = PowerTom.check(template, data: full_data)
+      aggregate_failures do
+        expect(result.ok?).to be(false)
+        expect(result.errors.map(&:message).join).to include("{{cell}}")
+        expect(result.errors.map(&:message).join).to include("static rows take page fields only")
+      end
+
+      expect { PowerTom.render(template, data: full_data) }
+        .to raise_error(PowerTom::TemplateSyntaxError, /grid scope variable/)
+    end
+
+    it "静态行写 {{row.name}} / {{col.label}} 同样被拒" do
+      [["合计", "{{row.name}}"], ["合计", "{{col.label}}"]].each do |extra|
+        rows = grid_rows + [extra]
+        expect { PowerTom::TableLoop.plan(rows, columns: 2) }
+          .to raise_error(PowerTom::TemplateSyntaxError, /static rows take page fields only/)
+      end
+    end
+
+    it "静态行写普通页面字段 → 合法,正常渲染(静态行的数据格随列克隆)" do
+      rows = grid_rows + [["合计", "{{total_note}}"]]
+      data = full_data.merge(total_note: "共 2 个班")
+      out = render(build_template(rows), data)
+      expect(read_table(out).last).to eq(["合计"] + (["共 2 个班"] * bands.size))
+    end
   end
 
   context "保真验收" do

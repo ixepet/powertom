@@ -145,6 +145,12 @@ module PowerTom
     rescue PowerTom::Error => e
       @err.puts "powertom: #{e.message}"
       1
+    rescue StandardError => e
+      # 兜底:上游(ruby_pptx 等)抛的异常不一定是 PowerTom::Error 子类,
+      # 退出码是稳定契约 —— 渲染失败必须返回 1,而不是把 Ruby backtrace
+      # 甩给 CI 用户(check 侧已有同样的兜底,返回 2)
+      @err.puts "powertom: render failed: #{e.class}: #{e.message}"
+      1
     end
 
     # TOML 交给库的默认 loader;JSON 在 CLI 层解析成 Hash 后传入,

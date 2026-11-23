@@ -362,6 +362,7 @@ module PowerTom
       check_grid_no_loop_labels!(rows)
       check_grid_header_labels!(rows[marker[:row]], marker[:row])
       check_grid_content_labels!(rows[content], content)
+      check_grid_static_rows!(rows, marker[:row], content)
 
       {
         kind: :grid,
@@ -370,6 +371,26 @@ module PowerTom
                 cols_path: marker[:args][:cols],
                 value_path: marker[:args][:value] }
       }
+    end
+
+    # 静态行(header/content 之外,如合计行):不允许 grid 作用域变量。
+    # render 侧只有 header/content 行有 row/col/cell 作用域,静态行写了会在
+    # 渲染期才抛错 —— 这里提前拦截,保证 check 报错、render 同样报错(§7.2)。
+    def check_grid_static_rows!(rows, header_index, content_index)
+      rows.each_with_index do |cells, index|
+        next if index == header_index || index == content_index
+
+        cells.each_with_index do |text, col|
+          label_paths(text).each do |path|
+            next unless scope_variable?(path)
+
+            raise TemplateSyntaxError,
+                  "table row #{index + 1}, column #{col + 1}: {{#{path}}} is a grid scope variable " \
+                  "and can only be used in the grid header or content row " \
+                  "(row #{header_index + 1} / row #{content_index + 1}); static rows take page fields only"
+          end
+        end
+      end
     end
 
     def check_grid_no_loop_labels!(rows)

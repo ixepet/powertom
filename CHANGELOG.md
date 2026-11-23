@@ -6,6 +6,28 @@ and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+### Fixed
+
+- `check` no longer lets templates through that fail at render time
+  (design §7.2 "check says OK ⇒ render succeeds"):
+  - A `#grid` table's static rows (e.g. a totals row outside the header and
+    content rows) may no longer use `{{row.*}}` / `{{col.*}}` / `{{cell}}` —
+    `TableLoop.plan` rejects them with a located error, so `check` and render
+    fail identically. Static rows take page fields only.
+  - In a block table with a `{{#cols}}` band, `{{col.*}}` tags in static rows
+    inside the band's column range are now reconciled per column item (they
+    were silently skipped by the main reconciliation loop).
+- `PageSurgery` rejects out-of-range slide numbers in the page plan
+  (`source: 0`, negative or beyond the slide count) with a located error
+  instead of silently cloning the wrong slide via Ruby's negative-index
+  wraparound.
+- `PageSurgery` validates zip entry names when writing the output package and
+  rejects `../` traversal, absolute paths, drive letters and `..` segments
+  (zip-slip hardening; rubyzip does not sanitize entry names itself).
+- CLI `render` now catches unexpected non-`PowerTom::Error` exceptions and
+  exits `1` with a one-line message instead of printing a Ruby backtrace;
+  the exit-code contract (0/1/2) holds for internal failures too.
+
 ### Added
 
 - Standard charts (bar/column, line, area, doughnut, radar) now emit a
