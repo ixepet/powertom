@@ -98,6 +98,19 @@ RSpec.describe ScoreReport::DeckExporter do
     expect(calls).to be_empty
   end
 
+  it "模板文件不可读(非 pptx) → TemplateError,而不是抛出原始 InvalidTemplateError" do
+    bad = File.join(@dir, "not_a_pptx.pptx")
+    File.write(bad, "not a zip")
+    uploader, calls = local_uploader
+    exporter = described_class.new(template_path: bad, uploader: uploader)
+
+    expect { exporter.call(data: data) }.to raise_error(described_class::TemplateError) do |error|
+      expect(error.user_message).to include("模板异常")
+      expect(error.message).to include("InvalidTemplateError")
+    end
+    expect(calls).to be_empty
+  end
+
   it "上传失败 → UploadError,保留底层原因供日志" do
     uploader = ->(_path, _key) { raise IOError, "disk full" }
 

@@ -90,6 +90,11 @@ module ScoreReport
       raise TemplateError.new(USER_MESSAGES[:template], detail: result.report) if template_broken?
 
       raise DataError.new(USER_MESSAGES[:data], detail: result.report)
+    rescue PowerTom::InvalidTemplateError => e
+      # 模板文件不可读(不存在 / 不是合法 pptx):PowerTom.check 的公开契约是
+      # 抛 InvalidTemplateError。这里翻译成模板错误,避免把运维/部署问题
+      # 暴露成给老师看的"数据不完整"。
+      raise TemplateError.new(USER_MESSAGES[:template], detail: "#{e.class}: #{e.message}")
     end
 
     # 不带数据再查一次:能报错说明模板本身有问题(语法/未注册 formatter/指令)
