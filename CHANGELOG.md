@@ -6,6 +6,8 @@ and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+## [0.9.2] - 2026-11-24
+
 ### Fixed
 
 - `check` no longer lets templates through that fail at render time
