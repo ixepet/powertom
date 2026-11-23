@@ -221,6 +221,31 @@ RSpec.describe PowerTom, ".render 图表绑定" do
     expect(read_chart(out_fewer, 1)[:series]).to eq([["only", [7.0, 8.0]]])
   end
 
+  it "标准图系列数与模板不符 → render 记 warning 且不阻断;数量一致 → 无 warning" do
+    template = build_chart_template # 模板 2 个系列(column×2)
+    more = { categories: %w[A B], series: [{ name: "a", values: [1, 2] },
+                                           { name: "b", values: [3, 4] }, { name: "c", values: [5, 6] }] }
+    r_more = PowerTom.render(template, data: { sales: more })
+    w_more = r_more.warnings.join
+    aggregate_failures do
+      expect(w_more).to include("data provides 3 series")
+      expect(w_more).to include("column×2 (2 series)")
+      expect(w_more).to include("inherit the last template series' formatting")
+    end
+
+    fewer = { categories: %w[A B], series: [{ name: "only", values: [7, 8] }] }
+    r_fewer = PowerTom.render(template, data: { sales: fewer })
+    w_fewer = r_fewer.warnings.join
+    aggregate_failures do
+      expect(w_fewer).to include("data provides 1 series")
+      expect(w_fewer).to include("removed along with their formatting")
+    end
+
+    same = { categories: %w[A B], series: [{ name: "a", values: [1, 2] }, { name: "b", values: [3, 4] }] }
+    r_same = PowerTom.render(template, data: { sales: same })
+    expect(r_same.warnings.join).not_to include("template draws")
+  end
+
   it "{{#each}} 克隆页各自绑定本项数据,chart part 互不共享" do
     template = build_chart_template(notes: "{{#each regions}}")
     out = File.join(@dir, "out_each.pptx")
@@ -659,6 +684,35 @@ RSpec.describe PowerTom, ".render 图表绑定" do
                               ] })
       e = result.errors.find { |x| x.message.include?("item 2") }
       expect(e.message).to include("regions[1].sales")
+    end
+
+    it "标准图系列数不符 → warning(不阻断,ok? 仍 true),带定位与后果说明" do
+      template = build_chart_template # 模板 2 个系列
+      more = { categories: %w[A B], series: [{ name: "a", values: [1, 2] },
+                                             { name: "b", values: [3, 4] }, { name: "c", values: [5, 6] }] }
+      result = PowerTom.check(template, data: { sales: more })
+      w = result.warnings.find { |x| x.message.include?("template draws") }
+      aggregate_failures do
+        expect(result.ok?).to be(true)
+        expect(result.errors).to be_empty
+        expect(w).not_to be_nil
+        expect(w.level).to eq(:warning)
+        expect(w.slide_no).to eq(1)
+        expect(w.shape).to eq("powertom:chart:sales")
+        expect(w.label).to eq("sales")
+        expect(w.message).to include("data provides 3 series")
+        expect(w.message).to include("inherit the last template series' formatting")
+      end
+
+      fewer = { categories: %w[A B], series: [{ name: "only", values: [7, 8] }] }
+      r2 = PowerTom.check(template, data: { sales: fewer })
+      w2 = r2.warnings.find { |x| x.message.include?("template draws") }
+      expect(w2.message).to include("data provides 1 series")
+      expect(w2.message).to include("removed along with their formatting")
+
+      same = { categories: %w[A B], series: [{ name: "a", values: [1, 2] }, { name: "b", values: [3, 4] }] }
+      r3 = PowerTom.check(template, data: { sales: same })
+      expect(r3.entries.map(&:message).join).not_to include("template draws")
     end
 
     it "组合图 check:数量匹配 → 无 error,数量不匹配 → error 带分布" do

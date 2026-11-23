@@ -760,12 +760,15 @@ module PowerTom
       end
     end
 
-    # 绑定系列数守卫(check 侧,设计文档 §9):绑定系列数必须等于模板的
-    # 系列总数,否则渲染时上游会静默增删 plot(与 render 同一规则);
-    # combo 与 XY 家族(scatter/bubble)通用
+    # 绑定系列数校验(check 侧,与 render 同一规则,设计文档 §9):
+    # - combo 与 XY 家族(scatter/bubble):数量必须等于模板系列总数,否则上游
+    #   会静默增删 plot / 错位重写系列 → error
+    # - 标准图表(BAR/LINE/AREA/DOUGHNUT/RADAR,即 Render::STANDARD_CHART_KINDS):
+    #   数量可增减,但不符时记 warning —— 新增系列继承最后一个模板系列的格式,
+    #   被裁掉的系列格式随之消失(feature-direction.md §1 decision 3)
+    # - PIE:多系列已有硬错误(check_pie_series_count),不在此处理
     def check_chart_series_count(value, cctx, entries, item_index = nil)
       return if value.nil?
-      return unless %i[combo XY BUBBLE].include?(cctx[:kind])
 
       series = value.key?(:series) ? value[:series] : value["series"]
       return unless series.is_a?(Array)
@@ -773,12 +776,25 @@ module PowerTom
       return if series.size == cctx[:series_count]
 
       where = item_index ? "item #{item_index + 1}: " : ""
-      entries << error_entry(
-        cctx[:slide_no], cctx[:shape], cctx[:field],
-        "#{where}chart template draws #{cctx[:distribution]} (#{cctx[:series_count]} series in " \
-        "total); the data must provide exactly #{cctx[:series_count]} series in document " \
-        "order, got #{series.size}"
-      )
+      base = "chart template draws #{cctx[:distribution]} (#{cctx[:series_count]} series in " \
+             "total); data provides #{series.size} series"
+      if %i[combo XY BUBBLE].include?(cctx[:kind])
+        entries << error_entry(
+          cctx[:slide_no], cctx[:shape], cctx[:field],
+          "#{where}#{base}; the data must provide exactly #{cctx[:series_count]} series in " \
+          "document order"
+        )
+      elsif %i[BAR LINE AREA DOUGHNUT RADAR].include?(cctx[:kind])
+        consequence = if series.size > cctx[:series_count]
+                        "the #{series.size - cctx[:series_count]} added series inherit " \
+                          "the last template series' formatting"
+                      else
+                        "the last #{cctx[:series_count] - series.size} template series are " \
+                          "removed along with their formatting"
+                      end
+        entries << CheckEntry.new(level: :warning, slide_no: cctx[:slide_no], shape: cctx[:shape],
+                                  label: cctx[:field], message: "#{where}#{base}; #{consequence}")
+      end
     end
 
     # 饼图只绘制第一个系列:多余系列会被静默丢弃,check 阶段直接报 error

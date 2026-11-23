@@ -6,6 +6,16 @@ and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+### Added
+
+- Standard charts (bar/column, line, area, doughnut, radar) now emit a
+  **warning** in both `render` and `check` when the data's series count
+  differs from the template's: added series inherit the last template
+  series' formatting, and removed series take their formatting with them.
+  Rendering is not blocked. Combo, scatter and bubble charts still require
+  exactly the template's series count (error), and pie still rejects more
+  than one series.
+
 ## [0.9.1] - 2026-11-20
 
 ### Fixed

@@ -259,6 +259,12 @@ values = [16.0, 21.0, 20.0, 25.5]
 - The whole data set is replaced: categories and series are rewritten, extra
   series inherit the last template series' formatting, surplus series are
   removed. Chart type, layout and series formatting come from the template.
+- When the data's series count differs from the template's on a standard chart
+  (bar/column, line, area, doughnut, radar), rendering still succeeds but emits
+  a warning: added series inherit the last template series' formatting, and
+  removed series take their formatting with them. `PowerTom.check` reports the
+  same mismatch as a warning. Combo, scatter and bubble charts still require
+  exactly the template's series count (error otherwise).
 - `categories` and every series' `values` must have the same length; `values`
   must be numbers; zero-series data is rejected.
 - Pie charts plot exactly one series; data with more than one series is

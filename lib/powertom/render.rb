@@ -85,6 +85,10 @@ module PowerTom
   # → 绑定(#each 页取迭代作用域)→ 保存。
   # 任何抛错都发生在写盘之前:产物要么完整要么不存在。
   class Render
+    # 系列数可自由增减的标准图表:数量与模板不符时只记 warning
+    # (combo/XY/BUBBLE 数量不符是硬错误;pie 多系列是硬错误)。
+    STANDARD_CHART_KINDS = %i[BAR LINE AREA DOUGHNUT RADAR].freeze
+
     def initialize(template_path, data:, strict:, asset_resolver: nil)
       @template_path = template_path
       @data = data
@@ -267,7 +271,7 @@ module PowerTom
     # 克隆页共享 chart part,adapter 在绑定前为该形状深拷贝独立 part
     # (docs/chart-binding-design.md)。与图片一样作用域感知:#each 克隆页
     # 各自绑定本项的数据;缺字段(strict: false)时保留占位图表。
-    def bind_charts(adapter, prs, page_scopes, binder, _warnings)
+    def bind_charts(adapter, prs, page_scopes, binder, warnings)
       adapter.chart_contexts(prs).each do |cctx|
         if cctx[:mode_error]
           raise PowerTom::Error,
@@ -294,6 +298,7 @@ module PowerTom
           validate_chart_data!(value, cctx)
           validate_chart_series_count!(value, cctx) if cctx[:kind] == :combo
           validate_pie_series_count!(value, cctx) if cctx[:kind] == :PIE
+          warn_chart_series_count!(value, cctx, warnings) if STANDARD_CHART_KINDS.include?(cctx[:kind])
         end
         adapter.replace_chart_data(prs, cctx[:chart_shape], cctx[:slide], value)
       end
@@ -356,6 +361,29 @@ module PowerTom
             "chart template draws #{cctx[:distribution]} (#{cctx[:series_count]} series in " \
             "total); the data must provide exactly #{cctx[:series_count]} series in document " \
             "order, got #{count}"
+    end
+
+    # 标准图表系列数与模板不符时记 warning(不阻断):上游会把多出的系列
+    # 克隆自最后一个模板系列(继承其格式),裁掉多余的系列(其格式随之消失)。
+    # 设计取舍见 docs/feature-direction.md §1 decision 3。
+    def warn_chart_series_count!(value, cctx, warnings)
+      series = chart_field_value(value, "series")
+      return unless series.is_a?(Array)
+
+      data_count = series.size
+      template_count = cctx[:series_count]
+      return if data_count == template_count
+
+      where = "slide #{cctx[:slide_no]} chart '#{cctx[:shape]}' field '#{cctx[:field]}'"
+      base = "#{where}: data provides #{data_count} series but the template draws " \
+             "#{cctx[:distribution]} (#{template_count} series)"
+      warnings << if data_count > template_count
+                    "#{base}; the #{data_count - template_count} added series " \
+                      "inherit the last template series' formatting"
+                  else
+                    "#{base}; the last #{template_count - data_count} template series " \
+                      "are removed along with their formatting"
+                  end
     end
 
     # 饼图只绘制第一个系列:多余系列会被静默丢弃,必须在写入前拒绝。

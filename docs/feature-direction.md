@@ -63,8 +63,9 @@ Additional verified details:
 - Zero series is rejected before anything is written (`series` must be a
   non-empty array). This is intentional: upstream removes the emptied plot
   when the series count reaches zero.
-- Series count changes on standard charts are **not** reported by `check`, so a
-  designer gets no warning that extra series inherit the last series' style.
+- Series count changes on standard charts are reported as a **warning** by both
+  `check` and render since 0.9.2 (see decision 3): extra series inherit the
+  last series' style, removed series lose their formatting.
 - Pie silently ignoring extra series was confirmed by rendering a one-series
   pie rebound to two series: the output still showed one pie. Doughnut with two
   series rendered two rings. A hard guard now rejects more than one pie series
@@ -95,9 +96,12 @@ Additional verified details:
    is already delivered, not a future feature.
 2. **Pie guard delivered**: exactly one series in both `check` and render,
    reported as a located error. This is a correctness fix, not a feature flag.
-3. Optionally add a **warning** when a standard chart's series count differs
-   from the template: state that added series inherit the last series'
-   formatting and that removed series' formatting disappears.
+3. **Implemented (0.9.2)**: a **warning** when a standard chart's series count
+   differs from the template, in both `check` and render, stating that added
+   series inherit the last series' formatting and that removed series'
+   formatting disappears. Pinned by `spec/powertom/chart_binding_spec.rb`
+   (render warnings and check warning entries, including slide/shape/label
+   location).
 4. Keep the strict rule for combo, scatter and bubble.
 5. Do **not** add an `allow_series_add_remove` flag for standard charts; it
    would only re-expose existing behaviour. If a flag is ever needed, scope it

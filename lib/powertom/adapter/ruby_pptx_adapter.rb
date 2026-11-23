@@ -196,10 +196,11 @@ module PowerTom
             entry = { slide_no: i + 1, shape: shape.name, field: field,
                       slide: slide, chart_shape: shape, kind: kind,
                       mode_error: error }
-            if %i[combo XY BUBBLE].include?(kind)
-              entry[:series_count] = chart_series_count(shape.chart)
-              entry[:distribution] = chart_distribution_label(shape.chart)
-            end
+            # 系列数/分布对所有支持的 kind 都采集:combo/XY/BUBBLE 数量不符是
+            # 硬错误,标准图表(BAR/LINE/AREA/DOUGHNUT/RADAR)数量不符只记 warning
+            # (新增系列继承最后一个模板系列的格式,被裁掉的系列格式消失)。
+            entry[:series_count] = chart_series_count(shape.chart)
+            entry[:distribution] = chart_distribution_label(shape.chart)
             contexts << entry
           end
         end
