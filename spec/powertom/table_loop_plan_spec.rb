@@ -75,5 +75,15 @@ RSpec.describe PowerTom::TableLoop do
       ]
       expect(described_class.plan(rows)[:kind]).to eq(:blocks)
     end
+
+    it "区块 marker 路径带下标 → 拒绝,与 L1 行标记口径一致" do
+      rows = [
+        ["{{#rows a[0]}}", ""],
+        ["{{a[0][].n}}", ""],
+        ["{{/rows}}", ""]
+      ]
+      expect { described_class.plan(rows) }
+        .to raise_error(PowerTom::TemplateSyntaxError, /do not support indices/)
+    end
   end
 end

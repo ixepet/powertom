@@ -27,6 +27,16 @@ and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
 - CLI `render` now catches unexpected non-`PowerTom::Error` exceptions and
   exits `1` with a one-line message instead of printing a Ruby backtrace;
   the exit-code contract (0/1/2) holds for internal failures too.
+- Row block markers with an index (`{{#rows a[0]}} … {{/rows}}`) are now
+  rejected with the same message as single-row markers ("row marker paths do
+  not support indices"); previously block mode accepted them while the
+  simple form rejected them.
+- `PageSurgery` wraps missing package parts (slide/notes rels, presentation
+  parts, non-standard notes targets) in a located `PowerTom::Error` instead
+  of leaking a bare `KeyError`.
+- Docs: `docs/usage.md` §11 documents the 10-minute Rails integration
+  checklist (no generator/railtie by design); `docs/project-design.md` §11
+  marks the resolved open questions.
 
 ### Added
 

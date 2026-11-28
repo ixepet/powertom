@@ -670,6 +670,12 @@ module PowerTom
         raise TemplateSyntaxError,
               "table row #{item[:row] + 1}: #{item[:tag]} is an invalid row block marker; use {{#rows path}}"
       end
+      # 与 L1(Scanner#validate_row_marker!)同口径:标记路径不允许下标
+      if path.match?(/\[\d+\]/)
+        raise TemplateSyntaxError,
+              "table row #{item[:row] + 1}: #{item[:tag]} row marker paths do not support indices; " \
+              "use the array name + []"
+      end
       depth = stack.size + 1
       if depth > MAX_BLOCK_DEPTH
         raise TemplateSyntaxError,

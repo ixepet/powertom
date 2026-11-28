@@ -301,6 +301,6 @@ schema-level violations.
 ## 11. Open questions
 
 1. Should nested loops (arrays inside arrays, cloning the whole page per level) be supported in v0? Leaning no: placing directives in notes naturally supports only one page-level loop
-2. Should table row-level loops (adding rows to a table on one page from an array) make 1.0? It is the most requested feature, but the implementation touches XML, so it leans toward a separate 0.x milestone
-3. Which real company export need should be the dogfooding scenario? This decides the design bias of the golden samples (reporting decks and course-material decks have very different master complexity)
-4. Should Rails integration be provided (generator + rake task templates)? Decide after dogfooding feedback
+2. ~~Should table row-level loops make 1.0?~~ **Resolved (shipped in 0.2.x–0.9.x)**: `{{array[].field}}` row loops, paired `{{#rows}}…{{/rows}}` blocks (3 levels), `{{#grid}}` dynamic columns and `{{#cols}}` bands are all implemented — see `docs/usage.md` §4 and `docs/table-loop-design.md`
+3. ~~Which dogfooding scenario?~~ **Resolved**: scenario A (score analysis report export), realised as the 9-page v2 deck in `examples/score_report/`; see `docs/dogfooding-plan.md` and `docs/dogfooding-retrospective.md`
+4. ~~Rails generator + rake task templates?~~ **Resolved (evaluated no)**: no railtie/generator; the whole integration is documented as a 10-minute checklist in `docs/usage.md` §11. Evaluation: `docs/evaluation-after-1.0.md`
