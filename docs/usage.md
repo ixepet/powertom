@@ -1,7 +1,12 @@
+---
+layout: page
+title: Usage reference
+---
+
 # PowerTom usage reference
 
 > Companion to the README: the data shape, every tag form, and the rules the engine enforces.
-> Designer-facing guide: [template-guide.md](template-guide.md).
+> Designer-facing guide: [template-guide.html](template-guide.html).
 
 ## 1. Minimal render
 
@@ -371,3 +376,64 @@ designers can locate the problem without reading the code.
 
 Missing fields are errors in strict mode. Known limitations above degrade with a warning
 instead of silently doing nothing.
+
+## 11. Rails integration in 10 minutes
+
+PowerTom needs **no railtie or generator** — the whole Rails-specific surface is one Gemfile
+line, one Rakefile line, and three reference files you copy and adapt. (Evaluated and
+rejected as a generator in `docs/evaluation-after-1.0.md`: the reference files must be
+edited per business anyway, so a generator would only save one copy-paste.)
+
+```ruby
+# Gemfile
+gem "powertom"
+```
+
+```ruby
+# Rakefile — CI gate for template publication
+require "powertom/tasks"
+# bundle exec rake powertom:check TEMPLATE=templates/score_report/v1/template.pptx \
+#                          DATA=templates/score_report/v1/sample.toml
+```
+
+Checklist:
+
+1. **Store templates** under e.g. `templates/score_report/<version>/template.pptx` with a
+   `sample.toml` next to each, and map report type → template path/version/enabled in
+   `config/powertom/templates.yml`.
+2. **Copy the three reference implementations** from `examples/score_report/` and adapt:
+   - `report_data_builder.rb` → `app/services/reports/report_data_builder.rb`
+     (analysis result → contract Hash, with readable `DataBuilder::Error` messages);
+   - `deck_exporter.rb` → `app/services/reports/deck_exporter.rb`
+     (precheck `PowerTom.check` → render → upload, mapping failures to
+     `DataError` / `TemplateError` / `UploadError`, each carrying `user_message` for the
+     UI and raw `message` for logs);
+   - `report_deck_job.rb` → wrap in ActiveJob; `perform` returns an `Outcome`
+     (`:succeeded` / `:retry_scheduled` with `retry_in` / `:failed`), so the queue adapter
+     just re-enqueues on `retry_scheduled?`. Only upload/render-fallback failures retry
+     (backoff 10 s → 300 s cap); data and template errors are terminal.
+3. **Configure the asset resolver** in `config/initializers/powertom.rb` — picture fields
+   are references, and PowerTom never fetches URLs itself:
+
+   ```ruby
+   PowerTom.configure do |config|
+     config.asset_resolver = lambda do |ref, _ctx|
+       # Security boundary: validate the reference stays inside the controlled
+       # directory and the extension is allowlisted — never accept paths from
+       # the front end (see docs/dogfooding-plan.md §7).
+       path = File.expand_path(ref, Rails.root.join("srv/powertom/assets"))
+       unless path.start_with?(Rails.root.join("srv/powertom/assets").to_s) &&
+              %w[png jpg jpeg].include?(File.extname(path).delete_prefix(".").downcase)
+         raise PowerTom::Error, "picture reference rejected: #{ref.inspect}"
+       end
+       path
+     end
+   end
+   ```
+
+4. **Entry point + spec**: a controller action that builds the analysis →
+   `ReportDeckJob.perform_later(analysis:)`, and a service spec that renders
+   `examples/score_report/sample_v2.toml` against the scaffold and asserts page count and
+   expanded table rows.
+
+That is the entire integration; everything else is plain Ruby covered by §1–§10 above.

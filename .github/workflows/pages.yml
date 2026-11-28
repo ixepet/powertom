@@ -1,0 +1,68 @@
+# GitHub Pages 站点构建与发布(方案见 docs/evaluation-after-1.0.md §2)。
+# 站点源 = docs/ 目录;首页 index.md 与 changelog.md 由 README.md / CHANGELOG.md
+# 在构建时生成(不进仓库,避免 front matter 污染 GitHub 渲染)。YARD API 文档
+# 生成到 doc/ 后并入 _site/api。触发:push 到 main。自定义域名后置。
+name: pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.4"
+
+      # 站点构建不依赖项目 Gemfile:jekyll/minima/yard 单独安装,
+      # 保持 gem 的依赖面不变(项目原则:小依赖面)
+      - name: Install build tools
+        run: gem install jekyll minima yard
+
+      - name: Build YARD API docs
+        run: yard doc
+
+      - name: Generate site home and changelog from README/CHANGELOG
+        run: |
+          printf -- '---\nlayout: home\ntitle: PowerTom — PowerPoint template engine for Ruby\n---\n\n' > docs/index.md
+          cat README.md >> docs/index.md
+          printf -- '---\nlayout: page\ntitle: Changelog\n---\n\n' > docs/changelog.md
+          cat CHANGELOG.md >> docs/changelog.md
+
+      - name: Build site with Jekyll (source: docs/)
+        run: |
+          cd docs
+          JEKYLL_NO_BUNDLER_REQUIRE=true jekyll build --destination ../_site
+
+      - name: Attach API docs to the site
+        run: cp -r doc _site/api
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

@@ -8,6 +8,7 @@
 # PowerTom — PowerPoint template engine for Ruby
 
 [![Gem Version](https://img.shields.io/gem/v/powertom)](https://rubygems.org/gems/powertom)
+[![Docs](https://img.shields.io/badge/docs-ixepet.github.io%2Fpowertom-blue)](https://ixepet.github.io/powertom/) · documentation site (usage reference, designer guide, API docs)
 
 > Designers keep the template in PowerPoint. Engineers pass a Ruby Hash (or a TOML file) and get a finished deck.
 > Layout, fonts, colours, masters and theme stay under the designer's control; the code only scans tags, binds data and clones slides.
@@ -463,7 +464,7 @@ violations fail the build rather than reaching a user's PowerPoint.
 
 ## Security
 
-To report a vulnerability, see [SECURITY.md](SECURITY.md) — please do not open public issues for security problems.
+To report a vulnerability, see [SECURITY.md](https://github.com/ixepet/powertom/blob/main/SECURITY.md) — please do not open public issues for security problems.
 
 - Template tags are pure data binding: the scanner matches `{{...}}` with regex and resolves paths against your data. No code from the template or the data is ever evaluated.
 - Picture fields are references. Without an `asset_resolver`, they are read as local paths from the server running the render — validate untrusted input on your side (a controlled directory and an extension allowlist) before passing it to `render`. With an `asset_resolver`, the application's resolver is the trust boundary and PowerTom performs no network I/O itself; see the FAQ above.
@@ -471,7 +472,7 @@ To report a vulnerability, see [SECURITY.md](SECURITY.md) — please do not open
 
 ## Development
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for the full guide; in short:
+See [CONTRIBUTING.md](https://github.com/ixepet/powertom/blob/main/CONTRIBUTING.md) for the full guide; in short:
 
 ```bash
 bundle install

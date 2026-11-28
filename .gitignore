@@ -11,6 +11,11 @@ decks/
 /doc/
 /.yardoc/
 
+# Pages 站点构建产物(CI 生成;见 .github/workflows/pages.yml)
+/_site/
+/docs/index.md
+/docs/changelog.md
+
 # dotnet 本地构建产物(L3 验证工具)
 tools/openxml_validator/bin/
 tools/openxml_validator/obj/

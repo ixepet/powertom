@@ -1,3 +1,8 @@
+---
+layout: page
+title: Template guide (for designers)
+---
+
 # PowerTom template guide (for designers)
 
 > Applies to powertom 0.1.x · 2026-11 · Companion tool: `rake powertom:check`

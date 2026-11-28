@@ -68,6 +68,24 @@ RSpec.describe PowerTom::Adapter::PageSurgery do
       .to raise_error(PowerTom::Error, /unsafe zip entry name/)
   end
 
+  it "模板缺 slide rels 部件 → 抛带定位的 PowerTom::Error,而不是裸 KeyError" do
+    template = one_page_template
+    broken = File.join(@dir, "no_rels.pptx")
+    Zip::File.open(template) do |zin|
+      Zip::OutputStream.open(broken) do |zos|
+        zin.entries.each do |entry|
+          next if entry.name == "ppt/slides/_rels/slide1.xml.rels"
+
+          zos.put_next_entry(entry.name)
+          zos.write(zin.read(entry))
+        end
+      end
+    end
+
+    expect { described_class.execute(broken, out_path, [{ source: 1, iteration: nil }]) }
+      .to raise_error(PowerTom::Error, /missing slide rels part/)
+  end
+
   it "模板 zip 含 .. 段 entry(中间穿越) → 同样拒绝" do
     template = one_page_template
     evil = File.join(@dir, "evil_mid.pptx")

@@ -88,8 +88,8 @@ module PowerTom
       end
 
       def slide_partnames_in_order(parts)
-        pres = REXML::Document.new(parts.fetch("ppt/presentation.xml"))
-        rels = REXML::Document.new(parts.fetch("ppt/_rels/presentation.xml.rels"))
+        pres = REXML::Document.new(part!(parts, "ppt/presentation.xml", "presentation part"))
+        rels = REXML::Document.new(part!(parts, "ppt/_rels/presentation.xml.rels", "presentation rels part"))
         rid_target = {}
         REXML::XPath.match(rels, "//Relationship").each do |rel|
           target = rel.attributes["Target"].to_s
@@ -113,7 +113,17 @@ module PowerTom
         end
         return nil unless rel
 
-        "ppt/notesSlides/#{File.basename(rel.attributes['Target'])}"
+        base = File.basename(rel.attributes["Target"].to_s)
+        unless base.match?(/\AnotesSlide\d+\.xml\z/)
+          raise Error, "slide #{old_slide_no} notes relationship has a non-standard target: #{base.inspect}"
+        end
+
+        "ppt/notesSlides/#{base}"
+      end
+
+      # 部件缺失统一抛带定位的 Error,不让裸 KeyError 外泄(§2.3 错误模型一致)
+      def part!(parts, name, what)
+        parts[name] || raise(Error, "template package is missing #{what}: #{name}")
       end
 
       # ---- 重写 ----
@@ -124,7 +134,7 @@ module PowerTom
 
         slide_parts = outputs.each_with_index.flat_map do |out, i|
           {
-            "ppt/slides/#{slide_name(i)}" => parts.fetch(out[:src_slide]),
+            "ppt/slides/#{slide_name(i)}" => part!(parts, out[:src_slide], "slide part"),
             "ppt/slides/_rels/#{slide_name(i)}.rels" =>
               rewrite_slide_rels(parts, out[:src_slide], out[:src_notes] ? notes_name(i) : nil)
           }
@@ -134,7 +144,7 @@ module PowerTom
           next nil unless out[:src_notes]
 
           {
-            "ppt/notesSlides/#{notes_name(i)}" => parts.fetch(out[:src_notes]),
+            "ppt/notesSlides/#{notes_name(i)}" => part!(parts, out[:src_notes], "notes part"),
             "ppt/notesSlides/_rels/#{notes_name(i)}.rels" =>
               rewrite_notes_rels(parts, out[:src_notes], slide_name(i))
           }
@@ -151,7 +161,7 @@ module PowerTom
 
       # presentation.xml.rels 里非 slide 关系保留原 rId,新 slide 关系从 max+1 起分配
       def allocate_slide_rids(parts, count)
-        rels = REXML::Document.new(parts.fetch("ppt/_rels/presentation.xml.rels"))
+        rels = REXML::Document.new(part!(parts, "ppt/_rels/presentation.xml.rels", "presentation rels part"))
         max = REXML::XPath.match(rels, "//Relationship")
                           .filter_map { |r| r.attributes["Id"].to_s[/\ArId(\d+)\z/, 1] }
                           .map(&:to_i).max || 0
@@ -159,7 +169,7 @@ module PowerTom
       end
 
       def rewrite_presentation(parts, count, new_rids)
-        xml = parts.fetch("ppt/presentation.xml").dup.force_encoding(Encoding::UTF_8)
+        xml = part!(parts, "ppt/presentation.xml", "presentation part").dup.force_encoding(Encoding::UTF_8)
         entries = (0...count).map { |i| %(<p:sldId id="#{256 + i}" r:id="#{new_rids[i]}"/>) }.join
         unless xml.sub!(%r{<p:sldIdLst>.*?</p:sldIdLst>}m, "<p:sldIdLst>#{entries}</p:sldIdLst>")
           raise Error, "sldIdLst not found in presentation.xml"
@@ -169,7 +179,7 @@ module PowerTom
       end
 
       def rewrite_presentation_rels(parts, count, new_rids)
-        xml = parts.fetch("ppt/_rels/presentation.xml.rels").dup.force_encoding(Encoding::UTF_8)
+        xml = part!(parts, "ppt/_rels/presentation.xml.rels", "presentation rels part").dup.force_encoding(Encoding::UTF_8)
         xml = xml.gsub(%r{<Relationship\b[^>]*Target="slides/slide\d+\.xml"[^>]*/>}, "")
         new_rels = (0...count).map do |i|
           "<Relationship Id=\"#{new_rids[i]}\" " \
@@ -184,7 +194,7 @@ module PowerTom
       # 时声明——notes part 同样只为这些页写出,无条件声明会产生悬空
       # Override(P0-1,PowerPoint 对悬空声明会提示修复,LibreOffice 则静默容忍)。
       def rewrite_content_types(parts, outputs)
-        xml = parts.fetch("[Content_Types].xml").dup.force_encoding(Encoding::UTF_8)
+        xml = part!(parts, "[Content_Types].xml", "content types part").dup.force_encoding(Encoding::UTF_8)
         xml = xml.gsub(%r{<Override [^>]*PartName="/ppt/slides/slide\d+\.xml"[^>]*/>}, "")
         xml = xml.gsub(%r{<Override [^>]*PartName="/ppt/notesSlides/notesSlide\d+\.xml"[^>]*/>}, "")
         overrides = outputs.each_with_index.flat_map do |out, i|
@@ -201,7 +211,7 @@ module PowerTom
       # slide rels:notesSlide 指向重编号后的新 notesSlide;其余(媒体/布局/tags)原样共享
       def rewrite_slide_rels(parts, src_slide_part, new_notes_name)
         rels_name = "ppt/slides/_rels/#{File.basename(src_slide_part)}.rels"
-        xml = parts.fetch(rels_name).dup.force_encoding(Encoding::UTF_8)
+        xml = part!(parts, rels_name, "slide rels part").dup.force_encoding(Encoding::UTF_8)
         if new_notes_name
           xml = xml.gsub(%r{Target="\.\./notesSlides/notesSlide\d+\.xml"},
                          %(Target="../notesSlides/#{new_notes_name}"))
@@ -211,7 +221,7 @@ module PowerTom
 
       def rewrite_notes_rels(parts, src_notes_part, new_slide_name)
         rels_name = "ppt/notesSlides/_rels/#{File.basename(src_notes_part)}.rels"
-        xml = parts.fetch(rels_name).dup.force_encoding(Encoding::UTF_8)
+        xml = part!(parts, rels_name, "notes rels part").dup.force_encoding(Encoding::UTF_8)
         xml = xml.gsub(%r{Target="\.\./slides/slide\d+\.xml"}, %(Target="../slides/#{new_slide_name}"))
         xml.force_encoding(Encoding::BINARY)
       end

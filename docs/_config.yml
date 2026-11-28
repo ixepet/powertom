@@ -1,0 +1,31 @@
+# GitHub Pages 站点配置(Jekyll)。站点源 = docs/ 目录:
+#   - 用户向文档 usage / template-guide / windows-support(带 front matter)
+#   - 首页 index.md 与 changelog.md 由 CI 从 README.md / CHANGELOG.md 生成
+#     (见 .github/workflows/pages.yml),不进仓库
+#   - YARD API 文档构建时并入 _site/api
+# 内部设计/评估文档 exclude,只保留在仓库。方案与取舍见 docs/evaluation-after-1.0.md §2。
+title: PowerTom
+description: >-
+  PowerPoint template engine for Ruby — designers keep the template in
+  PowerPoint; engineers pass a Ruby Hash or TOML and get a finished deck.
+theme: minima
+url: https://ixepet.github.io
+baseurl: /powertom
+
+defaults:
+  - scope:
+      path: ""
+    values:
+      layout: page
+
+exclude:
+  # 内部设计/评估文档不发布到站点(保留在仓库)
+  # (index.md / changelog.md 由 CI 生成参与构建,靠 .gitignore 保持不进仓库)
+  - project-design.md
+  - feature-direction.md
+  - chart-binding-design.md
+  - table-loop-design.md
+  - dogfooding-plan.md
+  - dogfooding-retrospective.md
+  - score-report-template-spec.md
+  - evaluation-after-1.0.md
