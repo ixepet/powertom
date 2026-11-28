@@ -1,7 +1,12 @@
+---
+layout: page
+title: Usage reference
+---
+
 # PowerTom usage reference
 
 > Companion to the README: the data shape, every tag form, and the rules the engine enforces.
-> Designer-facing guide: [template-guide.md](template-guide.md).
+> Designer-facing guide: [template-guide.html](template-guide.html).
 
 ## 1. Minimal render
 

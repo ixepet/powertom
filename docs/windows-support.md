@@ -1,3 +1,8 @@
+---
+layout: page
+title: Windows support and verification
+---
+
 # Windows support and verification
 
 > Status: verified on Windows 11 · Ruby 4.0.9 (scoop) · Microsoft Office 16 (Click-to-Run)
@@ -226,5 +231,5 @@ the PowerPoint COM check above exists as a local substitute.
   as a design constraint, and the checker's "never raises" contract.
 - [chart-binding-design.md §10](chart-binding-design.md) — the upstream
   `ruby_pptx` chart defects and the version-gated workaround.
-- [../README.md](../README.md) — the user-facing summary and the enterprise
+- [../index.html](../index.html) — the user-facing summary and the enterprise
   delivery section.

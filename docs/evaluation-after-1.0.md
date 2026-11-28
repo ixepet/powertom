@@ -62,16 +62,23 @@ Current state: 11 markdown files under `docs/` (user-facing: `usage.md`,
 | B. VitePress / Docusaurus standalone site | medium: Node build chain, version maintenance, contradicts the small-dependency principle | nicer search/navigation | ⏸ only after traffic justifies it |
 | C. Custom domain (e.g. powertom.dev) | low technically (Pages custom domain), plus domain purchase / regional filing | branding | ⏸ can be added later without rework |
 
-Recommended minimal shape for option A:
+Recommended minimal shape for option A — **implemented 2026-11-23**:
 
-1. `docs/` gets a Jekyll front-matter pass; user-facing pages (README, usage,
-   template-guide, windows-support, CHANGELOG) form the public nav; internal
-   design docs are `exclude`d from the site but stay in the repo.
-2. One `.github/workflows/pages.yml`: build YARD (`bundle exec yard doc
-   --no-output` already passes in CI) and deploy Pages on push to `main`.
+1. Site source is `docs/` with `docs/_config.yml` (theme: minima). User-facing
+   pages (`usage.md`, `template-guide.md`, `windows-support.md`) carry Jekyll
+   front matter; internal design docs are `exclude`d but stay in the repo.
+   Home (`index.md`) and `changelog.md` are generated in CI from `README.md` /
+   `CHANGELOG.md` so the repo files stay free of front matter.
+2. `.github/workflows/pages.yml`: install jekyll/minima/yard standalone (the
+   gem's dependency surface is unchanged), `yard doc` → `_site/api`,
+   `jekyll build` from `docs/`, deploy via `actions/deploy-pages` on push to
+   `main`. Pages URL: `https://ixepet.github.io/powertom/`.
 3. No custom domain yet; add later via Pages settings.
 
-Effort estimate: ~half a day including CI.
+Gotcha found while building: Jekyll's `exclude` entries are **prefix**
+matched, so `doc` also excludes `docs/` — write `doc/` with a trailing slash.
+Also, only files with YAML front matter are converted to pages; the rest are
+copied as static files.
 
 ## 3. Sequencing
 
